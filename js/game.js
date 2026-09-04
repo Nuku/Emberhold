@@ -59,6 +59,7 @@ function trialCount(id) { return state.trialDone[id] || 0; }
 function upg(id) { return state.upgrades[id] || 0; }
 function tribeDef(id) { return TRIBES.find(t => t.id === id) || TRIBES[0]; }
 function tradeAvailable() { return tech('currency') && !!state.tradePartner; }
+function guardCap() { return bld('barracks') * 2; }
 function trialMax(def) {
   return def.repeat > 0 ? def.repeat + (upg('oathkeepers') ? 1 : 0) : 0;
 }
@@ -184,15 +185,20 @@ function production() {
   const rates = {};
   for (const r of RESOURCES) rates[r.id] = 0;
   const global = allMult();
+  let winterproofFood = 0;
+  let guardUpkeep = 0;
 
   // job output
   for (const j in JOBS) {
     const job = JOBS[j];
     const n = state.jobs[j] || 0;
     if (n > 0) {
-      if (!job.inputs || (state.res.wood > 0 && state.res.stone > 0)) {
+      if (job.winterproof) {
+        winterproofFood += n * job.base;
+      } else if (!job.inputs || (state.res.wood > 0 && state.res.stone > 0)) {
         rates[job.res] += n * job.base;
       }
+      if (job.upkeep) guardUpkeep += n * job.upkeep;
       if (job.inputs) {
         for (const r in job.inputs) rates[r] -= n * job.inputs[r];
       }
@@ -214,6 +220,10 @@ function production() {
     (1 + 0.20 * bld('aqueduct')) *
     (1 + 0.10 * trialCount('scarcity')) *
     (trialActive('scarcity') ? 0.5 : 1);
+  winterproofFood *= global *
+    (1 + 0.50 * (tech('weaponry') ? 1 : 0)) *
+    (1 + 0.75 * (tech('weaponEfficiency') ? 1 : 0));
+  rates.food += winterproofFood - guardUpkeep;
 
   rates.wood *= global * (1 + 0.10 * bld('lumberYard')) * (expDone('oldForest') ? 1.15 : 1);
   rates.stone *= global * (1 + 0.10 * bld('stoneWorks')) * (expDone('foothills') ? 1.15 : 1);
@@ -559,6 +569,7 @@ function doAssign(job, delta) {
   if (!j || !j.unlock()) return;
   state.jobs[job] = state.jobs[job] || 0;
   if (delta > 0 && unassigned() <= 0) return;
+  if (delta > 0 && job === 'guard' && (state.jobs.guard || 0) >= guardCap()) return;
   if (delta < 0 && state.jobs[job] <= 0) return;
   state.jobs[job] += delta;
 }
@@ -733,10 +744,10 @@ function renderVillage() {
       ` — ${job.desc}</span>` +
       `<span class="job-btns">` +
       `<button data-action="job-dec" data-job="${j}" ${n > 0 ? '' : 'disabled'}>−</button>` +
-      `<button data-action="job-inc" data-job="${j}" ${unassigned() > 0 ? '' : 'disabled'}>+</button>` +
+      `<button data-action="job-inc" data-job="${j}" ${unassigned() > 0 && (j !== 'guard' || n < guardCap()) ? '' : 'disabled'}>+</button>` +
       `</span></div>`;
   }
-  h += `<div class="res-note" style="margin-top:6px">Every villager eats ${fmt(FOOD_PER_POP)} food/s, working or not. Winters halve the fields; keep a store. Every store but Knowledge has a ceiling — what flows in past a full store is wasted. Storehouses raise the ceilings.</div>`;
+  h += `<div class="res-note" style="margin-top:6px">Every villager eats ${fmt(FOOD_PER_POP)} food/s, working or not. Guards also require ${fmt(JOBS.guard.upkeep)} food/s each, but their hunting is not reduced by winter. Every store but Knowledge and Currency has a ceiling — what flows in past a full store is wasted. Storehouses raise the ceilings.</div>`;
 
   return h;
 }

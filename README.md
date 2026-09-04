@@ -30,6 +30,9 @@ for backups. On return, offline progress is simulated at half speed, capped at
   migration, Stonekin, Marshfolk, or Skyborn may appear nearby. Currency makes
   trade possible, while Banking unlocks Bankers who increase incoming funds;
   Steel-age buildings and later require Currency as well as materials.
+- **Guards.** Guards hunt while keeping watch, producing Food even in winter,
+  though each one has a Food upkeep. Barracks determine how many can serve;
+  Weaponry and Weapon Efficiency improve their hunting yield.
 - **Expanding the field.** One-time **Expeditions** (Old Forest, Foothills,
   Sunken Ruins, Ember Vein, Glacial Peaks) permanently add passive income and
   are prerequisites for late buildings like the Observatory.
