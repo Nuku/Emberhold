@@ -22,8 +22,10 @@ for backups. On return, offline progress is simulated at half speed, capped at
 - **Seasons.** A year is 200 in-game days (~100 real seconds). Autumn slows
   the fields and **winter halves them** — keep a store.
 - **Eras.** Research moves Emberhold through Age of Ember → Stone → Iron →
-  Steam → Light. Each era unlocks new resources (stone, tools, iron, coal,
-  steel, machinery, aether) and buildings.
+  Steam → Light. Each era unlocks new resources (stone, copper, tools, iron,
+  coal, steel, machinery, aether) and buildings. Copper appears in trace
+  amounts during the Age of Stone, then grows richer through prospecting,
+  metallurgy, and electrical engineering.
 - **Expanding the field.** One-time **Expeditions** (Old Forest, Foothills,
   Sunken Ruins, Ember Vein, Glacial Peaks) permanently add passive income and
   are prerequisites for late buildings like the Observatory.

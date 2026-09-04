@@ -157,6 +157,7 @@ function seasonMult() {
 function allMult() {
   let m = 1;
   m *= 1 + 0.05 * bld('shrine') + 0.10 * bld('factory');
+  m *= 1 + 0.15 * bld('dynamo');
   m *= 1 + 0.002 * state.res.machinery;
   if (expDone('glacialPeaks')) m *= 1.10;
   if (perm('everwarm')) m *= 1.05;
@@ -190,6 +191,7 @@ function production() {
   if (expDone('sunkenRuins')) rates.knowledge += 0.3;
   if (expDone('emberVein')) rates.coal += 0.5;
   if (expDone('glacialPeaks')) rates.aether += 0.1;
+  if (era() >= 2) rates.copper += 0.02; // trace deposits found throughout the Stone age
 
   // per-resource modifiers
   rates.food *= global * seasonMult() *
@@ -206,6 +208,10 @@ function production() {
     (perm('oralTradition') ? 1.5 : 1) *
     (trialActive('silence') ? 0 : 1);
   rates.iron *= global * (expDone('emberVein') ? 1.10 : 1);
+  rates.copper *= global *
+    (tech('copperProspecting') ? 1.75 : 1) *
+    (tech('metallurgy') ? 2 : 1) *
+    (tech('electricalEngineering') ? 1.5 : 1);
   rates.aether *= global * (expDone('glacialPeaks') ? 1.10 : 1);
   rates.coal *= global;
   rates.tools *= global;
