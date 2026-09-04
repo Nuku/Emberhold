@@ -66,8 +66,12 @@ function guardCap() { return bld('barracks') * 2; }
 function randomDiplomacyRequest() {
   const pool = RESOURCES.filter(r => r.id !== 'knowledge' && r.id !== 'currency' && r.id !== 'machinery' && r.id !== 'aether' && state.seen[r.id]);
   const res = (pool.length ? pool : [RESOURCES.find(r => r.id === 'wood')])[Math.floor(Math.random() * (pool.length || 1))];
-  const amount = Math.max(10, Math.round((35 + era() * 30) * (0.8 + Math.random() * 0.4) / 5) * 5);
-  return { res: res.id, amount };
+  const ageScale = [1, 1.5, 2.5, 4, 6][Math.min(era() - 1, 4)];
+  const baseByResource = { food: 120, wood: 100, stone: 80, tools: 12, copper: 15, iron: 20, coal: 25, steel: 15 };
+  const target = (baseByResource[res.id] || 20) * ageScale * (0.9 + Math.random() * 0.2);
+  const cap = capacityOf(res.id);
+  const amount = Math.max(10, Math.round(Math.min(target, cap * 0.8) / 5) * 5);
+  return { res: res.id, amount, age: era() };
 }
 function ensureDiplomacyEntry(id) {
   state.diplomacy = state.diplomacy || {};
@@ -76,6 +80,8 @@ function ensureDiplomacyEntry(id) {
       disposition: Math.floor(Math.random() * 101) - 50,
       request: randomDiplomacyRequest(),
     };
+  } else if (!state.diplomacy[id].request || state.diplomacy[id].request.age === undefined) {
+    state.diplomacy[id].request = randomDiplomacyRequest();
   }
   return state.diplomacy[id];
 }
