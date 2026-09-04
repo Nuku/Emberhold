@@ -64,7 +64,7 @@ const JOBS = {
                  unlock: () => bld('library') > 0 },
   banker:      { name: 'Banker',      res: 'currency',  base: 0.08, desc: 'keeps trade moving and funds arriving',
                  trade: true, unlock: () => tech('banking') && tradeAvailable() },
-  guard:       { name: 'Guard',       res: 'food',      base: 0.12, upkeep: 0.04, winterproof: true,
+  guard:       { name: 'Guard',       res: 'food',      base: 0.14, upkeep: 0.20, winterproof: true,
                  desc: 'hunts between watches; barracks set the guard limit',
                  unlock: () => tech('guards') && bld('barracks') > 0 },
   digger:      { name: 'Coal Digger',  res: 'coal',      base: 0.14, desc: 'black dust under black fingernails',
