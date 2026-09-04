@@ -394,8 +394,8 @@ function resolveTribeRaid(id) {
   const entry = state.diplomacy[id];
   const tribe = tribeDef(id);
   const able = ableGuards();
-  const armed = Math.min(able, state.res.weapons || 0);
-  const armored = Math.min(able, state.res.armor || 0);
+  const armed = tech('weaponry') ? able : 0;
+  const armored = tech('leatherArmor') ? able : 0;
   const defense = able + armed * 0.9 + armored * 0.7;
   const raidPower = 3 + (50 - entry.disposition) / 8 + Math.random() * 5;
   if (defense >= raidPower) {
@@ -716,6 +716,8 @@ function loadGame() {
     // merge so new fields exist
     for (const k in d) if (s[k] === undefined) s[k] = d[k];
     for (const r of RESOURCES) if (s.res[r.id] === undefined) s.res[r.id] = 0;
+    delete s.res.weapons;
+    delete s.res.armor;
     return s;
   } catch (e) { return null; }
 }
@@ -871,7 +873,7 @@ function renderVillage() {
       `<button data-action="job-inc" data-job="${j}" ${unassigned() > 0 && (j !== 'guard' || n < guardCap()) ? '' : 'disabled'}>+</button>` +
       `</span></div>`;
   }
-  h += `<div class="res-note" style="margin-top:6px">Every villager eats ${fmt(FOOD_PER_POP)} food/s, working or not. Guards also require ${fmt(JOBS.guard.upkeep)} food/s each, but their hunting is not reduced by winter. Weapons and Armor strengthen the watch; injuries heal over time. Every store but Knowledge and Currency has a ceiling — what flows in past a full store is wasted. Storehouses raise the ceilings.</div>`;
+  h += `<div class="res-note" style="margin-top:6px">Every villager eats ${fmt(FOOD_PER_POP)} food/s, working or not. Guards also require ${fmt(JOBS.guard.upkeep)} food/s each, but their hunting is not reduced by winter. Weaponry and Leather Armor research strengthen the watch; injuries heal over time. Every store but Knowledge and Currency has a ceiling — what flows in past a full store is wasted. Storehouses raise the ceilings.</div>`;
 
   return h;
 }
