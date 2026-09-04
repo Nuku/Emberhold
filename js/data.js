@@ -20,6 +20,8 @@ const RESOURCES = [
   { id: 'tools',     name: 'Tools',     note: 'crafted at the Workbench; sharpen every trade' },
   { id: 'knowledge', name: 'Knowledge', note: 'the one store with no ceiling; spent on research' },
   { id: 'currency',  name: 'Currency',  note: 'funds arriving from trade with neighboring tribes' },
+  { id: 'weapons',   name: 'Weapons',   note: 'arms kept ready for the village watch' },
+  { id: 'armor',     name: 'Armor',     note: 'protection that keeps Guards standing' },
   { id: 'iron',      name: 'Iron',      note: 'pried from the deep seams' },
   { id: 'coal',      name: 'Coal',      note: 'burns hotter than wood' },
   { id: 'steel',     name: 'Steel',     note: 'smelted from iron and coal in the Foundry' },
@@ -48,6 +50,8 @@ const STORAGE = {
   copper:    { base: 25,  per: 100, bld: 'deepStore' },
   coal:      { base: 100, per: 300, bld: 'deepStore' },
   steel:     { base: 50,  per: 100, bld: 'deepStore' },
+  weapons:   { base: 10,  per: 30,  bld: 'deepStore' },
+  armor:     { base: 5,   per: 20,  bld: 'deepStore' },
   machinery: { base: 10,  per: 50,  bld: 'vault' },
   aether:    { base: 25,  per: 50,  bld: 'vault' },
 };
@@ -263,6 +267,10 @@ const CRAFTS = [
     req: () => bld('foundry') > 0, desc: 'iron, disciplined by fire' },
   { id: 'machinery', name: 'Machinery', give: { machinery: 1 }, cost: { steel: 5, coal: 20 },
     req: () => bld('workshop') > 0, desc: 'gears, springs, patience' },
+  { id: 'weapons', name: 'Weapons', give: { weapons: 1 }, cost: { iron: 10, copper: 5 },
+    req: () => bld('foundry') > 0, desc: 'spears, bows, and the confidence to stand' },
+  { id: 'armor', name: 'Armor', give: { armor: 1 }, cost: { steel: 5, copper: 5 },
+    req: () => bld('foundry') > 0, desc: 'fitted plates for the village watch' },
 ];
 
 // --- trials: challenge modes. repeat = 0 means once-only. ---

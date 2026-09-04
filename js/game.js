@@ -40,6 +40,7 @@ function defaultState() {
     diplomacy: {},
     diplomats: {},
     diplomacyEventT: 0,
+    guardInjuries: 0,
     migrating: false,
     migrationSnapshot: null,
     pendingEchoes: 0,
@@ -98,6 +99,7 @@ function diplomacyRequestText(tribe, entry) {
 }
 function diplomatCount(id) { return (state.diplomats && state.diplomats[id]) || 0; }
 function totalDiplomats() { return Object.values(state.diplomats || {}).reduce((sum, n) => sum + n, 0); }
+function ableGuards() { return Math.max(0, (state.jobs.guard || 0) - (state.guardInjuries || 0)); }
 function trialMax(def) {
   return def.repeat > 0 ? def.repeat + (upg('oathkeepers') ? 1 : 0) : 0;
 }
@@ -233,8 +235,9 @@ function production() {
     const n = state.jobs[j] || 0;
     if (job.targeted) continue;
     if (n > 0) {
+      const able = j === 'guard' ? ableGuards() : n;
       if (job.winterproof) {
-        winterproofFood += n * job.base;
+        winterproofFood += able * job.base;
       } else if (!job.inputs || (state.res.wood > 0 && state.res.stone > 0)) {
         rates[job.res] += n * job.base;
       }
@@ -369,6 +372,7 @@ function updateDiplomacy(dt) {
     const nudged = diplomatCount(id) * 0.02 * dt;
     if (nudged) entry.disposition = Math.min(100, entry.disposition + nudged);
   }
+  if (state.guardInjuries > 0) state.guardInjuries = Math.max(0, state.guardInjuries - dt / 90);
   state.diplomacyEventT = (state.diplomacyEventT || 0) + dt;
   if (state.diplomacyEventT < 180) return;
   state.diplomacyEventT = 0;
@@ -376,10 +380,45 @@ function updateDiplomacy(dt) {
   if (!ids.length) return;
   const id = ids[Math.floor(Math.random() * ids.length)];
   const entry = state.diplomacy[id];
+  const tribe = tribeDef(id);
+  if (entry.disposition < 50 && Math.random() < 0.45) {
+    resolveTribeRaid(id);
+    return;
+  }
   const delta = Math.random() < 0.55 ? 5 + Math.floor(Math.random() * 6) : -(5 + Math.floor(Math.random() * 6));
   entry.disposition = Math.max(-100, Math.min(100, entry.disposition + delta));
-  const tribe = tribeDef(id);
   addLog(`${tribe.name}: ${delta > 0 ? 'a diplomatic success' : 'a diplomatic slight'} shifts relations by ${delta > 0 ? '+' : ''}${delta}.`, delta > 0 ? 'log-good' : 'log-bad');
+}
+
+function resolveTribeRaid(id) {
+  const entry = state.diplomacy[id];
+  const tribe = tribeDef(id);
+  const able = ableGuards();
+  const armed = Math.min(able, state.res.weapons || 0);
+  const armored = Math.min(able, state.res.armor || 0);
+  const defense = able + armed * 0.9 + armored * 0.7;
+  const raidPower = 3 + (50 - entry.disposition) / 8 + Math.random() * 5;
+  if (defense >= raidPower) {
+    entry.disposition = Math.max(-100, entry.disposition - 2);
+    addLog(`The ${tribe.name} test Emberhold's walls, but ${able} able Guard${able === 1 ? '' : 's'} drive them off.`, 'log-good');
+    return;
+  }
+  const margin = raidPower - defense;
+  const deaths = Math.min(able, Math.floor(margin / 5));
+  const injuries = Math.min(Math.max(0, able - deaths), Math.max(1, Math.ceil(margin / 3)));
+  state.jobs.guard = Math.max(0, (state.jobs.guard || 0) - deaths);
+  state.guardInjuries = Math.min(ableGuards(), (state.guardInjuries || 0) + injuries);
+  const lootPool = ['food', 'wood', 'stone', 'tools', 'copper', 'iron', 'coal', 'steel', 'currency']
+    .filter(r => (state.res[r] || 0) > 0);
+  const loot = [];
+  for (let i = 0; i < Math.min(2, lootPool.length); i++) {
+    const pick = lootPool.splice(Math.floor(Math.random() * lootPool.length), 1)[0];
+    const amount = Math.min(state.res[pick], Math.max(5, Math.floor(state.res[pick] * (0.08 + margin * 0.015))));
+    state.res[pick] -= amount;
+    loot.push(`${fmt(amount)} ${RESOURCES.find(r => r.id === pick).name}`);
+  }
+  entry.disposition = Math.max(-100, entry.disposition - 6);
+  addLog(`The ${tribe.name} raid Emberhold! ${deaths} Guard${deaths === 1 ? '' : 's'} die${deaths === 1 ? 's' : ''}, ${injuries} suffer injuries, and they make off with ${loot.join(' and ') || 'nothing'}.`, 'log-bad');
 }
 
 function trialProgressText() {
@@ -823,7 +862,7 @@ function renderVillage() {
     const n = state.jobs[j] || 0;
     h += `<div class="job-row">` +
       `<span class="job-name">${job.name}</span>` +
-      `<span class="job-assign">${n}</span>` +
+      `<span class="job-assign">${j === 'guard' && state.guardInjuries ? `${n} (${Math.floor(ableGuards())} able)` : n}</span>` +
       `<span class="job-rate">${fmt(job.base)} ${RESOURCES.find(r => r.id === job.res).name}/s each` +
       (job.inputs ? ` (uses ${Object.entries(job.inputs).map(([r, v]) => `${fmt(v)} ${RESOURCES.find(x => x.id === r).name.toLowerCase()}/s`).join(' + ')})` : '') +
       ` — ${job.desc}</span>` +
@@ -832,7 +871,7 @@ function renderVillage() {
       `<button data-action="job-inc" data-job="${j}" ${unassigned() > 0 && (j !== 'guard' || n < guardCap()) ? '' : 'disabled'}>+</button>` +
       `</span></div>`;
   }
-  h += `<div class="res-note" style="margin-top:6px">Every villager eats ${fmt(FOOD_PER_POP)} food/s, working or not. Guards also require ${fmt(JOBS.guard.upkeep)} food/s each, but their hunting is not reduced by winter. Every store but Knowledge and Currency has a ceiling — what flows in past a full store is wasted. Storehouses raise the ceilings.</div>`;
+  h += `<div class="res-note" style="margin-top:6px">Every villager eats ${fmt(FOOD_PER_POP)} food/s, working or not. Guards also require ${fmt(JOBS.guard.upkeep)} food/s each, but their hunting is not reduced by winter. Weapons and Armor strengthen the watch; injuries heal over time. Every store but Knowledge and Currency has a ceiling — what flows in past a full store is wasted. Storehouses raise the ceilings.</div>`;
 
   return h;
 }
@@ -895,6 +934,7 @@ function renderDiplomacy() {
     h += `<div class="card"><div class="card-head"><span class="card-title">${tribe.name}</span>` +
       `<span class="card-count">disposition ${Math.round(entry.disposition)} / 100</span></div>` +
       `<div class="card-desc">${tribe.text}</div>` +
+      (entry.disposition < 50 ? `<div class="trial-mod">Relations are strained: the ${tribe.name} may raid the village.</div>` : '') +
       `<div class="trial-goal">${diplomacyRequestText(tribe, entry)}</div>` +
       `<div class="card-cost">offer: ${costHtml(requestCost)}</div>` +
       `<div class="card-actions"><button data-action="diplomacy-supply" data-tribe="${id}" ${canSupply ? '' : 'disabled'}>Supply the request</button></div>`;
