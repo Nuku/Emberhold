@@ -30,6 +30,10 @@ for backups. On return, offline progress is simulated at half speed, capped at
   migration, Stonekin, Marshfolk, or Skyborn may appear nearby. Currency makes
   trade possible, while Banking unlocks Bankers who increase incoming funds;
   Steel-age buildings and later require Currency as well as materials.
+- **Industry.** The Trial of Industrialization unlocks the Factory for its
+  duration; build it and produce 100 Industrial Goods before the deadline.
+  Steam Plants and Dynamos generate Power, while factories consume it without
+  needing workers. Completing the trial makes factories permanent.
 - **Diplomacy.** Contacted tribes have dispositions, make requests in tones
   ranging from pleas to demands, and may improve when their requests are met.
   Age-of-Iron Diplomacy unlocks Diplomats, who can be assigned to individual
@@ -43,7 +47,8 @@ for backups. On return, offline progress is simulated at half speed, capped at
 - **Compounding back-path ease.** Tools, Tinkerers, Shrines, Factories and stored
   Machinery all raise production everywhere; Frugality/Blueprints cut
   building costs.
-- **Capped stores.** Every store except Knowledge has a ceiling; surplus
+- **Capped stores.** Every store except Knowledge, Currency, Power, and
+  Industrial Goods has a ceiling; surplus
   flowing into a full store is wasted. The **Storehouse** (wood, costs that
   multiply ×2.1 each) raises food/wood/stone/tools capacity; the **Deep
   Store** (Age of Iron) covers iron/coal/steel; the **Vault** (Age of Steam)
@@ -109,6 +114,7 @@ you'll have them.
 | Long Night | once | winter food ×0.25 | survive a year | Everwarm (mild winters, +5% all) |
 | Solitude | once | population capped at 10 | stockpile 800 knowledge | Huts grant +2 cap each |
 | Haste | once | all production −30% | reach Age of Light in 1200 days | Blueprints (−15% building costs) |
+| Industrialization | once | factories require Power | produce 100 Industrial Goods in 1200 days | factories remain available permanently |
 
 ## Files
 

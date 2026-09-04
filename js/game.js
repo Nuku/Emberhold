@@ -156,6 +156,7 @@ function perm(key) {
     case 'twinSouls': return trialCount('solitude') > 0;
     case 'blueprints': return trialCount('haste') > 0;
     case 'tinkerers': return trialCount('tinkering') > 0;
+    case 'factory': return trialCount('industrialization') > 0;
   }
   return false;
 }
@@ -287,6 +288,16 @@ function production() {
   rates.tools *= global;
   rates.currency *= global;
 
+  if (bld('steamPlant') > 0) {
+    rates.power += bld('steamPlant') * 1.2;
+    rates.coal -= bld('steamPlant') * 0.08;
+  }
+  if (bld('dynamo') > 0) rates.power += bld('dynamo') * 1.5;
+  if (bld('factory') > 0 && state.res.power > 0) {
+    rates.goods += bld('factory') * 0.08;
+    rates.power -= bld('factory') * 0.35;
+  }
+
   // the land itself
   for (const r in rates) rates[r] *= landingMod(r);
 
@@ -359,6 +370,10 @@ function updateTrial(dt) {
     }
     case 'tinkering':
       if (tr.daysActive >= 240 && (state.jobs.tinkerer || 0) > 0) { endTrial(true); return; }
+      break;
+    case 'industrialization':
+      if (state.res.goods >= 100) { endTrial(true); return; }
+      if (tr.daysActive > 1200) { endTrial(false); return; }
       break;
     case 'haste':
       if (state.era >= 5) { endTrial(true); return; }
@@ -443,6 +458,7 @@ function trialProgressText() {
       return `emptiest store: ${Math.floor(worst * 100)}% full — every discovered store must hit its ceiling`;
     }
     case 'tinkering': return `${Math.floor(tr.daysActive)} / 240 days endured — ${state.jobs.tinkerer || 0} Tinkerer assigned (need at least 1)`;
+    case 'industrialization': return `${fmt(state.res.goods)} / 100 Industrial Goods — ${Math.floor(tr.daysActive)} / 1200 days`;
     case 'haste': return `${Math.floor(tr.daysActive)} / 1200 days to reach the Age of Light`;
   }
   return '';
