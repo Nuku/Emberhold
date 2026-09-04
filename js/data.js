@@ -178,12 +178,12 @@ const BUILDINGS = [
     req: () => tech('metallurgy'), desc: 'boilers and turbines make a new kind of work possible' },
 
   { id: 'dynamo', name: 'Dynamo', max: 1, scale: 1,
-    cost: { copper: 140, steel: 50, machinery: 25, tools: 60, currency: 120 },
+    cost: { copper: 140, steel: 50, machinery: 25, tools: 60, currency: 120, goods: 25 },
     effect: () => '+15% all production',
     req: () => tech('electricalEngineering'), desc: 'copper coils turn motion into possibility' },
 
   { id: 'vault', name: 'Vault', max: 12, scale: 2.0,
-    cost: { steel: 100, tools: 80, currency: 100 },
+    cost: { steel: 100, tools: 80, currency: 100, goods: 30 },
     effect: () => '+50 machinery and aether capacity',
     req: () => tech('machineryTech'), desc: 'a quiet room where delicate things wait' },
 
@@ -193,13 +193,13 @@ const BUILDINGS = [
     req: () => (trialActive('industrialization') || perm('factory')) && tech('metallurgy'), desc: 'the drumbeat of the new age' },
 
   { id: 'observatory', name: 'Observatory', max: 1, scale: 1,
-    cost: { steel: 130, machinery: 20, tools: 60, currency: 150 },
+    cost: { steel: 130, machinery: 20, tools: 60, currency: 150, goods: 60 },
     effect: () => 'unlocks Aether and Astronomers',
     req: () => tech('astronomy') && expDone('sunkenRuins'),
     desc: 'the ruins held a lens; the sky holds more' },
 
   { id: 'beacon', name: 'The Beacon', max: 1, scale: 1,
-    cost: { steel: 650, machinery: 260, aether: 130, knowledge: 4000, currency: 300 },
+    cost: { steel: 650, machinery: 260, aether: 130, knowledge: 4000, currency: 300, goods: 200 },
     effect: () => 'a light that will outlive the village',
     req: () => tech('optics'), desc: 'the end of the chronicle, or its beginning' },
 ];

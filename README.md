@@ -34,6 +34,9 @@ for backups. On return, offline progress is simulated at half speed, capped at
   duration; build it and produce 100 Industrial Goods before the deadline.
   Steam Plants and Dynamos generate Power, while factories consume it without
   needing workers. Completing the trial makes factories permanent.
+- **Industrial Goods are the backbone of late construction.** Dynamos, Vaults,
+  Observatories, and the Beacon all require Factory output in addition to their
+  other materials.
 - **Diplomacy.** Contacted tribes have dispositions, make requests in tones
   ranging from pleas to demands, and may improve when their requests are met.
   Age-of-Iron Diplomacy unlocks Diplomats, who can be assigned to individual
