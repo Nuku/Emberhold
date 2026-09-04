@@ -99,6 +99,7 @@ function diplomacyRequestText(tribe, entry) {
 }
 function diplomatCount(id) { return (state.diplomats && state.diplomats[id]) || 0; }
 function totalDiplomats() { return Object.values(state.diplomats || {}).reduce((sum, n) => sum + n, 0); }
+function alliedTribes() { return Object.values(state.diplomacy || {}).filter(entry => entry.disposition >= 80).length; }
 function ableGuards() { return Math.max(0, (state.jobs.guard || 0) - (state.guardInjuries || 0)); }
 function trialMax(def) {
   return def.repeat > 0 ? def.repeat + (upg('oathkeepers') ? 1 : 0) : 0;
@@ -214,6 +215,7 @@ function allMult() {
   let m = 1;
   m *= 1 + 0.05 * bld('shrine') + 0.10 * bld('factory');
   m *= 1 + 0.15 * bld('dynamo');
+  m *= 1 + 0.05 * alliedTribes();
   m *= 1 + 0.002 * state.res.machinery;
   if (expDone('glacialPeaks')) m *= 1.10;
   if (perm('everwarm')) m *= 1.05;
@@ -936,6 +938,7 @@ function renderDiplomacy() {
     h += `<div class="card"><div class="card-head"><span class="card-title">${tribe.name}</span>` +
       `<span class="card-count">disposition ${Math.round(entry.disposition)} / 100</span></div>` +
       `<div class="card-desc">${tribe.text}</div>` +
+      (entry.disposition >= 80 ? '<div class="trial-reward">Active ally: +5% to all village incomes.</div>' : '') +
       (entry.disposition < 50 ? `<div class="trial-mod">Relations are strained: the ${tribe.name} may raid the village.</div>` : '') +
       `<div class="trial-goal">${diplomacyRequestText(tribe, entry)}</div>` +
       `<div class="card-cost">offer: ${costHtml(requestCost)}</div>` +
