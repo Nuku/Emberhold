@@ -8,6 +8,7 @@ const OFFLINE_RATE = 0.5;       // offline runs at half speed
 
 let state = null;
 let activeTab = 'village';
+let buildFilter = 'incomplete';
 let tooltipHover = false;
 let pointerDown = false;
 
@@ -1218,13 +1219,19 @@ function renderVillage() {
 
 function renderBuild() {
   let h = '<h2 class="section">Construction</h2>';
+  const knownBuildings = BUILDINGS.filter(b => bld(b.id) > 0 || !b.req || b.req());
+  const completedCount = knownBuildings.filter(b => bld(b.id) >= b.max).length;
+  const incompleteCount = knownBuildings.length - completedCount;
+  h += `<div class="subtabs" role="tablist" aria-label="Construction status">` +
+    `<button class="subtab ${buildFilter === 'incomplete' ? 'active' : ''}" data-action="build-filter" data-filter="incomplete" role="tab" aria-selected="${buildFilter === 'incomplete'}">Incomplete <span class="subtab-count">${incompleteCount}</span></button>` +
+    `<button class="subtab ${buildFilter === 'complete' ? 'active' : ''}" data-action="build-filter" data-filter="complete" role="tab" aria-selected="${buildFilter === 'complete'}">Completed <span class="subtab-count">${completedCount}</span></button>` +
+    `</div>`;
   let any = false;
-  for (const b of BUILDINGS) {
-    const known = bld(b.id) > 0 || !b.req || b.req();
-    if (!known) continue;
-    any = true;
+  for (const b of knownBuildings) {
     const count = bld(b.id);
     const maxed = count >= b.max;
+    if ((buildFilter === 'complete') !== maxed) continue;
+    any = true;
     const cost = buildingCost(b);
     const ok = !maxed && canAfford(cost);
     h += `<div class="card"><div class="card-head">` +
@@ -1235,7 +1242,7 @@ function renderBuild() {
       `<div class="card-actions"><button data-action="build" data-id="${b.id}" ${ok ? '' : 'disabled'}>${maxed ? 'Complete' : 'Build'}</button></div>` +
       `</div>`;
   }
-  if (!any) h += '<div class="res-note">Nothing to build yet. Learn from the world first.</div>';
+  if (!any) h += `<div class="res-note">${buildFilter === 'complete' ? 'No completed buildings yet.' : 'Nothing remains to build yet. Learn from the world first.'}</div>`;
   return h;
 }
 
@@ -1487,6 +1494,7 @@ document.addEventListener('click', (e) => {
     case 'job-inc': doAssign(btn.dataset.job, +1); render(); break;
     case 'job-dec': doAssign(btn.dataset.job, -1); render(); break;
     case 'build': doBuild(btn.dataset.id); render(); break;
+    case 'build-filter': buildFilter = btn.dataset.filter; render(); break;
     case 'craft': doCraft(btn.dataset.id); render(); break;
     case 'research': doResearch(btn.dataset.id); render(); break;
     case 'diplomacy-supply': supplyDiplomacyRequest(btn.dataset.tribe); render(); break;
