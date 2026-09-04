@@ -8,6 +8,7 @@ const OFFLINE_RATE = 0.5;       // offline runs at half speed
 
 let state = null;
 let activeTab = 'village';
+let tooltipHover = false;
 
 // ---------- state ----------
 function defaultState() {
@@ -1514,6 +1515,14 @@ document.addEventListener('click', (e) => {
   }
 });
 
+document.addEventListener('mouseover', (e) => {
+  if (e.target.closest('.has-tooltip')) tooltipHover = true;
+});
+document.addEventListener('mouseout', (e) => {
+  const tip = e.target.closest('.has-tooltip');
+  if (tip && !e.relatedTarget?.closest?.('.has-tooltip')) tooltipHover = false;
+});
+
 // ---------- boot ----------
 function boot() {
   state = loadGame();
@@ -1554,7 +1563,7 @@ function boot() {
     last = now;
     tick(dt);
   }, 250);
-  setInterval(render, 500);
+  setInterval(() => { if (!tooltipHover) render(); }, 500);
   setInterval(() => saveGame(true), 15000);
   window.addEventListener('beforeunload', () => saveGame(true));
   render();
