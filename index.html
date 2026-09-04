@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Emberhold — a text incremental</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div id="app">
+  <header>
+    <div id="title-block">
+      <h1>EMBERHOLD</h1>
+      <div id="subtitle">a settlement rises from the ash</div>
+    </div>
+    <div id="status-block">
+      <div id="era-line">—</div>
+      <div id="time-line">—</div>
+      <div id="pop-line">—</div>
+      <div id="echo-line" class="hidden"></div>
+    </div>
+    <div id="controls">
+      <button id="btn-save">Save</button>
+      <button id="btn-export">Export</button>
+      <button id="btn-import">Import</button>
+      <button id="btn-reset">Reset</button>
+    </div>
+  </header>
+
+  <nav id="tabs">
+    <button data-tab="village" class="tab active">Village</button>
+    <button data-tab="build" class="tab">Build</button>
+    <button data-tab="research" class="tab">Research</button>
+    <button data-tab="trials" class="tab">Trials</button>
+    <button data-tab="expeditions" class="tab">Expeditions</button>
+    <button data-tab="migration" class="tab">Migration</button>
+  </nav>
+
+  <main id="main">
+    <section id="panel-village" class="panel"></section>
+    <section id="panel-build" class="panel hidden"></section>
+    <section id="panel-research" class="panel hidden"></section>
+    <section id="panel-trials" class="panel hidden"></section>
+    <section id="panel-expeditions" class="panel hidden"></section>
+    <section id="panel-migration" class="panel hidden"></section>
+  </main>
+
+  <aside id="log-panel">
+    <h2>Chronicle</h2>
+    <div id="log"></div>
+  </aside>
+
+  <footer id="banner" class="hidden"></footer>
+</div>
+
+<script src="js/data.js"></script>
+<script src="js/game.js"></script>
+</body>
+</html>
