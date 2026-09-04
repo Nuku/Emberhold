@@ -98,6 +98,7 @@ function perm(key) {
     case 'everwarm': return trialCount('longnight') > 0;
     case 'twinSouls': return trialCount('solitude') > 0;
     case 'blueprints': return trialCount('haste') > 0;
+    case 'tinkerers': return trialCount('tinkering') > 0;
   }
   return false;
 }
@@ -173,7 +174,14 @@ function production() {
   for (const j in JOBS) {
     const job = JOBS[j];
     const n = state.jobs[j] || 0;
-    if (n > 0) rates[job.res] += n * job.base;
+    if (n > 0) {
+      if (!job.inputs || (state.res.wood > 0 && state.res.stone > 0)) {
+        rates[job.res] += n * job.base;
+      }
+      if (job.inputs) {
+        for (const r in job.inputs) rates[r] -= n * job.inputs[r];
+      }
+    }
   }
 
   // expedition passives
@@ -200,6 +208,7 @@ function production() {
   rates.iron *= global * (expDone('emberVein') ? 1.10 : 1);
   rates.aether *= global * (expDone('glacialPeaks') ? 1.10 : 1);
   rates.coal *= global;
+  rates.tools *= global;
 
   // the land itself
   for (const r in rates) rates[r] *= landingMod(r);
@@ -271,6 +280,9 @@ function updateTrial(dt) {
       if (all) { endTrial(true); return; }
       break;
     }
+    case 'tinkering':
+      if (tr.daysActive >= 240) { endTrial(true); return; }
+      break;
     case 'haste':
       if (state.era >= 5) { endTrial(true); return; }
       if (tr.daysActive > 1200) { endTrial(false); return; }
@@ -297,6 +309,7 @@ function trialProgressText() {
       }
       return `emptiest store: ${Math.floor(worst * 100)}% full — every discovered store must hit its ceiling`;
     }
+    case 'tinkering': return `${Math.floor(tr.daysActive)} / 240 days of patient work endured`;
     case 'haste': return `${Math.floor(tr.daysActive)} / 1200 days to reach the Age of Light`;
   }
   return '';
@@ -479,6 +492,7 @@ function doBuild(id) {
 function doCraft(id) {
   const def = CRAFTS.find(c => c.id === id);
   if (!def || !def.req()) return;
+  if (id === 'tools' && trialActive('tinkering')) return;
   if (!canAfford(def.cost)) return;
   for (const r in def.give) if (isFull(r)) return; // no room in the store
   payCost(def.cost);
@@ -663,8 +677,10 @@ function renderVillage() {
   h += '<h2 class="section">Crafting</h2>';
   for (const c of CRAFTS) {
     if (!c.req()) continue;
-    const ok = canAfford(c.cost) && !Object.keys(c.give).some(r => isFull(r));
-    const fullNote = Object.keys(c.give).some(r => isFull(r)) ? ' — store full' : '';
+    const forbidden = c.id === 'tools' && trialActive('tinkering');
+    const ok = !forbidden && canAfford(c.cost) && !Object.keys(c.give).some(r => isFull(r));
+    const fullNote = forbidden ? ' — forbidden by the Trial of Tinkering' :
+      (Object.keys(c.give).some(r => isFull(r)) ? ' — store full' : '');
     h += `<div class="card"><div class="card-head">` +
       `<span class="card-title">${c.name}</span>` +
       `<span class="card-effect">${c.desc}${fullNote}</span></div>` +
@@ -684,7 +700,9 @@ function renderVillage() {
     h += `<div class="job-row">` +
       `<span class="job-name">${job.name}</span>` +
       `<span class="job-assign">${n}</span>` +
-      `<span class="job-rate">${fmt(job.base)} ${RESOURCES.find(r => r.id === job.res).name}/s each — ${job.desc}</span>` +
+      `<span class="job-rate">${fmt(job.base)} ${RESOURCES.find(r => r.id === job.res).name}/s each` +
+      (job.inputs ? ` (uses ${Object.entries(job.inputs).map(([r, v]) => `${fmt(v)} ${RESOURCES.find(x => x.id === r).name.toLowerCase()}/s`).join(' + ')})` : '') +
+      ` — ${job.desc}</span>` +
       `<span class="job-btns">` +
       `<button data-action="job-dec" data-job="${j}" ${n > 0 ? '' : 'disabled'}>−</button>` +
       `<button data-action="job-inc" data-job="${j}" ${unassigned() > 0 ? '' : 'disabled'}>+</button>` +

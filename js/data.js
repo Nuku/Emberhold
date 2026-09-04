@@ -65,6 +65,9 @@ const JOBS = {
                  unlock: () => bld('deepMine') > 0 },
   astronomer:  { name: 'Astronomer',   res: 'aether',    base: 0.05, desc: 'listens to the sky at night',
                  unlock: () => bld('observatory') > 0 },
+  tinkerer:    { name: 'Tinkerer',    res: 'tools',      base: 0.025, desc: 'steadily assembles tools from wood and stone',
+                 inputs: { wood: 0.06, stone: 0.02 },
+                 unlock: () => perm('tinkerers') && bld('workbench') > 0 },
 };
 const FOOD_PER_POP = 0.12; // food/s eaten per villager
 
@@ -232,6 +235,12 @@ const TRIALS = [
     goal: 'Have every store you have discovered filled to its ceiling at the same moment.',
     reward: 'All storage ceilings +20%, permanently, for each completion.',
     req: () => bld('storehouse') > 0 },
+
+  { id: 'tinkering', name: 'Trial of Tinkering', repeat: 0,
+    mod: 'Tools may not be crafted by hand while the oath stands.',
+    goal: 'Keep the Workbench running for 240 days without manually crafting Tools.',
+    reward: 'Tinkerers: unlocks a job that steadily assembles Tools from wood and stone.',
+    req: () => bld('workbench') > 0 },
 
   { id: 'silence', name: 'Trial of Silence', repeat: 0,
     mod: 'Knowledge production is stopped entirely.',

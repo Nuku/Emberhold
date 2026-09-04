@@ -17,7 +17,7 @@ for backups. On return, offline progress is simulated at half speed, capped at
 ## How it plays
 
 - **Flow over time.** Villagers are assigned to jobs (forager, woodcutter,
-  miner, thinker…). Every villager eats. Population grows on a food surplus
+  miner, thinker, tinkerer…). Every villager eats. Population grows on a food surplus
   and starves when the store runs dry.
 - **Seasons.** A year is 200 in-game days (~100 real seconds). Autumn slows
   the fields and **winter halves them** — keep a store.
@@ -27,7 +27,7 @@ for backups. On return, offline progress is simulated at half speed, capped at
 - **Expanding the field.** One-time **Expeditions** (Old Forest, Foothills,
   Sunken Ruins, Ember Vein, Glacial Peaks) permanently add passive income and
   are prerequisites for late buildings like the Observatory.
-- **Compounding back-path ease.** Tools, Shrines, Factories and stored
+- **Compounding back-path ease.** Tools, Tinkerers, Shrines, Factories and stored
   Machinery all raise production everywhere; Frugality/Blueprints cut
   building costs.
 - **Capped stores.** Every store except Knowledge has a ceiling; surplus
@@ -91,6 +91,7 @@ you'll have them.
 | Scarcity | ×5 | food −50% | stay fed 240 days | +10% food each |
 | Frugality | ×3 | building costs +50% | 12 constructions | −10% building costs each |
 | Overflow | ×3 | no new storage may be built | every discovered store full at once | +20% storage ceilings each |
+| Tinkering | once | no manual Tool crafting | endure 240 days with a Workbench | unlocks Tinkerers, who steadily assemble Tools from wood and stone |
 | Silence | once | no knowledge production | research Metallurgy | Thinkers +50% |
 | Long Night | once | winter food ×0.25 | survive a year | Everwarm (mild winters, +5% all) |
 | Solitude | once | population capped at 10 | stockpile 800 knowledge | Huts grant +2 cap each |
