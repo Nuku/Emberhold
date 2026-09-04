@@ -14,6 +14,17 @@ Saves go to `localStorage` (autosave every 15 s) with Export/Import strings
 for backups. On return, offline progress is simulated at half speed, capped at
 8 hours.
 
+Imports are validated before replacing the stored chronicle. If a manual save
+fails (for example, because browser storage is full), the Chronicle reports it;
+use Export to keep a backup. Loading older saves repairs worker assignments to
+match the current population, job unlocks, and guard capacity.
+
+## Development checks
+
+Run `node tests/game.test.cjs` with Node.js. The dependency-free engine regression
+suite covers starvation, specialist assignments, guard limits, older saves,
+invalid imports, storage failures, and offline time accounting.
+
 ## How it plays
 
 - **Flow over time.** Villagers are assigned to jobs (forager, woodcutter,

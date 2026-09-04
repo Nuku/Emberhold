@@ -237,6 +237,31 @@ function assignedWorkers() {
 }
 function unassigned() { return state.pop - assignedWorkers(); }
 
+// Reconcile the whole workforce, including specialists, after population loss
+// or loading older saves. Keep food gatherers first when seats must be cut.
+function reconcileWorkers() {
+  let remaining = state.pop;
+  const count = n => Number.isFinite(n) ? Math.max(0, Math.floor(n)) : 0;
+  for (const id of Object.keys(JOBS)) {
+    const job = JOBS[id];
+    let n = job.unlock() && id !== 'diplomat' ? count(state.jobs[id]) : 0;
+    if (id === 'guard') n = Math.min(n, guardCap());
+    n = Math.min(n, remaining);
+    if (n) state.jobs[id] = n;
+    else delete state.jobs[id];
+    remaining -= n;
+  }
+  for (const id of Object.keys(state.jobs)) if (!JOBS[id]) delete state.jobs[id];
+  for (const id of Object.keys(state.diplomats)) {
+    const n = tech('diplomacy') && state.diplomacy[id]
+      ? Math.min(count(state.diplomats[id]), remaining) : 0;
+    if (n) state.diplomats[id] = n;
+    else delete state.diplomats[id];
+    remaining -= n;
+  }
+  state.guardInjuries = Math.min(count(state.guardInjuries), state.jobs.guard || 0);
+}
+
 function buildingCost(def) {
   const mult = Math.pow(def.scale, bld(def.id)) *
     (trialActive('frugality') ? 1.5 : 1) *
@@ -762,7 +787,7 @@ function tick(dt) {
     if (state.starveT >= 20 && state.pop > 1) {
       state.pop--;
       state.starveT = 0;
-      for (const j in state.jobs) state.jobs[j] = Math.min(state.jobs[j], state.pop);
+      reconcileWorkers();
       addLog('A villager has starved.', 'log-bad');
     }
   } else {
@@ -1028,27 +1053,63 @@ function supplyDiplomacyRequest(id) {
 
 // ---------- save / load ----------
 function saveGame(silent) {
-  state.savedAt = Date.now();
   try {
-    localStorage.setItem(SAVE_KEY, JSON.stringify(state));
+    const savedAt = Date.now();
+    localStorage.setItem(SAVE_KEY, JSON.stringify({ ...state, savedAt }));
+    state.savedAt = savedAt;
     if (!silent) addLog('Chronicle saved.');
-  } catch (e) { /* storage unavailable */ }
+    return true;
+  } catch (e) {
+    if (!silent) addLog('The chronicle could not be saved. Export a backup before closing.', 'log-bad');
+    return false;
+  }
+}
+
+function normalizeSave(s) {
+  const object = value => value !== null && typeof value === 'object' && !Array.isArray(value);
+  if (!object(s) || s.v !== 1 || !object(s.res) || !object(s.jobs) || !object(s.techs))
+    throw new Error('Invalid save');
+  // Reject broken shapes and non-finite numbers before replacing any stored game.
+  function validate(value) {
+    if (typeof value === 'number' && !Number.isFinite(value)) throw new Error('Invalid number');
+    if (value && typeof value === 'object') for (const key of Object.keys(value)) {
+      if (['__proto__', 'constructor', 'prototype'].includes(key)) throw new Error('Invalid key');
+      validate(value[key]);
+    }
+  }
+  validate(s);
+  const d = defaultState();
+  for (const key of Object.keys(d)) {
+    if (s[key] === undefined) s[key] = d[key];
+    else if (d[key] !== null && (typeof s[key] !== typeof d[key] ||
+      (Array.isArray(d[key]) ? !Array.isArray(s[key]) : object(d[key]) && !object(s[key]))))
+      throw new Error(`Invalid ${key}`);
+  }
+  if (!Number.isInteger(s.pop) || s.pop < 1 || !Number.isInteger(s.era) || s.era < 1 || s.era > ERAS.length)
+    throw new Error('Invalid settlement');
+  for (const key of ['res', 'jobs', 'bld', 'trialDone', 'upgrades', 'diplomats']) {
+    for (const n of Object.values(s[key]))
+      if (typeof n !== 'number' || n < 0) throw new Error(`Invalid ${key}`);
+  }
+  for (const r of RESOURCES) if (s.res[r.id] === undefined) s.res[r.id] = 0;
+  for (const entry of Object.values(s.diplomacy)) {
+    if (!object(entry) || typeof entry.disposition !== 'number') throw new Error('Invalid diplomacy');
+  }
+  if (s.trial !== null && (!object(s.trial) || !TRIALS.some(t => t.id === s.trial.id)))
+    throw new Error('Invalid trial');
+  if (!s.log.every(entry => object(entry) && typeof entry.t === 'string' && typeof entry.d === 'number'))
+    throw new Error('Invalid chronicle');
+  delete s.res.weapons;
+  delete s.res.armor;
+  s.armor = Math.max(s.armor, s.techs.leatherArmor ? 1 : 0);
+  return s;
 }
 
 function loadGame() {
   try {
     const raw = localStorage.getItem(SAVE_KEY);
     if (!raw) return null;
-    const s = JSON.parse(raw);
-    if (!s || s.v !== 1) return null;
-    const d = defaultState();
-    // merge so new fields exist
-    for (const k in d) if (s[k] === undefined) s[k] = d[k];
-    for (const r of RESOURCES) if (s.res[r.id] === undefined) s.res[r.id] = 0;
-    delete s.res.weapons;
-    delete s.res.armor;
-    if (s.armor === undefined) s.armor = s.techs.leatherArmor ? 1 : 0;
-    return s;
+    return normalizeSave(JSON.parse(raw));
   } catch (e) { return null; }
 }
 
@@ -1057,7 +1118,7 @@ function offlineProgress() {
   if (elapsed < 60) return;
   const simSeconds = Math.min(elapsed, OFFLINE_CAP) * OFFLINE_RATE;
   const step = 2;
-  for (let t = 0; t < simSeconds; t += step) tick(step);
+  for (let t = 0; t < simSeconds; t += step) tick(Math.min(step, simSeconds - t));
   const hrs = (elapsed / 3600).toFixed(1);
   const got = Math.min(elapsed, OFFLINE_CAP);
   addLog(`While you were away (~${hrs} h, half-speed, capped at 8 h), the village carried on for ${Math.floor(got * OFFLINE_RATE)} seconds.`, 'log-important');
@@ -1072,8 +1133,7 @@ function importSave() {
   const data = window.prompt('Paste your save string:');
   if (!data) return;
   try {
-    const s = JSON.parse(decodeURIComponent(escape(atob(data.trim()))));
-    if (!s || s.v !== 1) throw new Error('bad');
+    const s = normalizeSave(JSON.parse(decodeURIComponent(escape(atob(data.trim())))));
     localStorage.setItem(SAVE_KEY, JSON.stringify(s));
     location.reload();
   } catch (e) {
@@ -1560,8 +1620,7 @@ function boot() {
   state.species = state.species || 'human';
   ensureDiplomacyEntry(state.tradePartner || 'human');
   if (loaded) {
-    // drop assignments that no longer qualify (e.g. saves from before a job gate changed)
-    for (const j in state.jobs) if (!JOBS[j] || !JOBS[j].unlock()) delete state.jobs[j];
+    reconcileWorkers();
     offlineProgress();
     addLog('The chronicle resumes.', '');
   } else {
