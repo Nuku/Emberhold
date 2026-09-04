@@ -37,6 +37,9 @@ function defaultState() {
     species: 'human',
     tradePartner: 'human',
     tribesSeen: { human: true },
+    diplomacy: {},
+    diplomats: {},
+    diplomacyEventT: 0,
     migrating: false,
     migrationSnapshot: null,
     pendingEchoes: 0,
@@ -60,6 +63,35 @@ function upg(id) { return state.upgrades[id] || 0; }
 function tribeDef(id) { return TRIBES.find(t => t.id === id) || TRIBES[0]; }
 function tradeAvailable() { return tech('currency') && !!state.tradePartner; }
 function guardCap() { return bld('barracks') * 2; }
+function randomDiplomacyRequest() {
+  const pool = RESOURCES.filter(r => r.id !== 'knowledge' && r.id !== 'currency' && r.id !== 'machinery' && r.id !== 'aether' && state.seen[r.id]);
+  const res = (pool.length ? pool : [RESOURCES.find(r => r.id === 'wood')])[Math.floor(Math.random() * (pool.length || 1))];
+  const amount = Math.max(10, Math.round((35 + era() * 30) * (0.8 + Math.random() * 0.4) / 5) * 5);
+  return { res: res.id, amount };
+}
+function ensureDiplomacyEntry(id) {
+  state.diplomacy = state.diplomacy || {};
+  if (!state.diplomacy[id]) {
+    state.diplomacy[id] = {
+      disposition: Math.floor(Math.random() * 101) - 50,
+      request: randomDiplomacyRequest(),
+    };
+  }
+  return state.diplomacy[id];
+}
+function diplomacyTone(disposition) {
+  if (disposition >= 35) return 'request';
+  if (disposition >= 0) return 'hope';
+  if (disposition >= -35) return 'plea';
+  if (disposition >= -70) return 'demand';
+  return 'insist';
+}
+function diplomacyRequestText(tribe, entry) {
+  const res = RESOURCES.find(r => r.id === entry.request.res).name;
+  return `The ${tribe.name} ${diplomacyTone(entry.disposition)} ${fmt(entry.request.amount)} ${res}.`;
+}
+function diplomatCount(id) { return (state.diplomats && state.diplomats[id]) || 0; }
+function totalDiplomats() { return Object.values(state.diplomats || {}).reduce((sum, n) => sum + n, 0); }
 function trialMax(def) {
   return def.repeat > 0 ? def.repeat + (upg('oathkeepers') ? 1 : 0) : 0;
 }
@@ -105,6 +137,7 @@ function rollTradePartner() {
     : TRIBES[0];
   state.tradePartner = pick.id;
   state.tribesSeen[pick.id] = true;
+  ensureDiplomacyEntry(pick.id);
   return pick;
 }
 function perm(key) {
@@ -137,8 +170,8 @@ function popCap() {
 }
 function assignedWorkers() {
   let n = 0;
-  for (const j in state.jobs) n += state.jobs[j];
-  return n;
+  for (const j in state.jobs) if (JOBS[j] && !JOBS[j].targeted) n += state.jobs[j];
+  return n + totalDiplomats();
 }
 function unassigned() { return state.pop - assignedWorkers(); }
 
@@ -192,6 +225,7 @@ function production() {
   for (const j in JOBS) {
     const job = JOBS[j];
     const n = state.jobs[j] || 0;
+    if (job.targeted) continue;
     if (n > 0) {
       if (job.winterproof) {
         winterproofFood += n * job.base;
@@ -322,6 +356,26 @@ function updateTrial(dt) {
   }
 }
 
+function updateDiplomacy(dt) {
+  if (!state.diplomacy) return;
+  for (const id in state.diplomacy) {
+    const entry = state.diplomacy[id];
+    const nudged = diplomatCount(id) * 0.02 * dt;
+    if (nudged) entry.disposition = Math.min(100, entry.disposition + nudged);
+  }
+  state.diplomacyEventT = (state.diplomacyEventT || 0) + dt;
+  if (state.diplomacyEventT < 180) return;
+  state.diplomacyEventT = 0;
+  const ids = Object.keys(state.diplomacy);
+  if (!ids.length) return;
+  const id = ids[Math.floor(Math.random() * ids.length)];
+  const entry = state.diplomacy[id];
+  const delta = Math.random() < 0.55 ? 5 + Math.floor(Math.random() * 6) : -(5 + Math.floor(Math.random() * 6));
+  entry.disposition = Math.max(-100, Math.min(100, entry.disposition + delta));
+  const tribe = tribeDef(id);
+  addLog(`${tribe.name}: ${delta > 0 ? 'a diplomatic success' : 'a diplomatic slight'} shifts relations by ${delta > 0 ? '+' : ''}${delta}.`, delta > 0 ? 'log-good' : 'log-bad');
+}
+
 function trialProgressText() {
   if (!state.trial) return '';
   const tr = state.trial;
@@ -400,6 +454,7 @@ function setOut() {
     trialDone: state.trialDone, expeditions: state.expeditions,
     landingsSeen: state.landingsSeen,
     species: state.species, tribesSeen: state.tribesSeen,
+    diplomacy: state.diplomacy,
     won: state.won, savedAt: state.savedAt, log: state.log,
   };
   state = defaultState();
@@ -413,6 +468,7 @@ function setOut() {
   state.landingsSeen = keep.landingsSeen;
   state.species = keep.species;
   state.tribesSeen = keep.tribesSeen;
+  state.diplomacy = keep.diplomacy;
   state.won = keep.won;
   state.savedAt = keep.savedAt;
   state.log = keep.log;
@@ -483,6 +539,7 @@ function tick(dt) {
   }
 
   updateTrial(dt);
+  updateDiplomacy(dt);
 
   // seasons
   const doy = Math.floor(state.day % DAYS_PER_YEAR);
@@ -566,12 +623,33 @@ function doExpedition(id) {
 
 function doAssign(job, delta) {
   const j = JOBS[job];
-  if (!j || !j.unlock()) return;
+  if (!j || j.targeted || !j.unlock()) return;
   state.jobs[job] = state.jobs[job] || 0;
   if (delta > 0 && unassigned() <= 0) return;
   if (delta > 0 && job === 'guard' && (state.jobs.guard || 0) >= guardCap()) return;
   if (delta < 0 && state.jobs[job] <= 0) return;
   state.jobs[job] += delta;
+}
+
+function doAssignDiplomat(id, delta) {
+  if (!tech('diplomacy') || !state.diplomacy || !state.diplomacy[id]) return;
+  state.diplomats = state.diplomats || {};
+  state.diplomats[id] = diplomatCount(id);
+  if (delta > 0 && unassigned() <= 0) return;
+  if (delta < 0 && diplomatCount(id) <= 0) return;
+  state.diplomats[id] += delta;
+  if (state.diplomats[id] <= 0) delete state.diplomats[id];
+}
+
+function supplyDiplomacyRequest(id) {
+  if (!tech('currency') || !state.diplomacy || !state.diplomacy[id]) return;
+  const entry = state.diplomacy[id];
+  if (!canAfford({ [entry.request.res]: entry.request.amount })) return;
+  payCost({ [entry.request.res]: entry.request.amount });
+  entry.disposition = Math.min(100, entry.disposition + 8);
+  const tribe = tribeDef(id);
+  addLog(`The ${tribe.name} accept the requested goods. Relations improve by 8.`, 'log-good');
+  entry.request = randomDiplomacyRequest();
 }
 
 // ---------- save / load ----------
@@ -734,6 +812,7 @@ function renderVillage() {
     `<span class="res-rate">of ${state.pop} villagers</span></div>`;
   for (const j in JOBS) {
     const job = JOBS[j];
+    if (job.targeted) continue;
     if (!job.unlock()) continue;
     const n = state.jobs[j] || 0;
     h += `<div class="job-row">` +
@@ -793,6 +872,33 @@ function renderResearch() {
   }
   if (!any) h += '<div class="res-note">The wise have nothing left to learn here.</div>';
   h += `<div class="res-note" style="margin-top:6px">Knowledge is produced by Thinkers (build a Library first) and never returns once spent.</div>`;
+  return h;
+}
+
+function renderDiplomacy() {
+  let h = '<h2 class="section">Diplomacy — neighbors and foreign courts</h2>';
+  h += '<div class="res-note">Disposition ranges from hostile (−100) to warm (+100). Friendly tribes make gentler requests; diplomats and events can shift relations over time.</div>';
+  if (!tech('currency')) {
+    h += '<div class="card"><div class="card-desc">The tribes will speak, but trade requires Currency. Research it to honor their requests with goods.</div></div>';
+  }
+  for (const id in (state.diplomacy || {})) {
+    const tribe = tribeDef(id);
+    const entry = state.diplomacy[id];
+    const requestCost = { [entry.request.res]: entry.request.amount };
+    const canSupply = tradeAvailable() && canAfford(requestCost);
+    h += `<div class="card"><div class="card-head"><span class="card-title">${tribe.name}</span>` +
+      `<span class="card-count">disposition ${Math.round(entry.disposition)} / 100</span></div>` +
+      `<div class="card-desc">${tribe.text}</div>` +
+      `<div class="trial-goal">${diplomacyRequestText(tribe, entry)}</div>` +
+      `<div class="card-cost">offer: ${costHtml(requestCost)}</div>` +
+      `<div class="card-actions"><button data-action="diplomacy-supply" data-tribe="${id}" ${canSupply ? '' : 'disabled'}>Supply the request</button></div>`;
+    if (tech('diplomacy')) {
+      h += `<div class="res-note">${JOBS.diplomat.name}s assigned: ${diplomatCount(id)} — each nudges relations upward over time</div>` +
+        `<div class="card-actions"><button data-action="diplomat-dec" data-tribe="${id}" ${diplomatCount(id) > 0 ? '' : 'disabled'}>−</button> ` +
+        `<button data-action="diplomat-inc" data-tribe="${id}" ${unassigned() > 0 ? '' : 'disabled'}>Assign Diplomat</button></div>`;
+    }
+    h += '</div>';
+  }
   return h;
 }
 
@@ -934,6 +1040,7 @@ function render() {
     village: renderVillage,
     build: renderBuild,
     research: renderResearch,
+    diplomacy: renderDiplomacy,
     trials: renderTrials,
     expeditions: renderExpeditions,
     migration: renderMigration,
@@ -963,6 +1070,9 @@ document.addEventListener('click', (e) => {
     case 'build': doBuild(btn.dataset.id); render(); break;
     case 'craft': doCraft(btn.dataset.id); render(); break;
     case 'research': doResearch(btn.dataset.id); render(); break;
+    case 'diplomacy-supply': supplyDiplomacyRequest(btn.dataset.tribe); render(); break;
+    case 'diplomat-inc': doAssignDiplomat(btn.dataset.tribe, +1); render(); break;
+    case 'diplomat-dec': doAssignDiplomat(btn.dataset.tribe, -1); render(); break;
     case 'trial-start': startTrial(btn.dataset.id); render(); break;
     case 'trial-abandon': endTrial(false); render(); break;
     case 'exp': doExpedition(btn.dataset.id); render(); break;
@@ -981,13 +1091,18 @@ document.addEventListener('click', (e) => {
 // ---------- boot ----------
 function boot() {
   state = loadGame();
-  if (state) {
+  const loaded = !!state;
+  state = state || defaultState();
+  state.diplomacy = state.diplomacy || {};
+  state.diplomats = state.diplomats || {};
+  state.tribesSeen = state.tribesSeen || { human: true };
+  ensureDiplomacyEntry(state.tradePartner || 'human');
+  if (loaded) {
     // drop assignments that no longer qualify (e.g. saves from before a job gate changed)
     for (const j in state.jobs) if (!JOBS[j] || !JOBS[j].unlock()) delete state.jobs[j];
     offlineProgress();
     addLog('The chronicle resumes.', '');
   } else {
-    state = defaultState();
     addLog('A handful of survivors halts in the shelter of a burnt palisade. They name the place Emberhold.', 'log-important');
     addLog('Assign Foragers and Woodcutters below, keep food in the store, and raise Huts as children arrive. Knowledge is written in Libraries, and every store has a ceiling the Storehouse raises.', '');
   }

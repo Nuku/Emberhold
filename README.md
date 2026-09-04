@@ -30,6 +30,10 @@ for backups. On return, offline progress is simulated at half speed, capped at
   migration, Stonekin, Marshfolk, or Skyborn may appear nearby. Currency makes
   trade possible, while Banking unlocks Bankers who increase incoming funds;
   Steel-age buildings and later require Currency as well as materials.
+- **Diplomacy.** Contacted tribes have dispositions, make requests in tones
+  ranging from pleas to demands, and may improve when their requests are met.
+  Age-of-Iron Diplomacy unlocks Diplomats, who can be assigned to individual
+  tribes; random diplomatic events can help or harm relations.
 - **Guards.** Guards hunt while keeping watch, producing Food even in winter,
   though each one has a Food upkeep. Barracks determine how many can serve;
   Weaponry and Weapon Efficiency improve their hunting yield.
