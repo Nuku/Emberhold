@@ -31,6 +31,7 @@ function defaultState() {
     seen,
     jobs: {},
     bld: {},
+    factoryRecipe: 'goods',
     techs: {},
     trialDone: {},
     trial: null,
@@ -113,8 +114,10 @@ function isMephit() { return state.species === 'mephit'; }
 function armorLevel() { return Math.max(0, Number(state.armor) || 0); }
 function tradeAvailable() { return tech('currency') && !!state.tradePartner; }
 function guardCap() { return bld('barracks') * 2; }
-function randomDiplomacyRequest() {
-  const pool = RESOURCES.filter(r => r.id !== 'knowledge' && r.id !== 'currency' && r.id !== 'machinery' && r.id !== 'aether' && state.seen[r.id]);
+function randomDiplomacyRequest(id) {
+  const available = RESOURCES.filter(r => r.id !== 'knowledge' && r.id !== 'currency' && r.id !== 'machinery' && r.id !== 'aether' && state.seen[r.id]);
+  const preferred = available.filter(r => (tribeDef(id).requests || []).includes(r.id));
+  const pool = preferred.length ? preferred : available;
   const res = (pool.length ? pool : [RESOURCES.find(r => r.id === 'wood')])[Math.floor(Math.random() * (pool.length || 1))];
   const ageScale = [1, 1.5, 2.5, 4, 6][Math.min(era() - 1, 4)];
   const baseByResource = { food: 120, wood: 100, stone: 80, tools: 12, copper: 15, iron: 20, coal: 25, steel: 15 };
@@ -128,10 +131,10 @@ function ensureDiplomacyEntry(id) {
   if (!state.diplomacy[id]) {
     state.diplomacy[id] = {
       disposition: Math.floor(Math.random() * 101) - 50,
-      request: randomDiplomacyRequest(),
+      request: randomDiplomacyRequest(id),
     };
   } else if (!state.diplomacy[id].request || state.diplomacy[id].request.age === undefined) {
-    state.diplomacy[id].request = randomDiplomacyRequest();
+    state.diplomacy[id].request = randomDiplomacyRequest(id);
   }
   return state.diplomacy[id];
 }
@@ -367,7 +370,16 @@ function lineageMod(res) {
   return (lineage.mods[res] === undefined ? 1 : lineage.mods[res]) * (lineage.all || 1);
 }
 
-function production() {
+function factoryRecipe() {
+  return FACTORY_RECIPES.find(r => r.id === state.factoryRecipe && (!r.tech || tech(r.tech))) || FACTORY_RECIPES[0];
+}
+function chooseFactoryRecipe(id) {
+  const recipe = FACTORY_RECIPES.find(r => r.id === id);
+  if (!bld('factory') || !recipe || (recipe.tech && !tech(recipe.tech))) return;
+  state.factoryRecipe = id;
+}
+
+function production(dt = 0.25) {
   const rates = {};
   for (const r of RESOURCES) rates[r.id] = 0;
   const global = allMult();
@@ -435,14 +447,22 @@ function production() {
     rates.coal -= bld('steamPlant') * 0.08;
   }
   if (bld('dynamo') > 0) rates.power += bld('dynamo') * 1.5;
-  if (bld('factory') > 0 && state.res.power > 0) {
-    rates.goods += bld('factory') * 0.08;
-    rates.power -= bld('factory') * 0.35;
-  }
-
   // The land, lineage, and civic choices shape output; population upkeep is
   // applied afterward so food policies do not alter how much villagers eat.
   for (const r in rates) rates[r] *= landingMod(r) * lineageMod(r) * governanceMod(r);
+  // Reserve inputs after other consumption; bonuses affect output, not costs.
+  if (bld('factory') > 0 && dt > 0) {
+    const recipe = factoryRecipe();
+    const output = bld('factory') * recipe.rate * landingMod(recipe.id) * lineageMod(recipe.id) * governanceMod(recipe.id);
+    const inputs = { ...recipe.inputs, power: 0.35 };
+    let fraction = Math.min(1, Math.max(0, capacityOf(recipe.id) - state.res[recipe.id]) / (output * dt));
+    for (const r in inputs) {
+      const available = Math.max(0, state.res[r] + Math.min(0, rates[r]) * dt);
+      fraction = Math.min(fraction, available / (inputs[r] * bld('factory') * dt));
+    }
+    rates[recipe.id] += output * fraction;
+    for (const r in inputs) rates[r] -= inputs[r] * bld('factory') * fraction;
+  }
   rates.food -= state.pop * FOOD_PER_POP;
   return rates;
 }
@@ -765,7 +785,7 @@ function chooseLineage(id) {
 function tick(dt) {
   state.day += dt * DAY_RATE;
 
-  const rates = production();
+  const rates = production(dt);
   for (const r in rates) {
     if (rates[r] > 0) {
       const cap = capacityOf(r);
@@ -859,7 +879,7 @@ function doCraft(id) {
   for (const r in def.give) if (isFull(r)) return; // no room in the store
   payCost(def.cost);
   for (const r in def.give) {
-    state.res[r] += def.give[r];
+    state.res[r] = Math.min(capacityOf(r), state.res[r] + def.give[r] * lineageMod(r));
     state.seen[r] = true;
   }
 }
@@ -959,7 +979,7 @@ function raidLoot(id) {
     skyborn: ['knowledge', 'aether', 'currency'],
     mephit: ['coal', 'tools', 'steel'],
   };
-  return pools[id] || ['food', 'wood'];
+  return tribeDef(id).loot || pools[id] || ['food', 'wood'];
 }
 
 function applyRaidCasualties(deaths, injuries) {
@@ -1048,7 +1068,7 @@ function supplyDiplomacyRequest(id) {
   state.morale = Math.min(moraleCap(), state.morale + 2);
   const tribe = tribeDef(id);
   addLog(`The ${tribe.name} accept the requested goods. Relations improve by 8.`, 'log-good');
-  entry.request = randomDiplomacyRequest();
+  entry.request = randomDiplomacyRequest(id);
 }
 
 // ---------- save / load ----------
@@ -1102,6 +1122,7 @@ function normalizeSave(s) {
   delete s.res.weapons;
   delete s.res.armor;
   s.armor = Math.max(s.armor, s.techs.leatherArmor ? 1 : 0);
+  if (!FACTORY_RECIPES.some(r => r.id === s.factoryRecipe && (!r.tech || s.techs[r.tech]))) s.factoryRecipe = 'goods';
   return s;
 }
 
@@ -1233,6 +1254,17 @@ function renderVillage() {
       `</div>`;
   }
 
+  if (bld('factory') > 0) {
+    h += '<h2 class="section">Factory production</h2><div class="res-note">All factories share one production line. Rates below are per factory before bonuses. Production slows when supplies run short and pauses when output storage is full. The Industrialization trial requires Industrial Goods.</div>';
+    for (const recipe of FACTORY_RECIPES) {
+      const unlocked = !recipe.tech || tech(recipe.tech);
+      const selected = factoryRecipe().id === recipe.id;
+      const inputs = Object.entries({ ...recipe.inputs, power: 0.35 }).map(([r, n]) => `${n} ${RESOURCES.find(res => res.id === r).name}/s`).join(', ');
+      h += `<div class="card"><div class="card-head"><span class="card-title">${recipe.name}</span><span class="card-count">${selected ? 'Active' : unlocked ? 'Available' : `Requires ${recipe.unlock}`}</span></div>` +
+        `<div class="card-desc">Produces ${recipe.rate}/s; consumes ${inputs}.</div>` +
+        `<div class="card-actions"><button data-action="factory-recipe" data-id="${recipe.id}" ${!unlocked || selected ? 'disabled' : ''}>${selected ? 'Producing ' : 'Produce '}${recipe.name}</button></div></div>`;
+    }
+  }
   h += '<h2 class="section">Crafting</h2>';
   for (const c of CRAFTS) {
     if (!c.req()) continue;
@@ -1244,7 +1276,7 @@ function renderVillage() {
       `<span class="card-title has-tooltip" data-tooltip="${attrText(c.desc)}">${c.name}</span>` +
       `<span class="card-effect">${fullNote.replace(/^ — /, '')}</span></div>` +
       `<div class="card-cost">cost: ${costHtml(c.cost)}</div>` +
-      `<div class="card-actions"><button data-action="craft" data-id="${c.id}" ${ok ? '' : 'disabled'}>Craft ${c.give[Object.keys(c.give)[0]]}</button></div>` +
+      `<div class="card-actions"><button data-action="craft" data-id="${c.id}" ${ok ? '' : 'disabled'}>Craft ${fmt(c.give[Object.keys(c.give)[0]] * lineageMod(Object.keys(c.give)[0]))}</button></div>` +
       `</div>`;
   }
 
@@ -1350,6 +1382,8 @@ function renderDiplomacy() {
     const canSupply = tradeAvailable() && canAfford(requestCost);
     h += `<div class="card"><div class="card-head"><span class="card-title has-tooltip" data-tooltip="${attrText(tribe.text)}">${tribe.name}</span>` +
       `<span class="card-count">disposition ${Math.round(entry.disposition)} / 100</span></div>` +
+      `<div class="card-desc">${tribe.text}</div>` +
+      `<div class="trial-reward">${lineageDef(id).name} lineage: ${lineageDef(id).effect}. ${lineageUnlocked(id) ? 'Unlocked for future migrations.' : 'Migrate with disposition 80+ to unlock for future migrations.'}</div>` +
       (entry.disposition >= 80 ? '<div class="trial-reward">Active ally: +5% to all village incomes.</div>' : '') +
       (entry.disposition < 50 ? `<div class="trial-mod">Relations are strained: the ${tribe.name} may raid the village.</div>` : '') +
       `<div class="trial-goal">${diplomacyRequestText(tribe, entry)}</div>` +
@@ -1568,6 +1602,7 @@ document.addEventListener('click', (e) => {
     case 'build': doBuild(btn.dataset.id); render(); break;
     case 'build-filter': buildFilter = btn.dataset.filter; render(); break;
     case 'craft': doCraft(btn.dataset.id); render(); break;
+    case 'factory-recipe': chooseFactoryRecipe(btn.dataset.id); render(); break;
     case 'research': doResearch(btn.dataset.id); render(); break;
     case 'diplomacy-supply': supplyDiplomacyRequest(btn.dataset.tribe); render(); break;
     case 'raid': doRaid(btn.dataset.tribe); render(); break;

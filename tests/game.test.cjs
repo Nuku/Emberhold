@@ -91,3 +91,119 @@ test('a valid save round trips through storage', () => {
   assert.equal(run('state.res.wood'), 123);
   assert.equal(run('assignedWorkers()'), 2);
 });
+
+test('new tribes can be encountered, allied, inherited, and saved', () => {
+  for (const id of ['dunewalkers', 'cinderforged', 'thornkin', 'clocklings', 'glimmerfolk']) {
+    const { run } = game();
+    run(`Math.random = () => 0; const target = '${id}';
+      const index = TRIBES.filter(t => t.id !== 'human').findIndex(t => t.id === target);
+      let rolls = [0, (index + 0.5) / (TRIBES.length - 1)];
+      Math.random = () => rolls.length ? rolls.shift() : 0;
+      rollTradePartner()`);
+    assert.equal(run('state.tradePartner'), id);
+    assert.equal(run(`lineageUnlocked('${id}')`), false);
+    run(`state.diplomacy['${id}'].disposition = 80; state.migrating = true; setOut()`);
+    assert.equal(run(`lineageUnlocked('${id}')`), true);
+    run(`state.migrating = true; chooseLineage('${id}'); setOut(); saveGame(true); state = loadGame()`);
+    assert.equal(run('state.species'), id);
+    assert.match(run('renderDiplomacy()'), new RegExp(run(`lineageDef('${id}').effect`).replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
+  }
+});
+
+test('tribal requests use discovered cultural preferences and renew after supplying', () => {
+  const { run } = game();
+  run(`Math.random = () => 0; state.seen = { food: true };
+    ensureDiplomacyEntry('clocklings')`);
+  assert.equal(run('state.diplomacy.clocklings.request.res'), 'food');
+  run(`state.techs.currency = true; state.res.food = 200; state.seen.copper = true;
+    supplyDiplomacyRequest('clocklings')`);
+  assert.equal(run('state.diplomacy.clocklings.request.res'), 'copper');
+  assert.ok(run('state.diplomacy.clocklings.request.amount <= capacityOf("copper")'));
+  assert.equal(run('raidLoot("clocklings").includes("machinery")'), true);
+});
+
+test('new lineages change actual income with both bonuses and tradeoffs', () => {
+  const cases = [
+    ['dunewalkers', 'currency', 1.30, 'wood', 0.88],
+    ['cinderforged', 'iron', 1.20, 'knowledge', 0.88],
+    ['thornkin', 'wood', 1.25, 'goods', 0.85 / 1.20],
+    ['clocklings', 'tools', 1.20, 'food', 0.88],
+    ['glimmerfolk', 'knowledge', 1.15, 'stone', 0.85],
+  ];
+  for (const [id, bonus, gain, penalty, loss] of cases) {
+    const { run } = game();
+    run(`state.jobs = { forager: 2, woodcutter: 1, ironminer: 1, thinker: 1, miner: 1, tinkerer: 1 };
+      state.res.wood = 100; state.res.stone = 100;
+      state.bld.workbench = 1; state.bld.factory = 1; state.res.power = 10;
+      state.techs.currency = true; state.tradePartner = 'human';
+      const baseline = production(); state.species = '${id}'; const actual = production()`);
+    for (const [res, multiplier] of [[bonus, gain], [penalty, loss]]) {
+      const upkeep = res === 'food' ? 'state.pop * FOOD_PER_POP' : '0';
+      const before = run(`baseline.${res} + ${upkeep}`);
+      assert.ok(before > 0, `${id}: ${res} fixture produces output`);
+      assert.ok(Math.abs(run(`actual.${res} + ${upkeep}`) - before * multiplier) < 1e-10, `${id}: ${res}`);
+    }
+  }
+});
+
+test('lineage crafting yields honor bonuses, penalties, costs, and storage limits', () => {
+  for (const [species, recipe, expected] of [
+    ['clocklings', 'tools', 1.20], ['clocklings', 'machinery', 1.25],
+    ['cinderforged', 'steel', 1.20], ['thornkin', 'steel', 0.85],
+  ]) {
+    const { run } = game();
+    run(`state.species = '${species}'; state.bld = { workbench: 1, foundry: 1, workshop: 1 };
+      state.res.wood = 100; state.res.iron = 100; state.res.coal = 100; state.res.steel = 25;
+      state.res['${recipe}'] = 0; doCraft('${recipe}')`);
+    assert.equal(run(`state.res['${recipe}']`), expected);
+    assert.equal(run(recipe === 'tools' ? 'state.res.wood' : 'state.res.coal'), recipe === 'tools' ? 60 : recipe === 'steel' ? 90 : 80);
+    run(`state.res['${recipe}'] = capacityOf('${recipe}') - 0.1; doCraft('${recipe}')`);
+    assert.equal(run(`state.res['${recipe}']`), run(`capacityOf('${recipe}')`));
+  }
+});
+
+test('factory lines unlock through research, persist in saves, and default safely', () => {
+  const { run } = game();
+  run(`state.bld.factory = 1; chooseFactoryRecipe('machinery')`);
+  assert.equal(run('state.factoryRecipe'), 'goods');
+  run(`state.techs.machineryTech = true; chooseFactoryRecipe('machinery'); saveGame(true); state = loadGame()`);
+  assert.equal(run('state.factoryRecipe'), 'machinery');
+  assert.match(run('renderVillage()'), /Producing Machinery/);
+  run(`delete state.factoryRecipe; state = normalizeSave(state)`);
+  assert.equal(run('state.factoryRecipe'), 'goods');
+  run(`state.factoryRecipe = 'missing'; state = normalizeSave(state)`);
+  assert.equal(run('state.factoryRecipe'), 'goods');
+});
+
+test('factories switch outputs and consume recipe materials without multiplying costs', () => {
+  for (const [id, research, output, input, cost] of [
+    ['goods', null, 0.08 * 1.2, null, 0],
+    ['tools', 'craftsmanship', 0.08, 'wood', 3.2],
+    ['steel', 'metallurgy', 0.04, 'iron', 0.6],
+    ['machinery', 'machineryTech', 0.02, 'steel', 0.1],
+  ]) {
+    const { run } = game();
+    run(`state.bld.factory = 1; state.res.power = 10;
+      state.res.wood = 100; state.res.iron = 100; state.res.coal = 100; state.res.steel = 10;
+      state.techs['${research}'] = true; chooseFactoryRecipe('${id}'); const rates = production(1)`);
+    assert.ok(Math.abs(run(`rates['${id}']`) - output) < 1e-10);
+    assert.equal(run('rates.power'), -0.35);
+    if (input) assert.equal(run(`rates['${input}']`), -cost);
+    if (id !== 'goods') assert.equal(run('rates.goods'), 0);
+  }
+});
+
+test('factories throttle to available materials and storage and stop without power', () => {
+  const { run } = game();
+  run(`state.bld.factory = 3; state.techs.machineryTech = true; chooseFactoryRecipe('machinery');
+    state.res.steel = 0.01; state.res.coal = 10; state.res.power = 10;
+    const limited = production(5)`);
+  assert.ok(Math.abs(run('limited.machinery * 5') - 0.002) < 1e-10);
+  assert.ok(Math.abs(run('limited.steel * 5') + 0.01) < 1e-10);
+  run(`state.res.steel = 10; state.res.machinery = capacityOf('machinery'); const full = production(5)`);
+  assert.equal(run('full.machinery'), 0);
+  assert.equal(run('full.power'), 0);
+  run(`state.res.machinery = 0; state.res.power = 0; const unpowered = production(5)`);
+  assert.equal(run('unpowered.machinery'), 0);
+  assert.equal(run('unpowered.steel'), 0);
+});

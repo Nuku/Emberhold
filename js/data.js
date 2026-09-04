@@ -200,7 +200,7 @@ const BUILDINGS = [
 
   { id: 'factory', name: 'Factory', max: 3, scale: 1.8,
     cost: { steel: 70, tools: 55, currency: 90 },
-    effect: () => '+10% all production; creates Industrial Goods while powered',
+    effect: () => '+10% all production; selectable powered production in the Village',
     req: () => (trialActive('industrialization') || perm('factory')) && tech('metallurgy'), desc: 'the drumbeat of the new age' },
 
   { id: 'observatory', name: 'Observatory', max: 1, scale: 1,
@@ -335,6 +335,14 @@ const RANDOM_EVENTS = [
   { text: 'Someone has painted a heroic portrait of the village dog.', delta: [1, 5] },
 ];
 
+// Shared factory production line; rates and inputs are per factory per second.
+const FACTORY_RECIPES = [
+  { id: 'goods', name: 'Industrial Goods', rate: 0.08, inputs: {}, tech: null, unlock: 'Always available' },
+  { id: 'tools', name: 'Tools', rate: 0.08, inputs: { wood: 3.2 }, tech: 'craftsmanship', unlock: 'Craftsmanship' },
+  { id: 'steel', name: 'Steel', rate: 0.04, inputs: { iron: 0.6, coal: 0.4 }, tech: 'metallurgy', unlock: 'Metallurgy' },
+  { id: 'machinery', name: 'Machinery', rate: 0.02, inputs: { steel: 0.1, coal: 0.4 }, tech: 'machineryTech', unlock: 'Mechanism' },
+];
+
 // --- crafting (instant conversions) ---
 const CRAFTS = [
   { id: 'tools',     name: 'Tools',     give: { tools: 1 },     cost: { wood: 40 },
@@ -430,6 +438,16 @@ const TRIBES = [
   { id: 'marshfolk', name: 'Marshfolk', text: 'The Marshfolk pole their cargo through the reeds.' },
   { id: 'skyborn', name: 'Skyborn', text: 'The Skyborn descend from the high passes with bright metal.' },
   { id: 'mephit', name: 'Mephit enclaves', text: 'The Mephits arrive in masks and sealed wagons. Their customs are pungent, but their walls are formidable.' },
+  { id: 'dunewalkers', name: 'Dunewalker caravans', requests: ['food', 'wood'], loot: ['currency', 'copper', 'tools'],
+    text: 'Under indigo awnings, desert merchants weigh every promise. Their caravans seek food and timber to carry between distant markets.' },
+  { id: 'cinderforged', name: 'Cinderforged clans', requests: ['wood', 'coal'], loot: ['iron', 'coal', 'steel'],
+    text: 'Hammer songs ring from soot-dark wagons. These volcanic smiths prize fuel above finery and settle agreements beside the furnace.' },
+  { id: 'thornkin', name: 'Thornkin groves', requests: ['stone', 'tools'], loot: ['food', 'wood', 'tools'],
+    text: 'Their homes are woven from living branches. Thornkin trade orchard harvests for stone and tools, but distrust the smoke of heavy industry.' },
+  { id: 'clocklings', name: 'Clockling workshops', requests: ['copper', 'iron', 'stone'], loot: ['tools', 'machinery', 'copper'],
+    text: 'Tiny brass bells announce each meticulously timed visit. These tireless inventors collect metal and stone for machines that almost never explode.' },
+  { id: 'glimmerfolk', name: 'Glimmerfolk choirs', requests: ['food', 'tools'], loot: ['aether', 'knowledge', 'copper'],
+    text: 'Lantern-lit travelers sing to crystals until they answer. They exchange fragments of star lore for the provisions their secluded observatories cannot make.' },
 ];
 
 // --- lineages ---
@@ -446,6 +464,16 @@ const LINEAGES = [
     desc: 'Clear-eyed wanderers whose maps begin where the clouds end.' },
   { id: 'mephit', name: 'Mephit', effect: '+35% raid defense; raids arrive 120 seconds slower; attackers suffer more injuries', mods: {},
     desc: 'Their settlements stink of sulfur and strange alchemy. Invaders learn to respect the smell.' },
+  { id: 'dunewalkers', name: 'Dunewalkers', effect: '+30% currency and +15% copper, −12% wood', mods: { currency: 1.30, copper: 1.15, wood: 0.88 },
+    desc: 'A settlement of bustling markets and shaded courtyards. Trade pays for expansion, but scarce timber demands careful planning.' },
+  { id: 'cinderforged', name: 'Cinderforged', effect: '+20% iron, coal, and steel, −12% knowledge', mods: { iron: 1.20, coal: 1.20, steel: 1.20, knowledge: 0.88 },
+    desc: 'Furnaces are the heart of every home. Rich metalworking supports an industrial rush, while scholars struggle to be heard over the hammers.' },
+  { id: 'thornkin', name: 'Thornkin', effect: '+25% wood and +15% food, −15% steel and Industrial Goods', mods: { wood: 1.25, food: 1.15, steel: 0.85, goods: 0.85 },
+    desc: 'Living villages spread beneath a generous canopy. Fast early growth comes naturally; bringing heavy industry into the grove takes patience.' },
+  { id: 'clocklings', name: 'Clocklings', effect: '+20% tools and +25% machinery, −12% food', mods: { tools: 1.20, machinery: 1.25, food: 0.88 },
+    desc: 'Every workshop is an experiment and every tool a prototype. Precision manufacturing flourishes, provided someone remembers to tend the fields.' },
+  { id: 'glimmerfolk', name: 'Glimmerfolk', effect: '+30% aether and +15% knowledge, −15% stone and iron', mods: { aether: 1.30, knowledge: 1.15, stone: 0.85, iron: 0.85 },
+    desc: 'Crystal gardens illuminate nights spent charting the heavens. Discovery leads the way, but the weight of ordinary construction slows their ascent.' },
 ];
 
 // --- migration (loop) rewards: Echoes, spent in the ancestral shop.

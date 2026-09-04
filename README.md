@@ -47,7 +47,7 @@ invalid imports, storage failures, and offline time accounting.
   amounts during the Age of Stone, then grows richer through prospecting,
   metallurgy, and electrical engineering.
 - **Neighbors and trade.** Humans are Emberhold's default tribe. After a
-  migration, Stonekin, Marshfolk, or Skyborn may appear nearby. Currency makes
+  migration, one of nine nonhuman tribes may appear nearby. Currency makes
   trade possible, while Banking unlocks Bankers who increase incoming funds.
   Steel-age buildings and later require Currency as well as materials.
 - **Lineages.** Emberborn are always available and produce Industrial Goods more
@@ -56,10 +56,27 @@ invalid imports, storage failures, and offline time accounting.
   chosen freely during future migration preparations. Mephits specialize in
   defense: their settlements repel raids more effectively, recover longer before
   another raid, and leave attackers especially injured if they break through.
+  Five further tribes offer their own requests, raid loot, and unlockable lineages:
+  - **Dunewalkers:** desert merchants; +30% Currency, +15% Copper, −12% Wood.
+  - **Cinderforged:** volcanic smiths; +20% Iron, Coal, and Steel, −12% Knowledge.
+  - **Thornkin:** living forest villages; +25% Wood, +15% Food, −15% Steel and Industrial Goods.
+  - **Clocklings:** precision inventors; +20% Tools, +25% Machinery, −12% Food.
+  - **Glimmerfolk:** crystal astronomers; +30% Aether, +15% Knowledge, −15% Stone and Iron.
+  Their diplomatic requests favor supplies suited to their culture, falling back
+  to discovered resources when those supplies are unavailable. Diplomacy shows
+  each tribe's story and lineage traits before you commit to an alliance.
 - **Industry.** The Trial of Industrialization unlocks the Factory for its
   duration; build it and produce 100 Industrial Goods before the deadline.
   Steam Plants and Dynamos generate Power, while factories consume it without
   needing workers. Completing the trial makes factories permanent.
+  In the Village, switch all factories between Industrial Goods (the default),
+  Tools (Craftsmanship), Steel (Metallurgy), and Machinery (Mechanism).
+  Each factory consumes 0.35 Power/s. Tools use Wood, Steel uses Iron and Coal,
+  and Machinery uses Steel and Coal, at the same base material ratios as hand
+  crafting. Recipe cards show output and input rates. Lineage and governance
+  bonuses affect output, while input costs stay fixed. Production slows when
+  supplies run short and pauses when storage fills. Your selection is saved;
+  a new settlement starts with Industrial Goods selected.
 - **Industrial Goods are the backbone of late construction.** Dynamos, Vaults,
   Observatories, and the Beacon all require Factory output in addition to their
   other materials.
