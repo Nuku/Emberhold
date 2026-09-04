@@ -21,6 +21,15 @@ for backups. On return, offline progress is simulated at half speed, capped at
   and starves when the store runs dry.
 - **Seasons.** A year is 200 in-game days (~100 real seconds). Autumn slows
   the fields and **winter halves them** — keep a store.
+- **Morale.** The settlement's 0–100 morale rises when food is secure and falls
+  during shortages and winter. It ranges from −30% to +13% production, with
+  the Shrine improving recovery; diplomacy and successful raids can hearten the
+  people while defeats shake them. The Amphitheatre unlocks Performers, who
+  occupy villagers but steadily lift the settlement's spirits. Civic Festivals
+  and Civic Harmony later raise Morale's ceiling beyond 100.
+- **Happenings.** Unscheduled events appear in the Chronicle: most are small
+  setbacks to morale, but occasional performances, discoveries, and ridiculous
+  goose-related incidents give the village something to celebrate.
 - **Eras.** Research moves Emberhold through Age of Ember → Stone → Iron →
   Steam → Light. Each era unlocks new resources (stone, copper, tools, iron,
   coal, steel, machinery, aether) and buildings. Copper appears in trace
@@ -28,8 +37,14 @@ for backups. On return, offline progress is simulated at half speed, capped at
   metallurgy, and electrical engineering.
 - **Neighbors and trade.** Humans are Emberhold's default tribe. After a
   migration, Stonekin, Marshfolk, or Skyborn may appear nearby. Currency makes
-  trade possible, while Banking unlocks Bankers who increase incoming funds;
+  trade possible, while Banking unlocks Bankers who increase incoming funds.
   Steel-age buildings and later require Currency as well as materials.
+- **Lineages.** Emberborn are always available and produce Industrial Goods more
+  efficiently. Stonekin, Marshfolk, Skyborn, and Mephit lineages are earned by
+  migrating while the matching tribe is allied (disposition 80+), then can be
+  chosen freely during future migration preparations. Mephits specialize in
+  defense: their settlements repel raids more effectively, recover longer before
+  another raid, and leave attackers especially injured if they break through.
 - **Industry.** The Trial of Industrialization unlocks the Factory for its
   duration; build it and produce 100 Industrial Goods before the deadline.
   Steam Plants and Dynamos generate Power, while factories consume it without
@@ -41,12 +56,20 @@ for backups. On return, offline progress is simulated at half speed, capped at
   ranging from pleas to demands, and may improve when their requests are met.
   Age-of-Iron Diplomacy unlocks Diplomats, who can be assigned to individual
   tribes; random diplomatic events can help or harm relations.
+- **Governance.** Civic Law unlocks five mutually exclusive settlement policies
+  such as Common Granaries, Merchant Charter, and War Council. The Council adds
+  one Governor and two paid advisor seats; their bonuses reset when a new
+  Emberhold is founded, keeping each migration a fresh political build.
 - **Guards.** Guards hunt while keeping watch, producing Food even in winter,
   though each one has a Food upkeep. Barracks determine how many can serve;
   Weaponry and Weapon Efficiency improve their hunting yield.
 - **Expanding the field.** One-time **Expeditions** (Old Forest, Foothills,
   Sunken Ruins, Ember Vein, Glacial Peaks) permanently add passive income and
   are prerequisites for late buildings like the Observatory.
+- **Wayfinding.** A Stone-age Trial of Wayfinding, exposed after the Quarry,
+  unlocks Explorers once the Old Forest is mapped. Explorers generate Survey
+  points; each migration spends 3, then 9, then 27 points to reveal up to four
+  possible landings instead of accepting a single unknown destination.
 - **Compounding back-path ease.** Tools, Tinkerers, Shrines, Factories and stored
   Machinery all raise production everywhere; Frugality/Blueprints cut
   building costs.
@@ -73,8 +96,8 @@ resources, all buildings.
 
 While the migration is being prepared (and only then), shop points can be
 **bought and refunded freely** — a full respec each loop, ideal for tuning
-before swearing a trial. "Call it off" restores the exact prior state; "Set
-out" locks it in and founds the new Emberhold.
+before swearing a trial. Declaring the migration is one-way: the scout reports
+are rolled and locked immediately, then "Set out" founds the new Emberhold.
 
 Shop upgrades: Deep Roots (+5% all production ×5), Wandering Kin (+2 starting
 villagers ×5), Grand Designs (+1 Hut cap ×3), Deep Cellars (+15% storage ×3),

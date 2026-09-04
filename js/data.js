@@ -69,6 +69,9 @@ const JOBS = {
   diplomat:   { name: 'Diplomat',    res: 'currency',  base: 0, targeted: true,
                 desc: 'improves relations with an assigned tribe',
                 unlock: () => tech('diplomacy') },
+  performer:  { name: 'Performer',   base: 0, targeted: true,
+                desc: 'keeps spirits high with song, story, and spectacle',
+                unlock: () => bld('amphitheatre') > 0 },
   guard:       { name: 'Guard',       res: 'food',      base: 0.14, upkeep: 0.20, winterproof: true,
                  desc: 'hunts between watches; barracks set the guard limit',
                  unlock: () => tech('guards') && bld('barracks') > 0 },
@@ -167,6 +170,11 @@ const BUILDINGS = [
     effect: () => '+5% all production',
     req: () => era() >= 3, desc: 'for whatever watches over Emberhold' },
 
+  { id: 'amphitheatre', name: 'Amphitheatre', max: 1, scale: 1,
+    cost: { wood: 260, stone: 340, currency: 60 },
+    effect: () => 'unlocks Performers, who raise morale over time',
+    req: () => tech('civics'), desc: 'a stage where the people remember how to be glad' },
+
   { id: 'workshop', name: 'Workshop', max: 1, scale: 1,
     cost: { iron: 260, tools: 60, currency: 80 },
     effect: () => 'unlocks crafting of Machinery',
@@ -251,6 +259,18 @@ const TECHS = [
   { id: 'diplomacy', name: 'Diplomacy', cost: 800,
     desc: 'Unlocks Diplomats, who can be assigned to improve relations with contacted tribes. Requires the Age of Iron.',
     req: () => era() >= 3 && tech('currency') },
+  { id: 'civics', name: 'Civic Law', cost: 650,
+    desc: 'Unlocks the Civic Hall and lets the village choose a governing policy.',
+    req: () => tech('writing') && era() >= 3 },
+  { id: 'council', name: 'The Council', cost: 1100,
+    desc: 'Unlocks a Governor and two Council seats whose talents shape each Emberhold.',
+    req: () => tech('civics') && tech('diplomacy') },
+  { id: 'festivals', name: 'Civic Festivals', cost: 1400,
+    desc: 'Raises the maximum Morale by 15.',
+    req: () => tech('civics') && bld('amphitheatre') > 0 },
+  { id: 'civicHarmony', name: 'Civic Harmony', cost: 2600,
+    desc: 'Raises the maximum Morale by another 20.',
+    req: () => tech('festivals') && tech('astronomy') },
   { id: 'weaponEfficiency', name: 'Weapon Efficiency', cost: 1200,
     desc: 'Guards hunt 75% more food through disciplined use of weapons.',
     req: () => tech('weaponry') && tech('machineryTech') },
@@ -263,6 +283,53 @@ const TECHS = [
   { id: 'optics', name: 'Optics', cost: 3000,
     desc: 'Unlocks the Beacon.',
     req: () => tech('astronomy') },
+];
+
+// --- civics and council: one policy plus a governor and two advisors per run ---
+const CIVICS = [
+  { id: 'commons', name: 'Common Granaries', mods: { food: 1.15 }, storage: 1.20,
+    desc: '+15% food production, +20% storage ceilings.' },
+  { id: 'charter', name: 'Merchant Charter', mods: { currency: 1.25 }, cost: 0.90,
+    desc: '+25% Currency, −10% building costs.' },
+  { id: 'guilds', name: 'Craft Guilds', mods: { tools: 1.20, steel: 1.15, goods: 1.15 },
+    desc: '+20% Tools and +15% Steel and Industrial Goods.' },
+  { id: 'academy', name: 'Open Academy', mods: { knowledge: 1.20, aether: 1.10 },
+    desc: '+20% Knowledge and +10% Aether.' },
+  { id: 'warCouncil', name: 'War Council', defense: 1.30, mods: { food: 0.95 },
+    desc: '+30% raid strength; −5% food production.' },
+];
+
+const GOVERNORS = [
+  { id: 'quartermaster', name: 'Maela, the Quartermaster', storage: 1.15,
+    desc: '+15% storage ceilings.' },
+  { id: 'marshal', name: 'Orren, the Marshal', defense: 1.25,
+    desc: '+25% raid strength.' },
+  { id: 'archivist', name: 'Sera, the Archivist', mods: { knowledge: 1.20 },
+    desc: '+20% Knowledge.' },
+];
+
+const COUNCILORS = [
+  { id: 'granaryKeeper', name: 'Tovin, Keeper of Granaries', mods: { food: 1.10 }, desc: '+10% food production.' },
+  { id: 'builder', name: 'Nera, Master Builder', cost: 0.90, desc: '−10% building costs.' },
+  { id: 'envoy', name: 'Ilyan, Trade Envoy', mods: { currency: 1.20 }, desc: '+20% Currency.' },
+  { id: 'forgeSpeaker', name: 'Brakka, Forge Speaker', mods: { tools: 1.15, steel: 1.15, goods: 1.15 }, desc: '+15% Tools, Steel, and Industrial Goods.' },
+  { id: 'fieldWarden', name: 'Vey, Field Warden', defense: 1.12, mods: { food: 1.05 }, desc: '+12% raid strength, +5% food production.' },
+];
+
+// --- unscheduled happenings: mostly troublesome, occasionally heartening ---
+const RANDOM_EVENTS = [
+  { text: 'A goose has claimed the council table. No one can explain how it got there.', delta: [1, 4] },
+  { text: 'A traveling puppeteer performs for the children. The adults pretend not to enjoy it.', delta: [2, 6] },
+  { text: 'A barrel of winter apples is found behind the old palisade.', delta: [2, 5], food: [10, 25] },
+  { text: 'A rumor spreads that the moon is watching the village.', delta: [-2, -7] },
+  { text: 'The communal stew turns sour before anyone notices.', delta: [-3, -9], food: [-15, -5] },
+  { text: 'A cart axle breaks in the mud, delaying half the morning\'s work.', delta: [-2, -6] },
+  { text: 'A child releases all the carefully penned chickens.', delta: [-1, -5] },
+  { text: 'The night watch hears wolves beyond the fields.', delta: [-3, -10] },
+  { text: 'A roof gives way under wet snow. The repairs will be embarrassing.', delta: [-4, -12], wood: [-30, -10] },
+  { text: 'A visiting merchant cheats three villagers with a remarkably obvious shell game.', delta: [-2, -8], currency: [-8, -2] },
+  { text: 'A song from the old country is remembered, verse by verse.', delta: [2, 7] },
+  { text: 'Someone has painted a heroic portrait of the village dog.', delta: [1, 5] },
 ];
 
 // --- crafting (instant conversions) ---
@@ -298,6 +365,12 @@ const TRIALS = [
     goal: 'Assign at least one Tinkerer and keep the Workbench running for 240 days without manually crafting Tools.',
     reward: 'Tinkerers: unlocks a job that steadily assembles Tools from wood and stone.',
     req: () => bld('workbench') > 0 },
+
+  { id: 'wayfinding', name: 'Trial of Wayfinding', repeat: 0,
+    mod: 'The village must spend time and supplies to learn the roads beyond its hearth.',
+    goal: 'Complete the Old Forest expedition while the oath stands.',
+    reward: 'Explorers: unlocks a worker who slowly earns Survey points for future migrations.',
+    req: () => era() >= 2 && bld('quarry') > 0 },
 
   { id: 'silence', name: 'Trial of Silence', repeat: 0,
     mod: 'Knowledge production is stopped entirely.',
@@ -353,6 +426,23 @@ const TRIBES = [
   { id: 'stonekin', name: 'Stonekin', text: 'The Stonekin arrive with mineral goods and careful ledgers.' },
   { id: 'marshfolk', name: 'Marshfolk', text: 'The Marshfolk pole their cargo through the reeds.' },
   { id: 'skyborn', name: 'Skyborn', text: 'The Skyborn descend from the high passes with bright metal.' },
+  { id: 'mephit', name: 'Mephit enclaves', text: 'The Mephits arrive in masks and sealed wagons. Their customs are pungent, but their walls are formidable.' },
+];
+
+// --- lineages ---
+// A founding choice inspired by Evolve's species specialization, but kept
+// deliberately small so it complements Emberhold's landing and Echo systems.
+const LINEAGES = [
+  { id: 'human', name: 'Emberborn', effect: '+20% Industrial Goods production', mods: { goods: 1.20 },
+    desc: 'Adaptable survivors who make something useful from almost anything — especially in a factory.' },
+  { id: 'stonekin', name: 'Stonekin', effect: '+18% stone and iron, −8% food', mods: { stone: 1.18, iron: 1.18, food: 0.92 },
+    desc: 'Broad-shouldered miners who remember the shape of every seam.' },
+  { id: 'marshfolk', name: 'Marshfolk', effect: '+18% food and wood, −8% stone', mods: { food: 1.18, wood: 1.18, stone: 0.92 },
+    desc: 'Patient growers who turn wet ground and tangled roots into abundance.' },
+  { id: 'skyborn', name: 'Skyborn', effect: '+22% knowledge and aether, −10% food', mods: { knowledge: 1.22, aether: 1.22, food: 0.90 },
+    desc: 'Clear-eyed wanderers whose maps begin where the clouds end.' },
+  { id: 'mephit', name: 'Mephit', effect: '+35% raid defense; raids arrive 120 seconds slower; attackers suffer more injuries', mods: {},
+    desc: 'Their settlements stink of sulfur and strange alchemy. Invaders learn to respect the smell.' },
 ];
 
 // --- migration (loop) rewards: Echoes, spent in the ancestral shop.

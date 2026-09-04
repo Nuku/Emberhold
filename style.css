@@ -48,6 +48,9 @@ header {
 
 #status-block div { font-size: 14px; }
 #era-line { color: var(--amber); }
+#morale-line { color: var(--blue); }
+#morale-line.morale-low { color: var(--red); }
+#morale-line.morale-high { color: var(--green); }
 
 #controls { margin-left: auto; display: flex; gap: 6px; }
 
@@ -129,6 +132,34 @@ h2.section:first-child { margin-top: 0; }
 .card .card-actions { margin-top: 6px; }
 .card.dimmed { opacity: 0.55; }
 .card.done { border-color: var(--green); opacity: 0.8; }
+.card.lineage-selected { border-color: var(--amber); background: #2b2115; }
+
+.has-tooltip { position: relative; cursor: help; }
+.has-tooltip::after {
+  content: attr(data-tooltip);
+  position: absolute;
+  z-index: 20;
+  left: 0;
+  top: calc(100% + 5px);
+  width: max-content;
+  max-width: 330px;
+  padding: 5px 8px;
+  background: #100d09;
+  border: 1px solid var(--amber);
+  color: var(--text);
+  font-size: 12px;
+  font-weight: normal;
+  line-height: 1.35;
+  white-space: normal;
+  pointer-events: none;
+  opacity: 0;
+  transform: translateY(-3px);
+  transition: opacity .12s ease, transform .12s ease;
+}
+.has-tooltip:hover::after, .has-tooltip:focus::after {
+  opacity: 1;
+  transform: translateY(0);
+}
 
 /* jobs */
 .job-row {

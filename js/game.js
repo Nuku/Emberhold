@@ -20,6 +20,8 @@ function defaultState() {
     day: 0,
     era: 1,
     pop: 4,
+    morale: 70,
+    moraleBand: 2,
     growthT: 0,
     starveT: 0,
     res,
@@ -35,14 +37,23 @@ function defaultState() {
     landing: 'emberplain',
     landingsSeen: {},
     species: 'human',
+    lineagesUnlocked: { human: true },
     tradePartner: 'human',
     tribesSeen: { human: true },
     diplomacy: {},
     diplomats: {},
     diplomacyEventT: 0,
+    randomEventT: 0,
+    randomEventNext: 60,
+    surveyPoints: 0,
+    pendingLandings: [],
+    pendingLanding: null,
+    policy: 'commons',
+    governor: null,
+    council: [],
     guardInjuries: 0,
+    armor: 0,
     migrating: false,
-    migrationSnapshot: null,
     pendingEchoes: 0,
     won: false,
     log: [],
@@ -61,7 +72,42 @@ function era() { return state.era; }
 function expDone(id) { return !!state.expeditions[id]; }
 function trialCount(id) { return state.trialDone[id] || 0; }
 function upg(id) { return state.upgrades[id] || 0; }
+function civicDef(id) { return CIVICS.find(c => c.id === id) || CIVICS[0]; }
+function governorDef(id) { return GOVERNORS.find(g => g.id === id); }
+function councilorDef(id) { return COUNCILORS.find(c => c.id === id); }
+function governanceMod(res) {
+  if (!tech('civics')) return 1;
+  let m = civicDef(state.policy).mods?.[res] || 1;
+  const g = governorDef(state.governor);
+  if (g) m *= g.mods?.[res] || 1;
+  for (const id of (state.council || [])) { const c = councilorDef(id); if (c) m *= c.mods?.[res] || 1; }
+  return m;
+}
+function governanceStorageMod() {
+  if (!tech('civics')) return 1;
+  let m = civicDef(state.policy).storage || 1;
+  if (governorDef(state.governor)?.storage) m *= governorDef(state.governor).storage;
+  return m;
+}
+function governanceCostMod() {
+  if (!tech('civics')) return 1;
+  let m = civicDef(state.policy).cost || 1;
+  if (governorDef(state.governor)?.cost) m *= governorDef(state.governor).cost;
+  for (const id of (state.council || [])) m *= councilorDef(id)?.cost || 1;
+  return m;
+}
+function governanceDefenseMod() {
+  if (!tech('civics')) return 1;
+  let m = civicDef(state.policy).defense || 1;
+  if (governorDef(state.governor)?.defense) m *= governorDef(state.governor).defense;
+  for (const id of (state.council || [])) m *= councilorDef(id)?.defense || 1;
+  return m;
+}
 function tribeDef(id) { return TRIBES.find(t => t.id === id) || TRIBES[0]; }
+function lineageDef(id) { return LINEAGES.find(l => l.id === id) || LINEAGES[0]; }
+function lineageUnlocked(id) { return !!(state.lineagesUnlocked && state.lineagesUnlocked[id]); }
+function isMephit() { return state.species === 'mephit'; }
+function armorLevel() { return Math.max(0, Number(state.armor) || 0); }
 function tradeAvailable() { return tech('currency') && !!state.tradePartner; }
 function guardCap() { return bld('barracks') * 2; }
 function randomDiplomacyRequest() {
@@ -99,6 +145,8 @@ function diplomacyRequestText(tribe, entry) {
 }
 function diplomatCount(id) { return (state.diplomats && state.diplomats[id]) || 0; }
 function totalDiplomats() { return Object.values(state.diplomats || {}).reduce((sum, n) => sum + n, 0); }
+function performerCount() { return state.jobs?.performer || 0; }
+function explorerCount() { return state.jobs?.explorer || 0; }
 function alliedTribes() { return Object.values(state.diplomacy || {}).filter(entry => entry.disposition >= 80).length; }
 function ableGuards() { return Math.max(0, (state.jobs.guard || 0) - (state.guardInjuries || 0)); }
 function trialMax(def) {
@@ -157,6 +205,7 @@ function perm(key) {
     case 'blueprints': return trialCount('haste') > 0;
     case 'tinkerers': return trialCount('tinkering') > 0;
     case 'factory': return trialCount('industrialization') > 0;
+    case 'explorers': return trialCount('wayfinding') > 0;
   }
   return false;
 }
@@ -167,7 +216,7 @@ function capacityOf(id) {
   const s = STORAGE[id];
   if (!s) return Infinity; // knowledge
   return Math.ceil((s.base + s.per * bld(s.bld)) *
-    (1 + 0.2 * trialCount('overflow') + 0.15 * upg('deepCellars')));
+    (1 + 0.2 * trialCount('overflow') + 0.15 * upg('deepCellars')) * governanceStorageMod());
 }
 function isFull(id) { return state.res[id] >= capacityOf(id) - 0.001; }
 
@@ -181,7 +230,7 @@ function popCap() {
 function assignedWorkers() {
   let n = 0;
   for (const j in state.jobs) if (JOBS[j] && !JOBS[j].targeted) n += state.jobs[j];
-  return n + totalDiplomats();
+  return n + totalDiplomats() + performerCount() + explorerCount();
 }
 function unassigned() { return state.pop - assignedWorkers(); }
 
@@ -189,7 +238,7 @@ function buildingCost(def) {
   const mult = Math.pow(def.scale, bld(def.id)) *
     (trialActive('frugality') ? 1.5 : 1) *
     Math.pow(0.9, trialCount('frugality')) *
-    (perm('blueprints') ? 0.85 : 1);
+    (perm('blueprints') ? 0.85 : 1) * governanceCostMod();
   const out = {};
   for (const r in def.cost) out[r] = def.cost[r] * mult;
   return out;
@@ -214,6 +263,7 @@ function seasonMult() {
 
 function allMult() {
   let m = 1;
+  m *= 0.70 + Math.max(0, Math.min(100, Number(state.morale) || 0)) * 0.0042857;
   m *= 1 + 0.05 * bld('shrine') + 0.10 * bld('factory');
   m *= 1 + 0.15 * bld('dynamo');
   m *= 1 + 0.05 * alliedTribes();
@@ -223,6 +273,70 @@ function allMult() {
   m *= 1 + 0.05 * upg('deepRoots');
   if (trialActive('haste')) m *= 0.70;
   return m;
+}
+
+function moraleCap() {
+  return 100 + (tech('festivals') ? 15 : 0) + (tech('civicHarmony') ? 20 : 0);
+}
+
+function moraleBand(morale) {
+  if (morale < 25) return 0;
+  if (morale < 50) return 1;
+  if (morale < 80) return 2;
+  return 3;
+}
+function moraleLabel() {
+  const m = Number(state.morale) || 0;
+  return m < 25 ? 'despairing' : m < 50 ? 'uneasy' : m < 80 ? 'steady' : 'heartened';
+}
+function updateMorale(dt, foodRate) {
+  const winter = SEASONS[seasonIndex()].name === 'Winter';
+  let delta = 0;
+  if (state.res.food <= 0.0001) delta -= 0.22;
+  else if (foodRate < 0) delta -= 0.025;
+  else if (state.res.food > 20) delta += state.morale < 70 ? 0.035 : -0.008;
+  if (winter) delta -= 0.006;
+  if (bld('shrine') > 0) delta += state.morale < 75 ? 0.012 : 0;
+  delta += performerCount() * 0.10;
+  const before = moraleBand(state.morale);
+  state.morale = Math.max(0, Math.min(moraleCap(), state.morale + delta * dt));
+  const after = moraleBand(state.morale);
+  if (after !== before) {
+    const messages = ['The village loses heart; work slows under despair.', 'Unease spreads through Emberhold.', 'The village finds its steady rhythm again.', 'The people are heartened; every task seems lighter.'];
+    addLog(messages[after], after < before ? 'log-bad' : 'log-good');
+    state.moraleBand = after;
+  }
+}
+
+function updateExploration(dt) {
+  if (!perm('explorers')) return;
+  state.surveyPoints = (state.surveyPoints || 0) + explorerCount() * 0.025 * dt;
+}
+
+function randomRange(pair) {
+  return Math.round(pair[0] + Math.random() * (pair[1] - pair[0]));
+}
+function updateRandomEvents(dt) {
+  state.randomEventT = (state.randomEventT || 0) + dt;
+  if (state.randomEventT < (state.randomEventNext || 60)) return;
+  state.randomEventT = 0;
+  state.randomEventNext = 55 + Math.random() * 75;
+  const event = RANDOM_EVENTS[Math.floor(Math.random() * RANDOM_EVENTS.length)];
+  const delta = randomRange(event.delta);
+  state.morale = Math.max(0, Math.min(moraleCap(), state.morale + delta));
+  for (const resource of ['food', 'wood', 'currency']) {
+    if (!event[resource]) continue;
+    const amount = randomRange(event[resource]);
+    state.res[resource] = Math.max(0, Math.min(capacityOf(resource), state.res[resource] + amount));
+    state.seen[resource] = true;
+  }
+  const impact = delta > 0 ? 'log-good' : 'log-bad';
+  addLog(`${event.text} Morale ${delta > 0 ? '+' : ''}${delta}.`, impact);
+}
+
+function lineageMod(res) {
+  const lineage = lineageDef(state.species);
+  return (lineage.mods[res] === undefined ? 1 : lineage.mods[res]) * (lineage.all || 1);
 }
 
 function production() {
@@ -298,10 +412,9 @@ function production() {
     rates.power -= bld('factory') * 0.35;
   }
 
-  // the land itself
-  for (const r in rates) rates[r] *= landingMod(r);
-
-  // consumption
+  // The land, lineage, and civic choices shape output; population upkeep is
+  // applied afterward so food policies do not alter how much villagers eat.
+  for (const r in rates) rates[r] *= landingMod(r) * lineageMod(r) * governanceMod(r);
   rates.food -= state.pop * FOOD_PER_POP;
   return rates;
 }
@@ -371,6 +484,9 @@ function updateTrial(dt) {
     case 'tinkering':
       if (tr.daysActive >= 240 && (state.jobs.tinkerer || 0) > 0) { endTrial(true); return; }
       break;
+    case 'wayfinding':
+      if (expDone('oldForest')) { endTrial(true); return; }
+      break;
     case 'industrialization':
       if (state.res.goods >= 100) { endTrial(true); return; }
       if (tr.daysActive > 1200) { endTrial(false); return; }
@@ -411,18 +527,26 @@ function resolveTribeRaid(id) {
   const entry = state.diplomacy[id];
   const tribe = tribeDef(id);
   const able = ableGuards();
+  const total = state.jobs.guard || 0;
+  const wounded = Math.max(0, total - able);
   const armed = tech('weaponry') ? able : 0;
-  const armored = tech('leatherArmor') ? able : 0;
-  const defense = able + armed * 0.9 + armored * 0.7;
+  // Armor keeps a bad fight from becoming fatal; it does not make the
+  // settlement more likely to win the engagement.
+  const defense = (able + wounded * 0.5 + armed * 0.9) * (isMephit() ? 1.35 : 1);
   const raidPower = 3 + (50 - entry.disposition) / 8 + Math.random() * 5;
   if (defense >= raidPower) {
     entry.disposition = Math.max(-100, entry.disposition - 2);
+    if (isMephit()) state.diplomacyEventT = -120;
     addLog(`The ${tribe.name} test Emberhold's walls, but ${able} able Guard${able === 1 ? '' : 's'} drive them off.`, 'log-good');
     return;
   }
   const margin = raidPower - defense;
-  const deaths = Math.min(able, Math.floor(margin / 5));
-  const injuries = Math.min(Math.max(0, able - deaths), Math.max(1, Math.ceil(margin / 3)));
+  // Mephit's extra injury rule belongs to attacking Mephit settlements;
+  // their own defenders should benefit from the lineage rather than suffer it.
+  const harm = 1;
+  const deathMult = Math.max(0.15, 1 - armorLevel() * 0.08);
+  const deaths = Math.min(able, Math.floor(margin / 5 * deathMult));
+  const injuries = Math.min(Math.max(0, able - deaths), Math.max(1, Math.ceil(margin / 3 * harm)));
   state.jobs.guard = Math.max(0, (state.jobs.guard || 0) - deaths);
   state.guardInjuries = Math.min(ableGuards(), (state.guardInjuries || 0) + injuries);
   const lootPool = ['food', 'wood', 'stone', 'tools', 'copper', 'iron', 'coal', 'steel', 'currency']
@@ -435,6 +559,7 @@ function resolveTribeRaid(id) {
     loot.push(`${fmt(amount)} ${RESOURCES.find(r => r.id === pick).name}`);
   }
   entry.disposition = Math.max(-100, entry.disposition - 6);
+  if (isMephit()) state.diplomacyEventT = -120;
   addLog(`The ${tribe.name} raid Emberhold! ${deaths} Guard${deaths === 1 ? '' : 's'} die${deaths === 1 ? 's' : ''}, ${injuries} suffer injuries, and they make off with ${loot.join(' and ') || 'nothing'}.`, 'log-bad');
 }
 
@@ -458,6 +583,7 @@ function trialProgressText() {
       return `emptiest store: ${Math.floor(worst * 100)}% full — every discovered store must hit its ceiling`;
     }
     case 'tinkering': return `${Math.floor(tr.daysActive)} / 240 days endured — ${state.jobs.tinkerer || 0} Tinkerer assigned (need at least 1)`;
+    case 'wayfinding': return expDone('oldForest') ? 'The Old Forest has been mapped.' : 'The Old Forest expedition must return';
     case 'industrialization': return `${fmt(state.res.goods)} / 100 Industrial Goods — ${Math.floor(tr.daysActive)} / 1200 days`;
     case 'haste': return `${Math.floor(tr.daysActive)} / 1200 days to reach the Age of Light`;
   }
@@ -469,19 +595,29 @@ function beginMigration() {
   if (!canMigrate()) return;
   state.pendingEchoes = echoesEarned();
   state.echoes += state.pendingEchoes;
-  state.migrationSnapshot = { upgrades: { ...state.upgrades }, echoes: state.echoes - state.pendingEchoes };
+  state.pendingSpecies = state.species;
+  state.pendingLandings = landingChoicesForMigration();
+  state.pendingLanding = state.pendingLandings[0].id;
   state.migrating = true;
   addLog(`The Great Migration is declared. The deeds of ${state.pop} villagers will echo: ${state.pendingEchoes} Echo${state.pendingEchoes === 1 ? '' : 's'} gained. Spend them before setting out.`, 'log-important');
 }
 
-function cancelMigration() {
-  if (!state.migrating || !state.migrationSnapshot) return;
-  state.upgrades = state.migrationSnapshot.upgrades;
-  state.echoes = state.migrationSnapshot.echoes;
-  state.migrating = false;
-  state.migrationSnapshot = null;
-  state.pendingEchoes = 0;
-  addLog('The migration is called off. The village stays, and its Echoes return to the stillness.', '');
+function landingChoicesForMigration() {
+  const available = LANDINGS.filter(l => l.id !== state.landing);
+  const choices = [available.splice(Math.floor(Math.random() * available.length), 1)[0]];
+  const costs = [3, 9, 27];
+  let points = state.surveyPoints || 0;
+  for (const cost of costs) {
+    if (points < cost || choices.length >= 4 || !available.length) break;
+    points -= cost;
+    choices.push(available.splice(Math.floor(Math.random() * available.length), 1)[0]);
+  }
+  state.surveyPoints = points;
+  return choices;
+}
+function chooseLanding(id) {
+  if (!state.migrating || !(state.pendingLandings || []).some(l => l.id === id)) return;
+  state.pendingLanding = id;
 }
 
 function migrationBuy(id) {
@@ -509,6 +645,15 @@ function setOut() {
   if (!state.migrating) return;
   const up = { ...state.upgrades };
   const fromLanding = state.landing;
+  const newSpecies = state.pendingSpecies || state.species;
+  const unlockedLineages = { ...(state.lineagesUnlocked || { human: true }) };
+  const newlyUnlocked = [];
+  for (const id in state.diplomacy || {}) {
+    if (state.diplomacy[id].disposition >= 80 && LINEAGES.some(l => l.id === id)) {
+      if (!unlockedLineages[id]) newlyUnlocked.push(lineageDef(id).name);
+      unlockedLineages[id] = true;
+    }
+  }
   addLog('The village sets out. The old Emberhold is left to the wind; a new one rises where the ground is kinder.', 'log-important');
 
   const keep = {
@@ -518,6 +663,7 @@ function setOut() {
     landingsSeen: state.landingsSeen,
     species: state.species, tribesSeen: state.tribesSeen,
     diplomacy: state.diplomacy,
+    armor: state.armor,
     won: state.won, savedAt: state.savedAt, log: state.log,
   };
   state = defaultState();
@@ -530,8 +676,11 @@ function setOut() {
   state.expeditions = keep.expeditions;
   state.landingsSeen = keep.landingsSeen;
   state.species = keep.species;
+  state.species = newSpecies;
+  state.lineagesUnlocked = unlockedLineages;
   state.tribesSeen = keep.tribesSeen;
   state.diplomacy = keep.diplomacy;
+  state.armor = Math.max(keep.armor || 0, state.techs.leatherArmor ? 1 : 0);
   state.won = keep.won;
   state.savedAt = keep.savedAt;
   state.log = keep.log;
@@ -551,13 +700,25 @@ function setOut() {
     state.seen.stone = true;
     state.seen.tools = true;
   }
-  const landing = rollLanding(fromLanding);
+  const landing = LANDINGS.find(l => l.id === state.pendingLanding) || state.pendingLandings[0] || LANDINGS.find(l => l.id !== fromLanding) || LANDINGS[0];
+  state.landing = landing.id;
+  state.landingsSeen[landing.id] = true;
   addLog(`The road ends at ${landing.name}. ${landing.text} (${modsHtml(landing).replace(/<[^>]+>/g, '')})`, 'log-important');
   const tribe = rollTradePartner();
   addLog(`${tribe.name} are encountered nearby. ${tribe.text} Trade will bring funds once Currency is researched.`, 'log-important');
+  if (newlyUnlocked.length) {
+    addLog(`${newlyUnlocked.join(' and ')} lineage${newlyUnlocked.length === 1 ? '' : 's'} may now be chosen at future migrations.`, 'log-good');
+  }
   state.migrating = false;
-  state.migrationSnapshot = null;
   state.pendingEchoes = 0;
+  state.pendingSpecies = null;
+  state.pendingLandings = [];
+  state.pendingLanding = null;
+}
+
+function chooseLineage(id) {
+  if (!state.migrating || !lineageUnlocked(id)) return;
+  state.pendingSpecies = id;
 }
 
 // ---------- core tick ----------
@@ -576,6 +737,8 @@ function tick(dt) {
       state.seen[r] = true;
     }
   }
+
+  updateMorale(dt, rates.food);
 
   // starvation
   if (state.res.food <= 0.0001) {
@@ -603,6 +766,8 @@ function tick(dt) {
 
   updateTrial(dt);
   updateDiplomacy(dt);
+  updateRandomEvents(dt);
+  updateExploration(dt);
 
   // seasons
   const doy = Math.floor(state.day % DAYS_PER_YEAR);
@@ -666,11 +831,35 @@ function doResearch(id) {
   if (state.res.knowledge < def.cost) return;
   state.res.knowledge -= def.cost;
   state.techs[id] = true;
+  if (id === 'leatherArmor') state.armor = Math.max(armorLevel(), 1);
   addLog(`Research complete: ${def.name}. ${def.desc}`, 'log-good');
   if (ERA_GATE[id] && ERA_GATE[id] > state.era) {
     state.era = ERA_GATE[id];
     addLog(`The village enters the ${ERAS[state.era - 1].name}.`, 'log-important');
   }
+}
+
+function choosePolicy(id) {
+  if (!tech('civics') || !CIVICS.some(c => c.id === id)) return;
+  if (state.policy === id) return;
+  state.policy = id;
+  addLog(`The Civic Hall adopts ${civicDef(id).name}. ${civicDef(id).desc}`, 'log-important');
+}
+function appointGovernor(id) {
+  if (!tech('council') || !governorDef(id) || state.governor === id) return;
+  if (state.res.currency < 40) return;
+  state.res.currency -= 40;
+  state.governor = id;
+  addLog(`${governorDef(id).name} accepts the governor's seal.`, 'log-good');
+}
+function toggleCouncilor(id) {
+  if (!tech('council') || !councilorDef(id)) return;
+  const i = state.council.indexOf(id);
+  if (i >= 0) { state.council.splice(i, 1); return; }
+  if (state.council.length >= 2 || state.res.currency < 25) return;
+  state.res.currency -= 25;
+  state.council.push(id);
+  addLog(`${councilorDef(id).name} takes a seat on the Council.`, 'log-good');
 }
 
 function doExpedition(id) {
@@ -694,6 +883,24 @@ function doAssign(job, delta) {
   state.jobs[job] += delta;
 }
 
+function doAssignPerformer(delta) {
+  if (!JOBS.performer.unlock()) return;
+  state.jobs.performer = performerCount();
+  if (delta > 0 && unassigned() <= 0) return;
+  if (delta < 0 && performerCount() <= 0) return;
+  state.jobs.performer += delta;
+  if (state.jobs.performer <= 0) delete state.jobs.performer;
+}
+
+function doAssignExplorer(delta) {
+  if (!JOBS.explorer.unlock()) return;
+  state.jobs.explorer = explorerCount();
+  if (delta > 0 && unassigned() <= 0) return;
+  if (delta < 0 && explorerCount() <= 0) return;
+  state.jobs.explorer += delta;
+  if (state.jobs.explorer <= 0) delete state.jobs.explorer;
+}
+
 function doAssignDiplomat(id, delta) {
   if (!tech('diplomacy') || !state.diplomacy || !state.diplomacy[id]) return;
   state.diplomats = state.diplomats || {};
@@ -704,12 +911,101 @@ function doAssignDiplomat(id, delta) {
   if (state.diplomats[id] <= 0) delete state.diplomats[id];
 }
 
+function raidLoot(id) {
+  const pools = {
+    human: ['food', 'wood', 'currency'],
+    stonekin: ['stone', 'iron', 'tools'],
+    marshfolk: ['food', 'wood', 'copper'],
+    skyborn: ['knowledge', 'aether', 'currency'],
+    mephit: ['coal', 'tools', 'steel'],
+  };
+  return pools[id] || ['food', 'wood'];
+}
+
+function applyRaidCasualties(deaths, injuries) {
+  const total = state.jobs.guard || 0;
+  let healthy = ableGuards();
+  let wounded = Math.max(0, total - healthy);
+
+  // Healthy Guards take the first losses. Wounded Guards are only exposed
+  // once the raid's injury count spills past the healthy front line.
+  const healthyDeaths = Math.min(healthy, deaths);
+  healthy -= healthyDeaths;
+  let actualDeaths = healthyDeaths;
+  const woundedDeaths = Math.min(wounded, Math.max(0, deaths - healthyDeaths));
+  wounded -= woundedDeaths;
+  actualDeaths += woundedDeaths;
+
+  const healthyInjuries = Math.min(healthy, injuries);
+  healthy -= healthyInjuries;
+  const reInjuredDeaths = Math.min(wounded, Math.max(0, injuries - healthyInjuries));
+  wounded -= reInjuredDeaths;
+  actualDeaths += reInjuredDeaths;
+
+  state.jobs.guard = Math.max(0, total - actualDeaths);
+  state.guardInjuries = Math.min(state.jobs.guard, wounded + healthyInjuries);
+  return { deaths: actualDeaths, injuries: healthyInjuries };
+}
+
+function doRaid(id) {
+  const entry = state.diplomacy && state.diplomacy[id];
+  if (!entry || !tech('guards')) return;
+  const able = ableGuards();
+  const cost = { food: 30, tools: 2 };
+  if (able < 1 || !canAfford(cost)) return;
+  payCost(cost);
+
+  const targetIsMephit = id === 'mephit';
+  // Weapons improve the attack; armor only protects troops who come home.
+  const totalGuards = state.jobs.guard || 0;
+  const wounded = Math.max(0, totalGuards - able);
+  const force = able + wounded * 0.5 + (tech('weaponry') ? (able * 0.9 + wounded * 0.45) : 0);
+  const difficulty = (5 + Math.max(0, entry.disposition) / 10) * (targetIsMephit ? 1.35 : 1);
+  const chance = Math.min(0.9, Math.max(0.15, 0.25 + force * governanceDefenseMod() / (force * governanceDefenseMod() + difficulty) * 0.65));
+  const succeeded = Math.random() < chance;
+  const injuryMult = targetIsMephit ? 1.75 : 1;
+  const deathMult = Math.max(0.15, 1 - armorLevel() * 0.08);
+  const deathChance = succeeded ? 0.10 * deathMult : 1;
+  const baseDeaths = succeeded
+    ? (Math.random() < deathChance ? 1 : 0)
+    : Math.max(1, Math.ceil((difficulty - force) / 3));
+  const losses = succeeded
+    ? Math.min(totalGuards, baseDeaths)
+    : Math.min(totalGuards, Math.floor(baseDeaths * deathMult));
+  const injuryChance = succeeded ? (targetIsMephit ? 0.80 : 0.55) : 1;
+  const baseInjuries = Math.random() < injuryChance
+    ? Math.max(1, Math.ceil((succeeded ? 1 : 2) * injuryMult * Math.random()))
+    : 0;
+  const injuries = Math.min(Math.max(0, totalGuards - losses), baseInjuries);
+  const casualties = applyRaidCasualties(losses, injuries);
+  const actualDeaths = casualties.deaths;
+  const actualInjuries = casualties.injuries;
+  entry.disposition = Math.max(-100, entry.disposition - (succeeded ? 28 : 18));
+
+  if (succeeded) {
+    state.morale = Math.min(moraleCap(), state.morale + 3);
+    const pool = raidLoot(id).filter(r => capacityOf(r) === Infinity || !isFull(r));
+    const loot = pool[Math.floor(Math.random() * pool.length)];
+    const amount = loot === 'knowledge' ? 35 : loot === 'currency' ? 12 : 20;
+    if (loot) {
+      state.res[loot] = Math.min(capacityOf(loot), state.res[loot] + amount);
+      state.seen[loot] = true;
+    }
+    const lootText = loot ? `${amount} ${RESOURCES.find(r => r.id === loot).name}` : 'nothing (the stores were full)';
+    addLog(`The raid on the ${tribeDef(id).name} succeeds${targetIsMephit ? ', though the fumes leave everyone coughing' : ''}. Emberhold seizes ${lootText}; ${actualDeaths} Guard${actualDeaths === 1 ? '' : 's'} lost and ${actualInjuries} injured.`, 'log-good');
+  } else {
+    state.morale = Math.max(0, state.morale - 5);
+    addLog(`The raid on the ${tribeDef(id).name} fails${targetIsMephit ? ' — the smell alone breaks the charge' : ''}. ${actualDeaths} Guard${actualDeaths === 1 ? '' : 's'} lost and ${actualInjuries} injured.`, 'log-bad');
+  }
+}
+
 function supplyDiplomacyRequest(id) {
   if (!tech('currency') || !state.diplomacy || !state.diplomacy[id]) return;
   const entry = state.diplomacy[id];
   if (!canAfford({ [entry.request.res]: entry.request.amount })) return;
   payCost({ [entry.request.res]: entry.request.amount });
   entry.disposition = Math.min(100, entry.disposition + 8);
+  state.morale = Math.min(moraleCap(), state.morale + 2);
   const tribe = tribeDef(id);
   addLog(`The ${tribe.name} accept the requested goods. Relations improve by 8.`, 'log-good');
   entry.request = randomDiplomacyRequest();
@@ -736,6 +1032,7 @@ function loadGame() {
     for (const r of RESOURCES) if (s.res[r.id] === undefined) s.res[r.id] = 0;
     delete s.res.weapons;
     delete s.res.armor;
+    if (s.armor === undefined) s.armor = s.techs.leatherArmor ? 1 : 0;
     return s;
   } catch (e) { return null; }
 }
@@ -804,6 +1101,7 @@ function costHtml(cost) {
 
 // ---------- UI ----------
 function esc(s) { return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;'); }
+function attrText(s) { return esc(s).replace(/"/g, '&quot;'); }
 
 function resVisible(id) {
   if (state.seen[id]) return true;
@@ -816,11 +1114,14 @@ function renderHeader() {
   const season = SEASONS[Math.floor(doy / DAYS_PER_SEASON)].name;
   const year = Math.floor(state.day / DAYS_PER_YEAR) + 1;
   document.getElementById('era-line').textContent =
-    `Year ${year} of the ${ERAS[state.era - 1].name} — ${landingDef().name}`;
+    `Year ${year} of the ${ERAS[state.era - 1].name} — ${landingDef().name} — ${lineageDef(state.species).name}`;
   document.getElementById('time-line').textContent =
     `Day ${doy % DAYS_PER_SEASON + 1} of ${season} — chronicle day ${Math.floor(state.day)}`;
   document.getElementById('pop-line').textContent =
     `${state.pop} villagers${unassigned() ? ` (${unassigned()} unassigned)` : ''} — housing for ${popCap()}`;
+  const moraleEl = document.getElementById('morale-line');
+  moraleEl.textContent = `Morale ${Math.round(state.morale)} / ${moraleCap()} — ${moraleLabel()} (${state.morale >= 70 ? '+' : ''}${Math.round((0.70 + state.morale * 0.0042857 - 1) * 100)}% production)`;
+  moraleEl.className = state.morale < 25 ? 'morale-low' : state.morale >= 80 ? 'morale-high' : '';
   const echoEl = document.getElementById('echo-line');
   if (bld('monument') > 0 || state.echoes > 0 || state.migrating) {
     echoEl.classList.remove('hidden');
@@ -839,6 +1140,8 @@ function renderVillage() {
     `<div class="res-note">${L.text}</div>` +
     `<div class="res-note" style="margin:2px 0 6px">The land gives: ${modsHtml(L)}</div>` +
     `<div class="res-note" style="margin:2px 0 6px">${tradeAvailable() ? `Trading with the ${tribeDef(state.tradePartner).name}; funds arrive at ${fmtRate(0.05)} before Banker work.` : `The ${tribeDef(state.tradePartner).name} are nearby. Research Currency to begin trading.`}</div>` +
+    `<div class="res-note" style="margin:2px 0 6px">Guard armor: level ${fmt(armorLevel())} — each level reduces death odds by 8% (minimum 15%).</div>` +
+    `<div class="res-note" style="margin:2px 0 6px">Morale rises when stores are secure and falls when food runs short or winter bites. The Shrine steadies the people. ${moraleLabel()} morale changes production by ${Math.round((0.70 + state.morale * 0.0042857 - 1) * 100)}%; current ceiling: ${moraleCap()}.</div>` +
     '<h2 class="section">Stores</h2>';
   for (const r of RESOURCES) {
     if (!resVisible(r.id)) continue;
@@ -849,10 +1152,9 @@ function renderVillage() {
       ? fmt(state.res[r.id])
       : `${fmt(state.res[r.id])} / ${fmt(cap)}${isFull(r.id) ? ' FULL' : ''}`;
     h += `<div class="res-row">` +
-      `<span class="res-name">${r.name}</span>` +
+      `<span class="res-name has-tooltip" data-tooltip="${attrText(r.note)}">${r.name}</span>` +
       `<span class="res-amount ${isFull(r.id) ? 'res-full' : ''}">${amount}</span>` +
       `<span class="res-rate ${cls}">${fmtRate(rate)}</span>` +
-      `<span class="res-note">${r.note}</span>` +
       `</div>`;
   }
 
@@ -864,8 +1166,8 @@ function renderVillage() {
     const fullNote = forbidden ? ' — forbidden by the Trial of Tinkering' :
       (Object.keys(c.give).some(r => isFull(r)) ? ' — store full' : '');
     h += `<div class="card"><div class="card-head">` +
-      `<span class="card-title">${c.name}</span>` +
-      `<span class="card-effect">${c.desc}${fullNote}</span></div>` +
+      `<span class="card-title has-tooltip" data-tooltip="${attrText(c.desc)}">${c.name}</span>` +
+      `<span class="card-effect">${fullNote.replace(/^ — /, '')}</span></div>` +
       `<div class="card-cost">cost: ${costHtml(c.cost)}</div>` +
       `<div class="card-actions"><button data-action="craft" data-id="${c.id}" ${ok ? '' : 'disabled'}>Craft ${c.give[Object.keys(c.give)[0]]}</button></div>` +
       `</div>`;
@@ -881,15 +1183,31 @@ function renderVillage() {
     if (!job.unlock()) continue;
     const n = state.jobs[j] || 0;
     h += `<div class="job-row">` +
-      `<span class="job-name">${job.name}</span>` +
+      `<span class="job-name has-tooltip" data-tooltip="${attrText(job.desc)}">${job.name}</span>` +
       `<span class="job-assign">${j === 'guard' && state.guardInjuries ? `${n} (${Math.floor(ableGuards())} able)` : n}</span>` +
       `<span class="job-rate">${fmt(job.base)} ${RESOURCES.find(r => r.id === job.res).name}/s each` +
       (job.inputs ? ` (uses ${Object.entries(job.inputs).map(([r, v]) => `${fmt(v)} ${RESOURCES.find(x => x.id === r).name.toLowerCase()}/s`).join(' + ')})` : '') +
-      ` — ${job.desc}</span>` +
+      `</span>` +
       `<span class="job-btns">` +
       `<button data-action="job-dec" data-job="${j}" ${n > 0 ? '' : 'disabled'}>−</button>` +
       `<button data-action="job-inc" data-job="${j}" ${unassigned() > 0 && (j !== 'guard' || n < guardCap()) ? '' : 'disabled'}>+</button>` +
       `</span></div>`;
+  }
+  if (JOBS.performer.unlock()) {
+    const n = performerCount();
+    h += `<div class="job-row"><span class="job-name has-tooltip" data-tooltip="${attrText(JOBS.performer.desc)}">${JOBS.performer.name}</span>` +
+      `<span class="job-assign">${n}</span>` +
+      `<span class="job-rate">+0.10 morale/s each</span>` +
+      `<span class="job-btns"><button data-action="performer-dec" ${n > 0 ? '' : 'disabled'}>−</button>` +
+      `<button data-action="performer-inc" ${unassigned() > 0 ? '' : 'disabled'}>+</button></span></div>`;
+  }
+  if (JOBS.explorer.unlock()) {
+    const n = explorerCount();
+    h += `<div class="job-row"><span class="job-name has-tooltip" data-tooltip="${attrText(JOBS.explorer.desc)}">${JOBS.explorer.name}</span>` +
+      `<span class="job-assign">${n}</span>` +
+      `<span class="job-rate">+0.025 Survey/s each</span>` +
+      `<span class="job-btns"><button data-action="explorer-dec" ${n > 0 ? '' : 'disabled'}>−</button>` +
+      `<button data-action="explorer-inc" ${unassigned() > 0 ? '' : 'disabled'}>+</button></span></div>`;
   }
   h += `<div class="res-note" style="margin-top:6px">Every villager eats ${fmt(FOOD_PER_POP)} food/s, working or not. Guards also require ${fmt(JOBS.guard.upkeep)} food/s each, but their hunting is not reduced by winter. Weaponry and Leather Armor research strengthen the watch; injuries heal over time. Every store but Knowledge and Currency has a ceiling — what flows in past a full store is wasted. Storehouses raise the ceilings.</div>`;
 
@@ -908,10 +1226,9 @@ function renderBuild() {
     const cost = buildingCost(b);
     const ok = !maxed && canAfford(cost);
     h += `<div class="card"><div class="card-head">` +
-      `<span class="card-title">${b.name}</span>` +
+      `<span class="card-title has-tooltip" data-tooltip="${attrText(b.desc)}">${b.name}</span>` +
       (b.max > 1 ? `<span class="card-count">${count} / ${b.max}</span>` : (count ? `<span class="card-count">built</span>` : '')) +
       `<span class="card-effect">${b.effect()}</span></div>` +
-      `<div class="card-desc">${b.desc}</div>` +
       `<div class="card-cost">cost: ${costHtml(cost)}</div>` +
       `<div class="card-actions"><button data-action="build" data-id="${b.id}" ${ok ? '' : 'disabled'}>${maxed ? 'Complete' : 'Build'}</button></div>` +
       `</div>`;
@@ -929,9 +1246,8 @@ function renderResearch() {
     any = true;
     const ok = state.res.knowledge >= t.cost;
     h += `<div class="card"><div class="card-head">` +
-      `<span class="card-title">${t.name}</span>` +
+      `<span class="card-title has-tooltip" data-tooltip="${attrText(t.desc)}">${t.name}</span>` +
       `<span class="card-count">${fmt(t.cost)} Knowledge</span></div>` +
-      `<div class="card-desc">${t.desc}</div>` +
       `<div class="card-actions"><button data-action="research" data-id="${t.id}" ${ok ? '' : 'disabled'}>Research</button></div>` +
       `</div>`;
   }
@@ -951,14 +1267,19 @@ function renderDiplomacy() {
     const entry = state.diplomacy[id];
     const requestCost = { [entry.request.res]: entry.request.amount };
     const canSupply = tradeAvailable() && canAfford(requestCost);
-    h += `<div class="card"><div class="card-head"><span class="card-title">${tribe.name}</span>` +
+    h += `<div class="card"><div class="card-head"><span class="card-title has-tooltip" data-tooltip="${attrText(tribe.text)}">${tribe.name}</span>` +
       `<span class="card-count">disposition ${Math.round(entry.disposition)} / 100</span></div>` +
-      `<div class="card-desc">${tribe.text}</div>` +
       (entry.disposition >= 80 ? '<div class="trial-reward">Active ally: +5% to all village incomes.</div>' : '') +
       (entry.disposition < 50 ? `<div class="trial-mod">Relations are strained: the ${tribe.name} may raid the village.</div>` : '') +
       `<div class="trial-goal">${diplomacyRequestText(tribe, entry)}</div>` +
       `<div class="card-cost">offer: ${costHtml(requestCost)}</div>` +
       `<div class="card-actions"><button data-action="diplomacy-supply" data-tribe="${id}" ${canSupply ? '' : 'disabled'}>Supply the request</button></div>`;
+    if (tech('guards')) {
+      const raidCost = { food: 30, tools: 2 };
+      const canRaid = ableGuards() > 0 && canAfford(raidCost);
+      h += `<div class="trial-mod">Raid cost: ${costHtml(raidCost)}. This damages relations and may cost Guards.</div>` +
+        `<div class="card-actions"><button data-action="raid" data-tribe="${id}" ${canRaid ? '' : 'disabled'}>Raid the ${tribe.name}</button></div>`;
+    }
     if (tech('diplomacy')) {
       h += `<div class="res-note">${JOBS.diplomat.name}s assigned: ${diplomatCount(id)} — each nudges relations upward over time</div>` +
         `<div class="card-actions"><button data-action="diplomat-dec" data-tribe="${id}" ${diplomatCount(id) > 0 ? '' : 'disabled'}>−</button> ` +
@@ -969,15 +1290,30 @@ function renderDiplomacy() {
   return h;
 }
 
+function renderGovernance() {
+  if (!tech('civics')) return '<h2 class="section">Governance</h2><div class="card"><div class="card-desc">Writing and the Age of Iron will give Emberhold the laws needed to govern itself.</div></div>';
+  let h = '<h2 class="section">Governance — the Civic Hall</h2>';
+  h += '<div class="res-note">Choose one policy per settlement. Policies reset on migration, while the knowledge of Civic Law endures.</div>';
+  for (const c of CIVICS) h += `<div class="card ${state.policy === c.id ? 'trial-active' : ''}"><div class="card-head"><span class="card-title">${c.name}</span>${state.policy === c.id ? '<span class="card-count">current policy</span>' : ''}</div><div class="card-effect">${c.desc}</div><div class="card-actions"><button data-action="policy" data-id="${c.id}" ${state.policy === c.id ? 'disabled' : ''}>Adopt</button></div></div>`;
+  if (!tech('council')) return h + '<div class="card"><div class="card-desc">Research The Council to appoint a Governor and advisors.</div></div>';
+  h += '<h2 class="section">Governor</h2><div class="res-note">Appointments cost 40 Currency. Only one governor may serve at a time.</div>';
+  for (const g of GOVERNORS) h += `<div class="card ${state.governor === g.id ? 'trial-active' : ''}"><div class="card-head"><span class="card-title">${g.name}</span>${state.governor === g.id ? '<span class="card-count">serving</span>' : ''}</div><div class="card-effect">${g.desc}</div><div class="card-actions"><button data-action="governor" data-id="${g.id}" ${state.governor === g.id || state.res.currency < 40 ? 'disabled' : ''}>Appoint</button></div></div>`;
+  h += '<h2 class="section">Council</h2><div class="res-note">Two seats are available. Advisors cost 25 Currency to seat or may be dismissed freely.</div>';
+  for (const c of COUNCILORS) { const active = state.council.includes(c.id); h += `<div class="card ${active ? 'trial-active' : ''}"><div class="card-head"><span class="card-title">${c.name}</span>${active ? '<span class="card-count">seated</span>' : ''}</div><div class="card-effect">${c.desc}</div><div class="card-actions"><button data-action="councilor" data-id="${c.id}" ${!active && (state.council.length >= 2 || state.res.currency < 25) ? 'disabled' : ''}>${active ? 'Dismiss' : 'Seat advisor'}</button></div></div>`; }
+  return h;
+}
+
 function renderTrials() {
-  if (bld('monument') < 1) {
+  if (bld('monument') < 1 && !(era() >= 2 && bld('quarry') > 0)) {
     return '<h2 class="section">Trials</h2>' +
       '<div class="card"><div class="card-desc">A stone monument, and oaths sworn upon it, would test this village against itself. ' +
       'The Monument becomes possible in the Age of Iron.</div></div>';
   }
-  let h = '<h2 class="section">Trials — oaths sworn upon the Monument</h2>';
+  const earlyWayfinding = bld('monument') < 1;
+  let h = `<h2 class="section">Trials${earlyWayfinding ? ' — an oath for the far roads' : ' — oaths sworn upon the Monument'}</h2>`;
+  if (earlyWayfinding) h += '<div class="res-note">A Stone-age expedition has revealed a trial that can be sworn before the Monument is raised.</div>';
   h += `<div class="res-note">One trial may be sworn at a time. Completing a trial grants its reward forever; failing one costs nothing but time.${upg('oathkeepers') ? ' The Oathkeepers remember: repeatable trials may be sworn once more.' : ''}</div>`;
-  for (const t of TRIALS) {
+  for (const t of (earlyWayfinding ? TRIALS.filter(t => t.id === 'wayfinding') : TRIALS)) {
     const active = trialActive(t.id);
     const done = trialCount(t.id);
     const max = trialMax(t);
@@ -1018,8 +1354,7 @@ function renderExpeditions() {
     any = true;
     const popOk = state.pop >= e.reqPop;
     const ok = popOk && canAfford(e.cost);
-    h += `<div class="card"><div class="card-head"><span class="card-title">${e.name}</span></div>` +
-      `<div class="card-desc">${e.text}</div>` +
+    h += `<div class="card"><div class="card-head"><span class="card-title has-tooltip" data-tooltip="${attrText(e.text)}">${e.name}</span></div>` +
       `<div class="card-effect">Grants: ${e.effect}</div>` +
       `<div class="card-cost">cost: ${costHtml(e.cost)} — needs ${e.reqPop} villagers</div>` +
       `<div class="card-actions"><button data-action="exp" data-id="${e.id}" ${ok ? '' : 'disabled'}>Send the expedition</button></div>` +
@@ -1058,13 +1393,28 @@ function renderMigration() {
   h += `<div class="card trial-active"><div class="card-head">` +
     `<span class="card-title">The migration is prepared</span>` +
     `<span class="card-count">+${state.pendingEchoes} Echoes earned — ${state.echoes} in the pouch</span></div>` +
-    `<div class="card-desc">Buy and unbuy freely below — nothing is fixed until you set out. When you set out, ` +
-    `the village is left behind and a new Emberhold rises with everything purchased here. ` +
-    `Where it rises, no scout can say — the land you reach is the land you get.</div>` +
+    `<div class="card-desc">The departure is sworn and cannot be recalled. You may still tune the Ancestral Shop and choose a lineage, ` +
+    `but the scout reports above are fixed and the old village is already committed to the road.</div>` +
     `<div class="card-actions">` +
-    `<button data-action="migration-out">Set out — found the new Emberhold</button> ` +
-    `<button data-action="migration-cancel">Call it off</button></div>` +
+    `<button data-action="migration-out">Set out — found the new Emberhold</button></div>` +
     `</div>`;
+  h += '<h2 class="section">Scout reports</h2>' +
+    `<div class="res-note">Survey points: ${fmt(state.surveyPoints || 0)}. Extra landing reports cost 3, then 9, then 27 points. Choose where the next Emberhold will stand.</div>`;
+  for (const landing of (state.pendingLandings || [])) {
+    const selected = state.pendingLanding === landing.id;
+    h += `<div class="card ${selected ? 'lineage-selected' : ''}"><div class="card-head"><span class="card-title has-tooltip" data-tooltip="${attrText(landing.text)}">${landing.name}</span>${selected ? '<span class="card-count">chosen</span>' : ''}</div>` +
+      `<div class="card-effect">${modsHtml(landing)}</div>` +
+      `<div class="card-actions"><button data-action="landing" data-id="${landing.id}" ${selected ? 'disabled' : ''}>${selected ? 'Chosen' : 'Choose this landing'}</button></div></div>`;
+  }
+  h += '<h2 class="section">Choose a lineage</h2>' +
+    '<div class="res-note">Your next Emberhold inherits one lineage. Human lineages are always available; allied tribes become available after you migrate while their disposition is 80 or higher.</div>';
+  for (const l of LINEAGES.filter(l => lineageUnlocked(l.id))) {
+    const selected = (state.pendingSpecies || state.species) === l.id;
+    h += `<div class="card ${selected ? 'lineage-selected' : ''}"><div class="card-head">` +
+      `<span class="card-title has-tooltip" data-tooltip="${attrText(l.desc)}">${l.name}</span>` +
+      `<span class="card-effect">${l.effect}</span></div>` +
+      `<div class="card-actions"><button data-action="lineage" data-id="${l.id}" ${selected ? 'disabled' : ''}>${selected ? 'Chosen' : 'Choose this lineage'}</button></div></div>`;
+  }
   h += renderShop();
   return h;
 }
@@ -1079,10 +1429,9 @@ function renderShop() {
     const maxed = lvl >= u.max;
     const nextCost = maxed ? null : u.costs[lvl];
     h += `<div class="card ${maxed ? 'done' : ''}"><div class="card-head">` +
-      `<span class="card-title">${u.name}</span>` +
+      `<span class="card-title has-tooltip" data-tooltip="${attrText(u.desc)}">${u.name}</span>` +
       `<span class="card-count">${lvl} / ${u.max}</span>` +
       `<span class="card-effect">${u.effect}</span></div>` +
-      `<div class="card-desc">${u.desc}</div>` +
       `<div class="card-cost">${maxed ? 'fully learned' : `next level: ${nextCost} Echo${nextCost === 1 ? '' : 'es'}`}</div>` +
       `<div class="card-actions">` +
       `<button data-action="migration-buy" data-id="${u.id}" ${state.migrating && !maxed && state.echoes >= nextCost ? '' : 'disabled'}>Buy</button> ` +
@@ -1108,6 +1457,7 @@ function render() {
     build: renderBuild,
     research: renderResearch,
     diplomacy: renderDiplomacy,
+    governance: renderGovernance,
     trials: renderTrials,
     expeditions: renderExpeditions,
     migration: renderMigration,
@@ -1138,14 +1488,23 @@ document.addEventListener('click', (e) => {
     case 'craft': doCraft(btn.dataset.id); render(); break;
     case 'research': doResearch(btn.dataset.id); render(); break;
     case 'diplomacy-supply': supplyDiplomacyRequest(btn.dataset.tribe); render(); break;
+    case 'raid': doRaid(btn.dataset.tribe); render(); break;
     case 'diplomat-inc': doAssignDiplomat(btn.dataset.tribe, +1); render(); break;
     case 'diplomat-dec': doAssignDiplomat(btn.dataset.tribe, -1); render(); break;
+    case 'performer-inc': doAssignPerformer(+1); render(); break;
+    case 'performer-dec': doAssignPerformer(-1); render(); break;
+    case 'explorer-inc': doAssignExplorer(+1); render(); break;
+    case 'explorer-dec': doAssignExplorer(-1); render(); break;
+    case 'policy': choosePolicy(btn.dataset.id); render(); break;
+    case 'governor': appointGovernor(btn.dataset.id); render(); break;
+    case 'councilor': toggleCouncilor(btn.dataset.id); render(); break;
     case 'trial-start': startTrial(btn.dataset.id); render(); break;
     case 'trial-abandon': endTrial(false); render(); break;
     case 'exp': doExpedition(btn.dataset.id); render(); break;
     case 'migration-begin': beginMigration(); render(); break;
-    case 'migration-cancel': cancelMigration(); render(); break;
     case 'migration-out': setOut(); render(); break;
+    case 'lineage': chooseLineage(btn.dataset.id); render(); break;
+    case 'landing': chooseLanding(btn.dataset.id); render(); break;
     case 'migration-buy': migrationBuy(btn.dataset.id); render(); break;
     case 'migration-refund': migrationRefund(btn.dataset.id); render(); break;
     case 'save': saveGame(); render(); break;
@@ -1162,7 +1521,10 @@ function boot() {
   state = state || defaultState();
   state.diplomacy = state.diplomacy || {};
   state.diplomats = state.diplomats || {};
+  state.policy = state.policy || 'commons';
+  state.council = Array.isArray(state.council) ? state.council : [];
   state.tribesSeen = state.tribesSeen || { human: true };
+  state.species = state.species || 'human';
   ensureDiplomacyEntry(state.tradePartner || 'human');
   if (loaded) {
     // drop assignments that no longer qualify (e.g. saves from before a job gate changed)
