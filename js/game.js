@@ -1457,6 +1457,7 @@ function renderTrials() {
 function renderExpeditions() {
   let h = '<h2 class="section">Expeditions — widen the world</h2>';
   h += '<div class="res-note">Each expedition is sent once. What it finds stays with Emberhold forever.</div>';
+  const rates = production();
   let any = false;
   for (const e of EXPEDITIONS) {
     if (expDone(e.id)) {
@@ -1465,16 +1466,18 @@ function renderExpeditions() {
         `<span class="card-effect">Established — ${e.effect}</span></div></div>`;
       continue;
     }
-    if (state.era < 2 && e.id !== 'oldForest') { /* show all from era 2 onward */ }
+    const cost = expeditionCost(e);
+    if (!Object.entries(cost).every(([res, amount]) => capacityOf(res) >= amount && rates[res] > 0)) continue;
     any = true;
     const popOk = state.pop >= e.reqPop;
-    const ok = popOk && canAfford(e.cost);
+    const ok = popOk && canAfford(cost);
     h += `<div class="card"><div class="card-head"><span class="card-title has-tooltip" data-tooltip="${attrText(e.text)}">${e.name}</span></div>` +
       `<div class="card-effect">Grants: ${e.effect}</div>` +
-      `<div class="card-cost">cost: ${costHtml(e.cost)} — needs ${e.reqPop} villagers</div>` +
+      `<div class="card-cost">cost: ${costHtml(cost)} — needs ${e.reqPop} villagers</div>` +
       `<div class="card-actions"><button data-action="exp" data-id="${e.id}" ${ok ? '' : 'disabled'}>Send the expedition</button></div>` +
       `</div>`;
   }
+  if (!any) h += '<div class="res-note">No expeditions within reach yet. Increase storage and maintain positive income for their supplies.</div>';
   return h;
 }
 
