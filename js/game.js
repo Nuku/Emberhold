@@ -281,7 +281,7 @@ function updateTrial(dt) {
       break;
     }
     case 'tinkering':
-      if (tr.daysActive >= 240) { endTrial(true); return; }
+      if (tr.daysActive >= 240 && (state.jobs.tinkerer || 0) > 0) { endTrial(true); return; }
       break;
     case 'haste':
       if (state.era >= 5) { endTrial(true); return; }
@@ -309,7 +309,7 @@ function trialProgressText() {
       }
       return `emptiest store: ${Math.floor(worst * 100)}% full — every discovered store must hit its ceiling`;
     }
-    case 'tinkering': return `${Math.floor(tr.daysActive)} / 240 days of patient work endured`;
+    case 'tinkering': return `${Math.floor(tr.daysActive)} / 240 days endured — ${state.jobs.tinkerer || 0} Tinkerer assigned (need at least 1)`;
     case 'haste': return `${Math.floor(tr.daysActive)} / 1200 days to reach the Age of Light`;
   }
   return '';

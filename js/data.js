@@ -67,7 +67,7 @@ const JOBS = {
                  unlock: () => bld('observatory') > 0 },
   tinkerer:    { name: 'Tinkerer',    res: 'tools',      base: 0.025, desc: 'steadily assembles tools from wood and stone',
                  inputs: { wood: 0.06, stone: 0.02 },
-                 unlock: () => perm('tinkerers') && bld('workbench') > 0 },
+                 unlock: () => (perm('tinkerers') || trialActive('tinkering')) && bld('workbench') > 0 },
 };
 const FOOD_PER_POP = 0.12; // food/s eaten per villager
 
@@ -238,7 +238,7 @@ const TRIALS = [
 
   { id: 'tinkering', name: 'Trial of Tinkering', repeat: 0,
     mod: 'Tools may not be crafted by hand while the oath stands.',
-    goal: 'Keep the Workbench running for 240 days without manually crafting Tools.',
+    goal: 'Assign at least one Tinkerer and keep the Workbench running for 240 days without manually crafting Tools.',
     reward: 'Tinkerers: unlocks a job that steadily assembles Tools from wood and stone.',
     req: () => bld('workbench') > 0 },
 
