@@ -432,13 +432,16 @@ function addLog(text, cls) {
 
 // ---------- trials ----------
 function startTrial(id) {
-  if (state.trial) return;
+  if (state.trial || state.migrating) return;
   const def = TRIALS.find(t => t.id === id);
   if (!def) return;
   if (def.repeat > 0 && trialCount(id) >= trialMax(def)) return;
+  if (def.repeat === 0 && trialCount(id) > 0) return;
   if (def.req && !def.req()) return;
-  state.trial = { id, startDay: state.day, daysActive: 0, buildings: 0 };
+  if (!confirm(`Start ${def.name}? This restarts your migration in the same location with the same lineage, upgrades, and governance settings. Your village, resources, and jobs reset to migration starting values; permanent progress is kept. No Echoes are awarded. Continue?`)) return;
+  setOut(id);
   addLog(`The village swears the ${def.name}. ${def.mod}`, 'log-important');
+  saveGame(true);
 }
 
 function endTrial(success) {
@@ -644,14 +647,19 @@ function migrationRefund(id) {
   state.echoes += def.costs[lvl - 1];
 }
 
-function setOut() {
-  if (!state.migrating) return;
+function setOut(trialId = null) {
+  if (!state.migrating && !trialId) return;
+  const settings = trialId ? {
+    tradePartner: state.tradePartner, policy: state.policy,
+    governor: state.governor, council: [...state.council],
+  } : null;
+  const landing = LANDINGS.find(l => l.id === (trialId ? state.landing : state.pendingLanding)) ||
+    state.pendingLandings[0] || LANDINGS.find(l => l.id !== state.landing) || LANDINGS[0];
   const up = { ...state.upgrades };
-  const fromLanding = state.landing;
-  const newSpecies = state.pendingSpecies || state.species;
+  const newSpecies = trialId ? state.species : (state.pendingSpecies || state.species);
   const unlockedLineages = { ...(state.lineagesUnlocked || { human: true }) };
   const newlyUnlocked = [];
-  for (const id in state.diplomacy || {}) {
+  for (const id in (trialId ? {} : state.diplomacy) || {}) {
     if (state.diplomacy[id].disposition >= 80 && LINEAGES.some(l => l.id === id)) {
       if (!unlockedLineages[id]) newlyUnlocked.push(lineageDef(id).name);
       unlockedLineages[id] = true;
@@ -687,6 +695,9 @@ function setOut() {
   state.won = keep.won;
   state.savedAt = keep.savedAt;
   state.log = keep.log;
+  state.landing = landing.id;
+  if (settings) Object.assign(state, settings);
+  if (trialId) state.trial = { id: trialId, startDay: state.day, daysActive: 0, buildings: 0 };
   for (const t in ERA_GATE) if (state.techs[t] && ERA_GATE[t] > state.era) state.era = ERA_GATE[t];
 
   state.pop = 4 + 2 * upg('wanderers');
@@ -703,12 +714,13 @@ function setOut() {
     state.seen.stone = true;
     state.seen.tools = true;
   }
-  const landing = LANDINGS.find(l => l.id === state.pendingLanding) || state.pendingLandings[0] || LANDINGS.find(l => l.id !== fromLanding) || LANDINGS[0];
   state.landing = landing.id;
   state.landingsSeen[landing.id] = true;
   addLog(`The road ends at ${landing.name}. ${landing.text} (${modsHtml(landing).replace(/<[^>]+>/g, '')})`, 'log-important');
-  const tribe = rollTradePartner();
-  addLog(`${tribe.name} are encountered nearby. ${tribe.text} Trade will bring funds once Currency is researched.`, 'log-important');
+  if (!trialId) {
+    const tribe = rollTradePartner();
+    addLog(`${tribe.name} are encountered nearby. ${tribe.text} Trade will bring funds once Currency is researched.`, 'log-important');
+  }
   if (newlyUnlocked.length) {
     addLog(`${newlyUnlocked.join(' and ')} lineage${newlyUnlocked.length === 1 ? '' : 's'} may now be chosen at future migrations.`, 'log-good');
   }
@@ -1313,15 +1325,15 @@ function renderGovernance() {
 }
 
 function renderTrials() {
-  if (bld('monument') < 1 && !(era() >= 2 && bld('quarry') > 0)) {
+  if (!state.trial && bld('monument') < 1 && !(era() >= 2 && bld('quarry') > 0)) {
     return '<h2 class="section">Trials</h2>' +
       '<div class="card"><div class="card-desc">A stone monument, and oaths sworn upon it, would test this village against itself. ' +
       'The Monument becomes possible in the Age of Iron.</div></div>';
   }
-  const earlyWayfinding = bld('monument') < 1;
+  const earlyWayfinding = !state.trial && bld('monument') < 1;
   let h = `<h2 class="section">Trials${earlyWayfinding ? ' — an oath for the far roads' : ' — oaths sworn upon the Monument'}</h2>`;
   if (earlyWayfinding) h += '<div class="res-note">A Stone-age expedition has revealed a trial that can be sworn before the Monument is raised.</div>';
-  h += `<div class="res-note">One trial may be sworn at a time. Completing a trial grants its reward forever; failing one costs nothing but time.${upg('oathkeepers') ? ' The Oathkeepers remember: repeatable trials may be sworn once more.' : ''}</div>`;
+  h += `<div class="res-note">Starting a trial restarts your migration in the same location with the same settings, after confirmation. One trial may be sworn at a time. Completing a trial grants its reward forever; failing one costs nothing but time.${upg('oathkeepers') ? ' The Oathkeepers remember: repeatable trials may be sworn once more.' : ''}</div>`;
   for (const t of (earlyWayfinding ? TRIALS.filter(t => t.id === 'wayfinding') : TRIALS)) {
     const active = trialActive(t.id);
     const done = trialCount(t.id);
