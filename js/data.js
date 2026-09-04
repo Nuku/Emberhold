@@ -19,6 +19,7 @@ const RESOURCES = [
   { id: 'copper',    name: 'Copper',    note: 'trace veins become useful once prospectors and metallurgists take notice' },
   { id: 'tools',     name: 'Tools',     note: 'crafted at the Workbench; sharpen every trade' },
   { id: 'knowledge', name: 'Knowledge', note: 'the one store with no ceiling; spent on research' },
+  { id: 'currency',  name: 'Currency',  note: 'funds arriving from trade with neighboring tribes' },
   { id: 'iron',      name: 'Iron',      note: 'pried from the deep seams' },
   { id: 'coal',      name: 'Coal',      note: 'burns hotter than wood' },
   { id: 'steel',     name: 'Steel',     note: 'smelted from iron and coal in the Foundry' },
@@ -61,6 +62,8 @@ const JOBS = {
                  unlock: () => bld('quarry') > 0 },
   thinker:     { name: 'Thinker',      res: 'knowledge', base: 0.12, desc: 'argues, measures, writes it down',
                  unlock: () => bld('library') > 0 },
+  banker:      { name: 'Banker',      res: 'currency',  base: 0.08, desc: 'keeps trade moving and funds arriving',
+                 trade: true, unlock: () => tech('banking') && tradeAvailable() },
   digger:      { name: 'Coal Digger',  res: 'coal',      base: 0.14, desc: 'black dust under black fingernails',
                  unlock: () => bld('coalSeam') > 0 },
   ironminer:   { name: 'Iron Miner',   res: 'iron',      base: 0.11, desc: 'chases red veins into the dark',
@@ -117,7 +120,7 @@ const BUILDINGS = [
     desc: 'memory, written down so it survives' },
 
   { id: 'monument', name: 'Monument', max: 1, scale: 1,
-    cost: { wood: 260, stone: 220, tools: 15 },
+    cost: { wood: 260, stone: 220, tools: 15, currency: 20 },
     effect: () => 'unlocks the Trials',
     req: () => era() >= 3, desc: 'a stone that dares the village to be better' },
 
@@ -137,7 +140,7 @@ const BUILDINGS = [
     req: () => tech('seamMining'), desc: 'stone that burns' },
 
   { id: 'foundry', name: 'Foundry', max: 1, scale: 1,
-    cost: { stone: 380, iron: 90, tools: 25 },
+    cost: { stone: 380, iron: 90, tools: 25, currency: 40 },
     effect: () => 'unlocks smelting of Steel',
     req: () => tech('metallurgy'), desc: 'iron, disciplined by fire' },
 
@@ -147,38 +150,38 @@ const BUILDINGS = [
     req: () => tech('hydraulics'), desc: 'clean water, fat fields' },
 
   { id: 'shrine', name: 'Shrine', max: 5, scale: 1.8,
-    cost: { wood: 220, stone: 220 },
+    cost: { wood: 220, stone: 220, currency: 30 },
     effect: () => '+5% all production',
     req: () => era() >= 3, desc: 'for whatever watches over Emberhold' },
 
   { id: 'workshop', name: 'Workshop', max: 1, scale: 1,
-    cost: { iron: 260, tools: 60 },
+    cost: { iron: 260, tools: 60, currency: 80 },
     effect: () => 'unlocks crafting of Machinery',
     req: () => tech('machineryTech'), desc: 'devices that make devices' },
 
   { id: 'dynamo', name: 'Dynamo', max: 1, scale: 1,
-    cost: { copper: 140, steel: 50, machinery: 25, tools: 60 },
+    cost: { copper: 140, steel: 50, machinery: 25, tools: 60, currency: 120 },
     effect: () => '+15% all production',
     req: () => tech('electricalEngineering'), desc: 'copper coils turn motion into possibility' },
 
   { id: 'vault', name: 'Vault', max: 12, scale: 2.0,
-    cost: { steel: 100, tools: 80 },
+    cost: { steel: 100, tools: 80, currency: 100 },
     effect: () => '+50 machinery and aether capacity',
     req: () => tech('machineryTech'), desc: 'a quiet room where delicate things wait' },
 
   { id: 'factory', name: 'Factory', max: 3, scale: 1.8,
-    cost: { steel: 70, tools: 55 },
+    cost: { steel: 70, tools: 55, currency: 90 },
     effect: () => '+10% all production',
     req: () => bld('workshop') > 0, desc: 'the drumbeat of the new age' },
 
   { id: 'observatory', name: 'Observatory', max: 1, scale: 1,
-    cost: { steel: 130, machinery: 20, tools: 60 },
+    cost: { steel: 130, machinery: 20, tools: 60, currency: 150 },
     effect: () => 'unlocks Aether and Astronomers',
     req: () => tech('astronomy') && expDone('sunkenRuins'),
     desc: 'the ruins held a lens; the sky holds more' },
 
   { id: 'beacon', name: 'The Beacon', max: 1, scale: 1,
-    cost: { steel: 650, machinery: 260, aether: 130, knowledge: 4000 },
+    cost: { steel: 650, machinery: 260, aether: 130, knowledge: 4000, currency: 300 },
     effect: () => 'a light that will outlive the village',
     req: () => tech('optics'), desc: 'the end of the chronicle, or its beginning' },
 ];
@@ -187,6 +190,9 @@ const BUILDINGS = [
 const TECHS = [
   { id: 'stoneWorking', name: 'Stone Working', cost: 15,
     desc: 'Unlocks the Quarry. Enters the Age of Stone.' },
+  { id: 'currency', name: 'Currency', cost: 100,
+    desc: 'Unlocks trade with neighboring tribes and the Currency resource.',
+    req: () => tech('stoneWorking') },
   { id: 'copperProspecting', name: 'Copper Prospecting', cost: 120,
     desc: 'Increases trace Copper extraction and unlocks Copper Diggers.',
     req: () => tech('stoneWorking') },
@@ -212,6 +218,9 @@ const TECHS = [
   { id: 'machineryTech', name: 'Mechanism', cost: 1000,
     desc: 'Unlocks the Workshop (Machinery). Enters the Age of Steam.',
     req: () => tech('metallurgy') },
+  { id: 'banking', name: 'Banking', cost: 900,
+    desc: 'Unlocks Bankers, who increase the rate at which trade funds arrive.',
+    req: () => tech('metallurgy') && tech('currency') },
   { id: 'electricalEngineering', name: 'Electrical Engineering', cost: 1600,
     desc: 'Improves Copper extraction and unlocks the Dynamo.',
     req: () => tech('machineryTech') },
@@ -295,6 +304,16 @@ const LANDINGS = [
     text: 'The ground smokes gently here. Coal for the digging, but little cares to grow.' },
   { id: 'windmere', name: 'The Windmere', mods: { knowledge: 1.2, aether: 1.15, food: 0.9 },
     text: 'Still water under open sky. Minds are clear here; bellies less so.' },
+];
+
+// --- neighboring tribes ---
+// Humans are the default people of Emberhold. After each migration, there is
+// a chance that a different tribe is encountered as a trading partner.
+const TRIBES = [
+  { id: 'human', name: 'Human caravans', text: 'Familiar traders follow the old roads.' },
+  { id: 'stonekin', name: 'Stonekin', text: 'The Stonekin arrive with mineral goods and careful ledgers.' },
+  { id: 'marshfolk', name: 'Marshfolk', text: 'The Marshfolk pole their cargo through the reeds.' },
+  { id: 'skyborn', name: 'Skyborn', text: 'The Skyborn descend from the high passes with bright metal.' },
 ];
 
 // --- migration (loop) rewards: Echoes, spent in the ancestral shop.

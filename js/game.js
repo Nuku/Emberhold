@@ -34,6 +34,9 @@ function defaultState() {
     upgrades: {},
     landing: 'emberplain',
     landingsSeen: {},
+    species: 'human',
+    tradePartner: 'human',
+    tribesSeen: { human: true },
     migrating: false,
     migrationSnapshot: null,
     pendingEchoes: 0,
@@ -54,6 +57,8 @@ function era() { return state.era; }
 function expDone(id) { return !!state.expeditions[id]; }
 function trialCount(id) { return state.trialDone[id] || 0; }
 function upg(id) { return state.upgrades[id] || 0; }
+function tribeDef(id) { return TRIBES.find(t => t.id === id) || TRIBES[0]; }
+function tradeAvailable() { return tech('currency') && !!state.tradePartner; }
 function trialMax(def) {
   return def.repeat > 0 ? def.repeat + (upg('oathkeepers') ? 1 : 0) : 0;
 }
@@ -90,6 +95,15 @@ function rollLanding(excludeId) {
   const pick = options[Math.floor(Math.random() * options.length)];
   state.landing = pick.id;
   state.landingsSeen[pick.id] = true;
+  return pick;
+}
+function rollTradePartner() {
+  const nonHuman = TRIBES.filter(t => t.id !== 'human');
+  const pick = Math.random() < 0.35
+    ? nonHuman[Math.floor(Math.random() * nonHuman.length)]
+    : TRIBES[0];
+  state.tradePartner = pick.id;
+  state.tribesSeen[pick.id] = true;
   return pick;
 }
 function perm(key) {
@@ -191,6 +205,7 @@ function production() {
   if (expDone('sunkenRuins')) rates.knowledge += 0.3;
   if (expDone('emberVein')) rates.coal += 0.5;
   if (expDone('glacialPeaks')) rates.aether += 0.1;
+  if (tradeAvailable()) rates.currency += 0.05;
   if (era() >= 2) rates.copper += 0.02; // trace deposits found throughout the Stone age
 
   // per-resource modifiers
@@ -215,6 +230,7 @@ function production() {
   rates.aether *= global * (expDone('glacialPeaks') ? 1.10 : 1);
   rates.coal *= global;
   rates.tools *= global;
+  rates.currency *= global;
 
   // the land itself
   for (const r in rates) rates[r] *= landingMod(r);
@@ -373,6 +389,7 @@ function setOut() {
     echoes: state.echoes, upgrades: state.upgrades,
     trialDone: state.trialDone, expeditions: state.expeditions,
     landingsSeen: state.landingsSeen,
+    species: state.species, tribesSeen: state.tribesSeen,
     won: state.won, savedAt: state.savedAt, log: state.log,
   };
   state = defaultState();
@@ -384,6 +401,8 @@ function setOut() {
   state.trialDone = keep.trialDone;
   state.expeditions = keep.expeditions;
   state.landingsSeen = keep.landingsSeen;
+  state.species = keep.species;
+  state.tribesSeen = keep.tribesSeen;
   state.won = keep.won;
   state.savedAt = keep.savedAt;
   state.log = keep.log;
@@ -405,6 +424,8 @@ function setOut() {
   }
   const landing = rollLanding(fromLanding);
   addLog(`The road ends at ${landing.name}. ${landing.text} (${modsHtml(landing).replace(/<[^>]+>/g, '')})`, 'log-important');
+  const tribe = rollTradePartner();
+  addLog(`${tribe.name} are encountered nearby. ${tribe.text} Trade will bring funds once Currency is researched.`, 'log-important');
   state.migrating = false;
   state.migrationSnapshot = null;
   state.pendingEchoes = 0;
@@ -663,6 +684,7 @@ function renderVillage() {
   let h = `<h2 class="section">Where you stand — ${L.name}</h2>` +
     `<div class="res-note">${L.text}</div>` +
     `<div class="res-note" style="margin:2px 0 6px">The land gives: ${modsHtml(L)}</div>` +
+    `<div class="res-note" style="margin:2px 0 6px">${tradeAvailable() ? `Trading with the ${tribeDef(state.tradePartner).name}; funds arrive at ${fmtRate(0.05)} before Banker work.` : `The ${tribeDef(state.tradePartner).name} are nearby. Research Currency to begin trading.`}</div>` +
     '<h2 class="section">Stores</h2>';
   for (const r of RESOURCES) {
     if (!resVisible(r.id)) continue;

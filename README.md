@@ -26,6 +26,10 @@ for backups. On return, offline progress is simulated at half speed, capped at
   coal, steel, machinery, aether) and buildings. Copper appears in trace
   amounts during the Age of Stone, then grows richer through prospecting,
   metallurgy, and electrical engineering.
+- **Neighbors and trade.** Humans are Emberhold's default tribe. After a
+  migration, Stonekin, Marshfolk, or Skyborn may appear nearby. Currency makes
+  trade possible, while Banking unlocks Bankers who increase incoming funds;
+  Steel-age buildings and later require Currency as well as materials.
 - **Expanding the field.** One-time **Expeditions** (Old Forest, Foothills,
   Sunken Ruins, Ember Vein, Glacial Peaks) permanently add passive income and
   are prerequisites for late buildings like the Observatory.
