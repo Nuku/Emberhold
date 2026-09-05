@@ -335,6 +335,131 @@ const RANDOM_EVENTS = [
   { text: 'Someone has painted a heroic portrait of the village dog.', delta: [1, 5] },
 ];
 
+// Each lineage has a purely atmospheric scene and a small consequential event.
+// Resource effects only apply to resources the settlement has discovered.
+const LINEAGE_EVENTS = {
+  human: [
+    { text: 'An Emberborn child asks why every new village has the same name. Three elders offer four different answers.' },
+    { text: 'Emberborn neighbors hold a mending day, rescuing useful timber from abandoned furniture.', wood: [8, 18] },
+  ],
+  stonekin: [
+    { text: 'Two Stonekin spend the afternoon debating whether a pebble resembles an ancestor. The pebble declines to comment.' },
+    { text: 'A Stonekin mason hears a promising note beneath the chisel and splits a clean block from the rubble.', stone: [8, 18] },
+  ],
+  marshfolk: [
+    { text: 'Marshfolk children launch reed boats bearing solemn messages to frogs on the opposite bank.' },
+    { text: 'Marshfolk gardeners uncover a forgotten bed of edible roots beneath the reeds.', food: [10, 22] },
+  ],
+  skyborn: [
+    { text: 'A Skyborn elder names every cloud above the village. One is apparently an old rival.' },
+    { text: 'Skyborn kite watchers compare their wind charts and settle a longstanding question.', knowledge: [5, 12] },
+  ],
+  mephit: [
+    { text: 'The Mephits hold a perfume contest. The judges insist that everyone else is missing the subtle notes.' },
+    { text: 'A Mephit scent brewer uncorks a festival blend too enthusiastically. The square empties in seconds.', delta: [-4, -2] },
+  ],
+  dunewalkers: [
+    { text: 'Dunewalker storytellers arrange their cushions like a caravan and argue over who gets to play the stubborn camel.' },
+    { text: 'A Dunewalker merchant spots an error in an old tally and returns the overpayment to the village.', currency: [3, 8] },
+  ],
+  cinderforged: [
+    { text: 'Cinderforged smiths tap their supper bowls in the rhythm of a forging song. The cook demands a quieter encore.' },
+    { text: 'A Cinderforged apprentice leaves the fuel hatch open through a long story. Some coal burns to ash.', coal: [-8, -3] },
+  ],
+  thornkin: [
+    { text: 'A Thornkin doorway blooms overnight. Its residents politely ask visitors to knock on the other branch.' },
+    { text: 'Thornkin pruners guide an overgrown arbor back into shape and share the straight fallen branches.', wood: [10, 20] },
+  ],
+  clocklings: [
+    { text: 'Every Clockling alarm rings at once, except the official village clock, which appears deeply embarrassed.' },
+    { text: 'Clockling tinkerers assemble several useful implements from a box labeled probably spare parts.', tools: [1, 3] },
+  ],
+  glimmerfolk: [
+    { text: 'Glimmerfolk singers rehearse a lullaby for a crystal that refuses to stop glowing after bedtime.' },
+    { text: 'A Glimmerfolk choir finds a clear new harmony that leaves the whole village quietly smiling.', delta: [2, 5] },
+  ],
+  otterfolk: [
+    { text: 'Otterfolk float hand in hand through an evening storytelling circle. The youngest keeps drifting ahead to the ending.' },
+    { text: 'An Otterfolk diving crew follows a silver shoal into the shallows and returns with a shared catch.', food: [10, 22] },
+  ],
+  beaverkin: [
+    { text: 'A Beaverkin inspector declares a decorative footbridge structurally excellent but insufficiently chewy.' },
+    { text: 'Beaverkin builders dismantle an obsolete spillway and recover its seasoned beams.', wood: [12, 24] },
+  ],
+  turtlefolk: [
+    { text: 'The Turtlefolk annual walking race reaches its first bend. Spectators settle in for a pleasant afternoon.' },
+    { text: 'A Turtlefolk elder traces a lake memory on a slate, completing a map begun generations ago.', knowledge: [5, 12] },
+  ],
+  axolotlkin: [
+    { text: 'Axolotlkin students practice looking solemn during a submerged lecture. Their waving gills betray their laughter.' },
+    { text: 'Axolotlkin pond keepers observe an unfamiliar glow and carefully record its changing rhythm.', knowledge: [6, 14] },
+  ],
+  carpfolk: [
+    { text: 'Carpfolk decorate the underwater lanes with smooth stones, then politely debate which direction counts as upstreet.' },
+    { text: 'A silt cloud settles over a Carpfolk growing terrace, spoiling part of the gathered water greens.', food: [-12, -5] },
+  ],
+  frogfolk: [
+    { text: 'A Frogfolk evening chorus pauses while one singer retrieves a particularly interesting moth.' },
+    { text: 'Frogfolk singers answer the first warm rain with a chorus that draws smiles from every doorway.', delta: [2, 5] },
+  ],
+  heronkin: [
+    { text: 'A Heronkin fishing teacher demonstrates perfect stillness. The pupils wonder whether class has actually started.' },
+    { text: 'Heronkin fishers spot a crowded backwater and bring home enough to share beyond their stilt houses.', food: [8, 20] },
+  ],
+  foxfolk: [
+    { text: 'A Foxfolk storyteller sells the same joke with three different endings. All three audiences insist theirs was the original.' },
+    { text: 'A Foxfolk trader negotiates a small rebate by remembering exactly what was promised last spring.', currency: [3, 8] },
+  ],
+  wolfkin: [
+    { text: 'Wolfkin pups rehearse a moon greeting. An elder gently explains that volume is only half the tradition.' },
+    { text: 'A Wolfkin hunting pack returns early and lays an unexpected catch before the communal hearth.', food: [10, 22] },
+  ],
+  bearfolk: [
+    { text: 'A Bearfolk carpenter falls asleep testing a new chair. The workshop accepts this as a favorable review.' },
+    { text: 'Bearfolk gatherers discover a honey tree and insist on sharing before anyone starts counting portions.', food: [8, 16], delta: [1, 3] },
+  ],
+  deerkin: [
+    { text: 'Deerkin dancers weave ribbons between their antlers for a procession that requires very careful doorways.' },
+    { text: 'A Deerkin orchard walk finds an overlooked stand of ripe fruit at the edge of the commons.', food: [10, 20] },
+  ],
+  rabbitfolk: [
+    { text: 'Rabbitfolk children give every warren junction a new name. The adults request a map before supper.' },
+    { text: 'A Rabbitfolk seed store proves damp behind the lowest shelves. A few provisions must be discarded.', food: [-10, -4] },
+  ],
+  bisonkin: [
+    { text: 'Bisonkin elders braid bright threads into their winter coats, each knot recalling a different journey.' },
+    { text: 'Bisonkin families gather for a low humming song that can be felt through the floor of the great house.', delta: [2, 5] },
+  ],
+  squirrelfolk: [
+    { text: 'A Squirrelfolk archivist files a nut under important historical objects and refuses to explain further.' },
+    { text: 'A Squirrelfolk child remembers a forgotten cache while telling an unrelated story. Supper improves immediately.', food: [8, 18] },
+  ],
+  owlkin: [
+    { text: 'An Owlkin reading circle observes a respectful silence so complete that nobody notices the meeting has ended.' },
+    { text: 'Owlkin observers compare marginal notes and resolve a puzzle that had kept several scholars awake.', knowledge: [6, 14] },
+  ],
+  lynxfolk: [
+    { text: 'A Lynxfolk tracker reconstructs an elaborate mystery from footprints. The culprit was carrying the laundry.' },
+    { text: 'Lynxfolk scouts follow green stains along a ledge and collect a handful of loose copper nodules.', copper: [2, 5] },
+  ],
+  ibexkin: [
+    { text: 'Ibexkin youngsters choose the least convenient ledge for a picnic and rate the view unanimously excellent.' },
+    { text: 'An Ibexkin hauling team clears a cliff path and brings the sound stone back to the builders.', stone: [10, 22] },
+  ],
+  eaglefolk: [
+    { text: 'An Eaglefolk messenger circles the aerie twice to finish a particularly satisfying story before landing.' },
+    { text: 'Eaglefolk sky watchers sketch a rare pattern of high clouds before the mountain wind scatters it.', knowledge: [5, 12] },
+  ],
+  molekin: [
+    { text: 'Molekin neighbors exchange tapping greetings through their walls. One household requests slower gossip.' },
+    { text: 'Molekin tunnelers shore up a slumping side passage, using a few beams from the village store.', wood: [-10, -4] },
+  ],
+  raccoonfolk: [
+    { text: 'A Raccoonfolk collector unveils a magnificent display of shiny objects, none of which anyone can identify.' },
+    { text: 'Raccoonfolk salvagers restore a box of bent implements with patient fingers and questionable confidence.', tools: [1, 3] },
+  ],
+};
+
 // Shared factory production line; rates and inputs are per factory per second.
 const FACTORY_RECIPES = [
   { id: 'goods', name: 'Industrial Goods', rate: 0.08, inputs: {}, tech: null, unlock: 'Always available' },
@@ -415,19 +540,67 @@ const TRIALS = [
 // --- landings: where the migration ends up. Modifiers multiply production
 // of that resource (passive income included). The road decides, for now.
 const LANDINGS = [
-  { id: 'emberplain', name: 'The Emberplain', mods: {},
+  { id: 'emberplain', name: 'The Emberplain', habitats: ['plains'], mods: {},
     text: 'A wide plain of ash-grass and old roads. Nothing comes easy; nothing is denied.' },
-  { id: 'greenfold', name: 'The Greenfold', mods: { wood: 1.25, stone: 0.8, iron: 0.8 },
+  { id: 'greenfold', name: 'The Greenfold', habitats: ['forest'], mods: { wood: 1.25, stone: 0.8, iron: 0.8 },
     text: 'Old oak country. Timber for the taking — but the ground hoards its stone and iron.' },
-  { id: 'grayrocks', name: 'The Grayrocks', mods: { stone: 1.3, iron: 1.25, food: 0.8 },
+  { id: 'grayrocks', name: 'The Grayrocks', habitats: ['mountain'], mods: { stone: 1.3, iron: 1.25, food: 0.8 },
     text: 'High, thin-soiled country. Stone and ore in abundance; the fields are poor.' },
-  { id: 'floodmeadows', name: 'The Floodmeadows', mods: { food: 1.25, wood: 0.85 },
+  { id: 'floodmeadows', name: 'The Floodmeadows', habitats: ['water', 'wetland', 'plains'], mods: { food: 1.25, wood: 0.85 },
     text: 'A river\'s patience made this ground rich. Trees are few and far between.' },
-  { id: 'ashfen', name: 'The Ashfen', mods: { coal: 1.35, food: 0.85 },
+  { id: 'ashfen', name: 'The Ashfen', habitats: ['wetland'], mods: { coal: 1.35, food: 0.85 },
     text: 'The ground smokes gently here. Coal for the digging, but little cares to grow.' },
-  { id: 'windmere', name: 'The Windmere', mods: { knowledge: 1.2, aether: 1.15, food: 0.9 },
+  { id: 'windmere', name: 'The Windmere', habitats: ['water', 'wetland'], mods: { knowledge: 1.2, aether: 1.15, food: 0.9 },
     text: 'Still water under open sky. Minds are clear here; bellies less so.' },
 ];
+
+// Habitat lists match any listed habitat; omitted lists allow every landing.
+// Shared definitions keep animal neighbors and inherited lineages in sync.
+const ANIMAL_LINEAGES = [
+  { id: 'otterfolk', name: 'Otterfolk', habitats: ['water'], mods: { food: 1.22, currency: 1.15, iron: 0.90 },
+    desc: 'Otter raft families fish the deep channels and ferry goods between floating markets.' },
+  { id: 'beaverkin', name: 'Beaverkin', habitats: ['water'], mods: { wood: 1.25, tools: 1.15, aether: 0.88 },
+    desc: 'Beaver engineers raise timber lodges and waterworks along broad rivers and lakes.' },
+  { id: 'turtlefolk', name: 'Turtlefolk', habitats: ['water'], mods: { food: 1.18, knowledge: 1.20, machinery: 0.88 },
+    desc: 'Freshwater turtle elders tend floating gardens and preserve generations of careful observations.' },
+  { id: 'axolotlkin', name: 'Axolotlkin', habitats: ['water'], mods: { knowledge: 1.25, aether: 1.15, coal: 0.85 },
+    desc: 'Feathery-gilled lake dwellers study luminous pools from submerged libraries.' },
+  { id: 'carpfolk', name: 'Carpfolk', habitats: ['water'], mods: { food: 1.30, currency: 1.10, tools: 0.88 },
+    desc: 'Carp communities cultivate underwater terraces and exchange harvests at shore markets.' },
+  { id: 'frogfolk', name: 'Frogfolk', habitats: ['wetland'], mods: { food: 1.20, aether: 1.20, steel: 0.88 },
+    desc: 'Frog reed singers cultivate marsh insects and read the weather in ripples and chorus.' },
+  { id: 'heronkin', name: 'Heronkin', habitats: ['wetland'], mods: { knowledge: 1.22, food: 1.12, wood: 0.90 },
+    desc: 'Heron stilt villages practice patient fishing and chart the changing wetland seasons.' },
+  { id: 'foxfolk', name: 'Foxfolk', mods: { currency: 1.25, knowledge: 1.12, stone: 0.90 },
+    desc: 'Fox traveling merchants adapt to any country, collecting stories and negotiating clever bargains.' },
+  { id: 'wolfkin', name: 'Wolfkin', mods: { food: 1.22, tools: 1.12, currency: 0.90 },
+    desc: 'Wolf packs share the hunt and maintain dependable tools, valuing communal stores above coin.' },
+  { id: 'bearfolk', name: 'Bearfolk', habitats: ['forest', 'mountain'], mods: { wood: 1.20, stone: 1.20, currency: 0.88 },
+    desc: 'Bear clans build stout woodland and mountain homes, hauling heavy materials with ease.' },
+  { id: 'deerkin', name: 'Deerkin', habitats: ['forest', 'plains'], mods: { food: 1.20, wood: 1.15, iron: 0.88 },
+    desc: 'Deer orchard keepers follow the edges of woodland and meadow, tending broad green commons.' },
+  { id: 'rabbitfolk', name: 'Rabbitfolk', habitats: ['plains'], mods: { food: 1.28, goods: 1.10, coal: 0.85 },
+    desc: 'Rabbit warrens spread beneath open fields, linking productive gardens with busy cottage workshops.' },
+  { id: 'bisonkin', name: 'Bisonkin', habitats: ['plains'], mods: { food: 1.15, goods: 1.25, aether: 0.88 },
+    desc: 'Bison herds settle the grasslands in great communal houses supplied by mills and grazing fields.' },
+  { id: 'squirrelfolk', name: 'Squirrelfolk', habitats: ['forest'], mods: { wood: 1.28, tools: 1.15, steel: 0.85 },
+    desc: 'Squirrel canopy towns connect timber workshops with ropeways and carefully stocked nut stores.' },
+  { id: 'owlkin', name: 'Owlkin', habitats: ['forest'], mods: { knowledge: 1.28, aether: 1.12, goods: 0.88 },
+    desc: 'Owl scholars keep quiet observatories in old trees, recording the night beneath living roofs.' },
+  { id: 'lynxfolk', name: 'Lynxfolk', habitats: ['forest', 'mountain'], mods: { food: 1.18, copper: 1.22, currency: 0.88 },
+    desc: 'Lynx trackers explore wooded slopes, finding game trails and overlooked copper seams.' },
+  { id: 'ibexkin', name: 'Ibexkin', habitats: ['mountain'], mods: { stone: 1.25, iron: 1.18, wood: 0.88 },
+    desc: 'Ibex cliff builders carry stone and ore along paths too steep for ordinary caravans.' },
+  { id: 'eaglefolk', name: 'Eaglefolk', habitats: ['mountain'], mods: { aether: 1.25, knowledge: 1.18, food: 0.88 },
+    desc: 'Eagle aerie watchers survey the high peaks and harvest insights from clear mountain skies.' },
+  { id: 'molekin', name: 'Molekin', mods: { stone: 1.22, coal: 1.22, aether: 0.85 },
+    desc: 'Mole tunnel crews establish deep workshops wherever they settle, following stone and fuel underground.' },
+  { id: 'raccoonfolk', name: 'Raccoonfolk', mods: { tools: 1.22, machinery: 1.18, food: 0.90 },
+    desc: 'Raccoon salvagers thrive wherever there is work, turning discarded parts into ingenious machines.' },
+].map(l => ({ ...l, effect: Object.entries(l.mods).map(([res, mod]) => {
+  const pct = Math.round((mod - 1) * 100);
+  return `${pct > 0 ? '+' : '−'}${Math.abs(pct)}% ${RESOURCES.find(r => r.id === res).name}`;
+}).join(', ') }));
 
 // --- neighboring tribes ---
 // Humans are the default people of Emberhold. After each migration, there is
@@ -448,11 +621,14 @@ const TRIBES = [
     text: 'Tiny brass bells announce each meticulously timed visit. These tireless inventors collect metal and stone for machines that almost never explode.' },
   { id: 'glimmerfolk', name: 'Glimmerfolk choirs', requests: ['food', 'tools'], loot: ['aether', 'knowledge', 'copper'],
     text: 'Lantern-lit travelers sing to crystals until they answer. They exchange fragments of star lore for the provisions their secluded observatories cannot make.' },
+  ...ANIMAL_LINEAGES.map(l => ({ id: l.id, name: l.name, text: l.desc, habitats: l.habitats,
+    requests: Object.keys(l.mods).filter(r => l.mods[r] < 1),
+    loot: Object.keys(l.mods).filter(r => l.mods[r] > 1) })),
 ];
 
 // --- lineages ---
 // A founding choice inspired by Evolve's species specialization, but kept
-// deliberately small so it complements Emberhold's landing and Echo systems.
+// complements Emberhold's landing and Echo systems.
 const LINEAGES = [
   { id: 'human', name: 'Emberborn', effect: '+20% Industrial Goods production', mods: { goods: 1.20 },
     desc: 'Adaptable survivors who make something useful from almost anything — especially in a factory.' },
@@ -474,6 +650,7 @@ const LINEAGES = [
     desc: 'Every workshop is an experiment and every tool a prototype. Precision manufacturing flourishes, provided someone remembers to tend the fields.' },
   { id: 'glimmerfolk', name: 'Glimmerfolk', effect: '+30% aether and +15% knowledge, −15% stone and iron', mods: { aether: 1.30, knowledge: 1.15, stone: 0.85, iron: 0.85 },
     desc: 'Crystal gardens illuminate nights spent charting the heavens. Discovery leads the way, but the weight of ordinary construction slows their ascent.' },
+  ...ANIMAL_LINEAGES,
 ];
 
 // --- migration (loop) rewards: Echoes, spent in the ancestral shop.

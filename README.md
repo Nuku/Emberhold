@@ -41,13 +41,17 @@ invalid imports, storage failures, and offline time accounting.
 - **Happenings.** Unscheduled events appear in the Chronicle: most are small
   setbacks to morale, but occasional performances, discoveries, and ridiculous
   goose-related incidents give the village something to celebrate.
+  Half of happenings draw from the current lineage's own stories: every lineage
+  has one purely atmospheric scene and one with small potential effects. Chronicle
+  entries report actual changes after storage and morale limits; undiscovered
+  resources are never awarded or revealed by these events.
 - **Eras.** Research moves Emberhold through Age of Ember → Stone → Iron →
   Steam → Light. Each era unlocks new resources (stone, copper, tools, iron,
   coal, steel, machinery, aether) and buildings. Copper appears in trace
   amounts during the Age of Stone, then grows richer through prospecting,
   metallurgy, and electrical engineering.
 - **Neighbors and trade.** Humans are Emberhold's default tribe. After a
-  migration, one of nine nonhuman tribes may appear nearby. Currency makes
+  migration, one of 29 nonhuman tribes may appear nearby, subject to habitat. Currency makes
   trade possible, while Banking unlocks Bankers who increase incoming funds.
   Steel-age buildings and later require Currency as well as materials.
 - **Lineages.** Emberborn are always available and produce Industrial Goods more
@@ -65,6 +69,24 @@ invalid imports, storage failures, and offline time accounting.
   Their diplomatic requests favor supplies suited to their culture, falling back
   to discovered resources when those supplies are unavailable. Diplomacy shows
   each tribe's story and lineage traits before you commit to an alliance.
+- **Animal lineages.** Twenty animal tribes use the same disposition 80+ migration
+  unlock. Each has production bonuses and tradeoffs shown in Diplomacy and migration:
+  - **Rivers and lakes (Floodmeadows, Windmere):** Otterfolk, Beaverkin, Turtlefolk,
+    Axolotlkin, Carpfolk.
+  - **Wetlands (Floodmeadows, Ashfen, Windmere):** Frogfolk, Heronkin.
+  - **Forests (Greenfold):** Squirrelfolk, Owlkin.
+  - **Mountains (Grayrocks):** Ibexkin, Eaglefolk.
+  - **Forests or mountains:** Bearfolk, Lynxfolk.
+  - **Plains (Emberplain, Floodmeadows):** Rabbitfolk, Bisonkin.
+  - **Forests or plains:** Deerkin.
+  - **Any landing:** Foxfolk, Wolfkin, Molekin, Raccoonfolk.
+  Habitat specialists only enter the random neighbor pool in suitable places and,
+  once unlocked, remain visible but greyed out for unsuitable destinations.
+  Incompatible destinations are also disabled for the chosen lineage. Choices are
+  never automatically replaced; departure is blocked until the combination is valid.
+  Unlocks and established diplomatic contacts persist; trials retain the current
+  location and lineage. Ashfen has marsh habitat but lacks the abundant open water
+  required by the fully aquatic lineages.
 - **Industry.** The Trial of Industrialization unlocks the Factory for its
   duration; build it and produce 100 Industrial Goods before the deadline.
   Steam Plants and Dynamos generate Power, while factories consume it without

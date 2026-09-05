@@ -111,6 +111,16 @@ function governanceDefenseMod() {
 function tribeDef(id) { return TRIBES.find(t => t.id === id) || TRIBES[0]; }
 function lineageDef(id) { return LINEAGES.find(l => l.id === id) || LINEAGES[0]; }
 function lineageUnlocked(id) { return !!(state.lineagesUnlocked && state.lineagesUnlocked[id]); }
+function habitatAllows(def, landingId) {
+  const landing = LANDINGS.find(l => l.id === landingId);
+  return !!def && (!def.habitats || !!landing && def.habitats.some(h => (landing.habitats || []).includes(h)));
+}
+function lineageSelectable(id, landingId = state.pendingLanding) {
+  return lineageUnlocked(id) && habitatAllows(LINEAGES.find(l => l.id === id), landingId);
+}
+function habitatText(def) {
+  return def.habitats ? `Habitat: ${LANDINGS.filter(l => habitatAllows(def, l.id)).map(l => l.name).join(', ')}.` : 'Habitat: any landing.';
+}
 function isMephit() { return state.species === 'mephit'; }
 function armorLevel() { return Math.max(0, Number(state.armor) || 0); }
 function tradeAvailable() { return tech('currency') && !!state.tradePartner; }
@@ -227,7 +237,7 @@ function rollLanding(excludeId) {
   return pick;
 }
 function rollTradePartner() {
-  const nonHuman = TRIBES.filter(t => t.id !== 'human');
+  const nonHuman = TRIBES.filter(t => t.id !== 'human' && habitatAllows(t, state.landing));
   const pick = Math.random() < 0.35
     ? nonHuman[Math.floor(Math.random() * nonHuman.length)]
     : TRIBES[0];
@@ -402,17 +412,33 @@ function updateRandomEvents(dt) {
   if (state.randomEventT < (state.randomEventNext || 60)) return;
   state.randomEventT = 0;
   state.randomEventNext = 55 + Math.random() * 75;
-  const event = RANDOM_EVENTS[Math.floor(Math.random() * RANDOM_EVENTS.length)];
-  const delta = randomRange(event.delta);
-  state.morale = Math.max(0, Math.min(moraleCap(), state.morale + delta));
-  for (const resource of ['food', 'wood', 'currency']) {
-    if (!event[resource]) continue;
-    const amount = randomRange(event[resource]);
-    state.res[resource] = Math.max(0, Math.min(capacityOf(resource), state.res[resource] + amount));
-    state.seen[resource] = true;
+  const lineageEvents = LINEAGE_EVENTS[state.species] || [];
+  const local = lineageEvents.length > 0 && Math.random() < 0.5;
+  const pool = local ? lineageEvents : RANDOM_EVENTS;
+  const event = pool[Math.floor(Math.random() * pool.length)];
+  const changes = [];
+  const actualChanges = [];
+  function record(label, change) {
+    if (!change) return;
+    actualChanges.push(change);
+    changes.push(`${label} ${change > 0 ? '+' : ''}${fmt(change)}`);
   }
-  const impact = delta > 0 ? 'log-good' : 'log-bad';
-  addLog(`${event.text} Morale ${delta > 0 ? '+' : ''}${delta}.`, impact);
+  if (event.delta) {
+    const before = state.morale;
+    state.morale = Math.max(0, Math.min(moraleCap(), before + randomRange(event.delta)));
+    record('Morale', state.morale - before);
+  }
+  for (const { id: resource, name } of RESOURCES) {
+    if (!event[resource] || !state.seen[resource]) continue;
+    const amount = randomRange(event[resource]);
+    const before = state.res[resource];
+    // Rewards never discard an existing over-cap stockpile.
+    state.res[resource] = amount > 0 ? before + Math.min(amount, Math.max(0, capacityOf(resource) - before)) : Math.max(0, before + amount);
+    record(name, state.res[resource] - before);
+  }
+  const impact = actualChanges.some(n => n < 0) ? 'log-bad' : actualChanges.length ? 'log-good' : '';
+  const prefix = local ? `${lineageDef(state.species).name}: ` : '';
+  addLog(`${prefix}${event.text}${changes.length ? ` ${changes.join('; ')}.` : ''}`, impact);
 }
 
 function lineageMod(res) {
@@ -723,7 +749,7 @@ function beginMigration() {
   state.echoes += state.pendingEchoes;
   state.pendingSpecies = state.species;
   state.pendingLandings = landingChoicesForMigration();
-  state.pendingLanding = state.pendingLandings[0].id;
+  state.pendingLanding = (state.pendingLandings.find(l => lineageSelectable(state.pendingSpecies, l.id)) || state.pendingLandings[0]).id;
   state.migrating = true;
   addLog(`The Great Migration is declared. The deeds of ${state.pop} villagers will echo: ${state.pendingEchoes} Echo${state.pendingEchoes === 1 ? '' : 's'} gained. Spend them before setting out.`, 'log-important');
 }
@@ -743,6 +769,7 @@ function landingChoicesForMigration() {
 }
 function chooseLanding(id) {
   if (!state.migrating || !(state.pendingLandings || []).some(l => l.id === id)) return;
+  if (!lineageSelectable(state.pendingSpecies || state.species, id)) return;
   state.pendingLanding = id;
 }
 
@@ -776,7 +803,9 @@ function setOut(trialId = null) {
   const landing = LANDINGS.find(l => l.id === (trialId ? state.landing : state.pendingLanding)) ||
     state.pendingLandings[0] || LANDINGS.find(l => l.id !== state.landing) || LANDINGS[0];
   const up = { ...state.upgrades };
-  const newSpecies = trialId ? state.species : (state.pendingSpecies || state.species);
+  const candidate = state.pendingSpecies || state.species;
+  if (!trialId && !lineageSelectable(candidate, landing.id)) return;
+  const newSpecies = trialId ? state.species : candidate;
   const unlockedLineages = { ...(state.lineagesUnlocked || { human: true }) };
   const newlyUnlocked = [];
   for (const id in (trialId ? {} : state.diplomacy) || {}) {
@@ -849,7 +878,7 @@ function setOut(trialId = null) {
 }
 
 function chooseLineage(id) {
-  if (!state.migrating || !lineageUnlocked(id)) return;
+  if (!state.migrating || !lineageSelectable(id)) return;
   state.pendingSpecies = id;
 }
 
@@ -1465,6 +1494,7 @@ function renderDiplomacy() {
     h += `<div class="card"><div class="card-head"><span class="card-title has-tooltip" data-tooltip="${attrText(tribe.text)}">${tribe.name}</span>` +
       `<span class="card-count">disposition ${Math.round(entry.disposition)} / 100</span></div>` +
       `<div class="card-desc">${tribe.text}</div>` +
+      `<div class="res-note">${habitatText(tribe)}</div>` +
       `<div class="trial-reward">${lineageDef(id).name} lineage: ${lineageDef(id).effect}. ${lineageUnlocked(id) ? 'Unlocked for future migrations.' : 'Migrate with disposition 80+ to unlock for future migrations.'}</div>` +
       (entry.disposition >= 80 ? '<div class="trial-reward">Active ally: +5% to all village incomes.</div>' : '') +
       (entry.disposition < 0 ? `<div class="trial-mod">Relations are strained: the ${tribe.name} may raid the village.</div>` : '') +
@@ -1596,24 +1626,28 @@ function renderMigration() {
     `<div class="card-desc">The departure is sworn and cannot be recalled. You may still tune the Ancestral Shop and choose a lineage, ` +
     `but the scout reports above are fixed and the old village is already committed to the road.</div>` +
     `<div class="card-actions">` +
-    `<button data-action="migration-out">Set out — found the new Emberhold</button></div>` +
+    `<button data-action="migration-out" ${lineageSelectable(state.pendingSpecies || state.species) ? '' : 'disabled'}>Set out — found the new Emberhold</button></div>` +
+    (!lineageSelectable(state.pendingSpecies || state.species) ? '<div class="res-note">Choose a compatible lineage and landing before setting out.</div>' : '') +
     `</div>`;
   h += '<h2 class="section">Scout reports</h2>' +
     `<div class="res-note">Survey points: ${fmt(state.surveyPoints || 0)}. Extra landing reports cost 3, then 9, then 27 points. Choose where the next Emberhold will stand.</div>`;
   for (const landing of (state.pendingLandings || [])) {
     const selected = state.pendingLanding === landing.id;
-    h += `<div class="card ${selected ? 'lineage-selected' : ''}"><div class="card-head"><span class="card-title has-tooltip" data-tooltip="${attrText(landing.text)}">${landing.name}</span>${selected ? '<span class="card-count">chosen</span>' : ''}</div>` +
+    const allowed = lineageSelectable(state.pendingSpecies || state.species, landing.id);
+    h += `<div class="card ${selected ? 'lineage-selected' : ''} ${allowed ? '' : 'dimmed'}"><div class="card-head"><span class="card-title has-tooltip" data-tooltip="${attrText(landing.text)}">${landing.name}</span>${selected ? '<span class="card-count">chosen</span>' : ''}</div>` +
       `<div class="card-effect">${modsHtml(landing)}</div>` +
-      `<div class="card-actions"><button data-action="landing" data-id="${landing.id}" ${selected ? 'disabled' : ''}>${selected ? 'Chosen' : 'Choose this landing'}</button></div></div>`;
+      `<div class="card-actions"><button data-action="landing" data-id="${landing.id}" ${selected || !allowed ? 'disabled' : ''}>${!allowed ? 'Unsuitable for chosen lineage' : selected ? 'Chosen' : 'Choose this landing'}</button></div></div>`;
   }
   h += '<h2 class="section">Choose a lineage</h2>' +
-    '<div class="res-note">Your next Emberhold inherits one lineage. Human lineages are always available; allied tribes become available after you migrate while their disposition is 80 or higher.</div>';
+    '<div class="res-note">Emberborn are always available. Ally with a tribe at disposition 80+ when departing to unlock its lineage for future migrations. Habitat specialists only appear as new neighbors in suitable places. Incompatible lineages and landings are greyed out. To choose a different habitat, first choose a lineage that can live there, such as Emberborn.</div>';
   for (const l of LINEAGES.filter(l => lineageUnlocked(l.id))) {
     const selected = (state.pendingSpecies || state.species) === l.id;
-    h += `<div class="card ${selected ? 'lineage-selected' : ''}"><div class="card-head">` +
+    const allowed = lineageSelectable(l.id);
+    h += `<div class="card ${selected ? 'lineage-selected' : ''} ${allowed ? '' : 'dimmed'}"><div class="card-head">` +
       `<span class="card-title has-tooltip" data-tooltip="${attrText(l.desc)}">${l.name}</span>` +
       `<span class="card-effect">${l.effect}</span></div>` +
-      `<div class="card-actions"><button data-action="lineage" data-id="${l.id}" ${selected ? 'disabled' : ''}>${selected ? 'Chosen' : 'Choose this lineage'}</button></div></div>`;
+      `<div class="card-desc">${l.desc}</div><div class="res-note">${habitatText(l)}</div>` +
+      `<div class="card-actions"><button data-action="lineage" data-id="${l.id}" ${selected || !allowed ? 'disabled' : ''}>${!allowed ? 'Requires a suitable landing' : selected ? 'Chosen' : 'Choose this lineage'}</button></div></div>`;
   }
   h += renderShop();
   return h;

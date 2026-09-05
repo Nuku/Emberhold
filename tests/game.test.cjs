@@ -24,6 +24,157 @@ function game() {
   return { run, context };
 }
 
+test('20 animal lineages have reachable habitats and matching encounter and selection rules', () => {
+  const { run } = game();
+  const habitats = {
+    otterfolk: ['floodmeadows', 'windmere'], beaverkin: ['floodmeadows', 'windmere'],
+    turtlefolk: ['floodmeadows', 'windmere'], axolotlkin: ['floodmeadows', 'windmere'],
+    carpfolk: ['floodmeadows', 'windmere'], frogfolk: ['floodmeadows', 'ashfen', 'windmere'],
+    heronkin: ['floodmeadows', 'ashfen', 'windmere'], foxfolk: null, wolfkin: null,
+    bearfolk: ['greenfold', 'grayrocks'], deerkin: ['emberplain', 'greenfold', 'floodmeadows'],
+    rabbitfolk: ['emberplain', 'floodmeadows'], bisonkin: ['emberplain', 'floodmeadows'],
+    squirrelfolk: ['greenfold'], owlkin: ['greenfold'], lynxfolk: ['greenfold', 'grayrocks'],
+    ibexkin: ['grayrocks'], eaglefolk: ['grayrocks'], molekin: null, raccoonfolk: null,
+  };
+  assert.equal(run('ANIMAL_LINEAGES.length'), 20);
+  assert.equal(run('new Set(LINEAGES.map(l => l.id)).size'), 30);
+  assert.equal(run('new Set(TRIBES.map(t => t.id)).size'), 30);
+  run('state.bld.monument = 1');
+  for (const landing of JSON.parse(run('JSON.stringify(LANDINGS.map(l => l.id))'))) {
+    const encountered = new Set();
+    run(`state.landing = '${landing}'; state.pendingLanding = '${landing}'; state.migrating = true`);
+    const count = run('TRIBES.filter(t => t.id !== "human" && habitatAllows(t, state.landing)).length');
+    for (let i = 0; i < count; i++) {
+      run(`{ let rolls = [0, ${(i + 0.5) / count}]; Math.random = () => rolls.length ? rolls.shift() : 0; rollTradePartner(); }`);
+      encountered.add(run('state.tradePartner'));
+    }
+    for (const [id, places] of Object.entries(habitats)) {
+      const allowed = !places || places.includes(landing);
+      assert.equal(encountered.has(id), allowed, `${id} encounter at ${landing}`);
+      run(`state.pendingSpecies = 'human'; state.lineagesUnlocked['${id}'] = false; chooseLineage('${id}')`);
+      assert.equal(run('state.pendingSpecies'), 'human', 'habitat does not bypass alliance unlock');
+      run(`state.lineagesUnlocked['${id}'] = true; chooseLineage('${id}')`);
+      assert.equal(run('state.pendingSpecies'), allowed ? id : 'human', `${id} choice at ${landing}`);
+      run("state.pendingSpecies = 'human'");
+      const button = run('renderMigration()').match(new RegExp(`<button data-action="lineage" data-id="${id}"[^>]*>`));
+      assert.ok(button, 'unlocked lineages remain visible');
+      assert.equal(button[0].includes('disabled'), !allowed);
+    }
+  }
+});
+
+test('every animal lineage unlocks through alliances and survives founding and save/load', () => {
+  const { run } = game();
+  for (const id of JSON.parse(run('JSON.stringify(ANIMAL_LINEAGES.map(l => l.id))'))) {
+    run(`state = defaultState(); ensureDiplomacyEntry('${id}');
+      state.diplomacy['${id}'].disposition = 80; state.migrating = true; setOut();
+      state.migrating = true;
+      state.pendingLanding = LANDINGS.find(l => habitatAllows(lineageDef('${id}'), l.id)).id;
+      chooseLineage('${id}'); setOut(); saveGame(true); state = loadGame()`);
+    assert.equal(run('state.species'), id);
+    assert.equal(run(`lineageUnlocked('${id}')`), true);
+    assert.match(run('renderDiplomacy()'), /Habitat:/);
+  }
+});
+
+test('migration changes and stale saves cannot found an aquatic lineage on dry land', () => {
+  const { run } = game();
+  run(`state.lineagesUnlocked.otterfolk = true; state.species = 'otterfolk';
+    state.landing = 'floodmeadows'; state.pop = 20; state.bld.monument = 1;
+    Math.random = () => 0; beginMigration()`);
+  assert.equal(run('state.migrating'), true);
+  assert.equal(run('state.pendingLanding'), 'emberplain');
+  assert.equal(run('state.pendingSpecies'), 'otterfolk');
+  assert.match(run('renderMigration()'), /data-action="migration-out" disabled/);
+  const before = run('JSON.stringify(state)');
+  run('setOut()');
+  assert.equal(run('JSON.stringify(state)'), before, 'invalid departure leaves the village intact');
+  run(`state.pendingLandings = LANDINGS; chooseLanding('windmere'); chooseLineage('otterfolk');
+    chooseLanding('grayrocks')`);
+  assert.equal(run('state.pendingSpecies'), 'otterfolk');
+  assert.equal(run('state.pendingLanding'), 'windmere');
+  assert.match(run('renderMigration()'), /data-action="landing" data-id="grayrocks" disabled/);
+  assert.equal(run('lineageUnlocked("otterfolk")'), true);
+  run(`chooseLanding('windmere'); chooseLineage('otterfolk'); saveGame(true); state = loadGame()`);
+  assert.equal(run('state.pendingSpecies'), 'otterfolk');
+  run(`state.pendingLanding = 'greenfold'; saveGame(true); state = loadGame(); setOut()`);
+  assert.equal(run('state.species'), 'otterfolk');
+  assert.equal(run('state.pendingSpecies'), 'otterfolk');
+  assert.equal(run('state.migrating'), true);
+  assert.equal(run('state.landing'), 'floodmeadows');
+  run(`chooseLineage('human'); chooseLanding('grayrocks'); setOut()`);
+  assert.equal(run('state.species'), 'human');
+  assert.equal(run('state.landing'), 'grayrocks');
+  run(`state.species = 'otterfolk'; state.landing = 'windmere'; setOut('scarcity')`);
+  assert.equal(run('state.species'), 'otterfolk');
+  assert.equal(run('state.landing'), 'windmere');
+});
+
+test('animal lineage bonuses and tradeoffs affect production and crafting', () => {
+  const { run } = game();
+  run(`state.jobs.forager = 2; state.species = 'human'; const foodBefore = production().food + state.pop * FOOD_PER_POP;
+    state.species = 'carpfolk'`);
+  assert.ok(Math.abs(run('production().food + state.pop * FOOD_PER_POP') - run('foodBefore') * 1.30) < 1e-10);
+  run(`state.bld.workbench = 1; state.res.wood = 100; state.res.tools = 0; doCraft('tools')`);
+  assert.equal(run('state.res.tools'), 0.88);
+  run(`state.species = 'raccoonfolk'; state.res.tools = 0; doCraft('tools')`);
+  assert.equal(run('state.res.tools'), 1.22);
+});
+
+test('every lineage has unique flavor and consequential events that appear in the Chronicle', () => {
+  const { run } = game();
+  const ids = JSON.parse(run('JSON.stringify(LINEAGES.map(l => l.id))'));
+  assert.equal(run('Object.keys(LINEAGE_EVENTS).length'), ids.length);
+  assert.equal(run('new Set(Object.values(LINEAGE_EVENTS).flat().map(e => e.text)).size'), ids.length * 2);
+  for (const id of ids) {
+    run(`state = defaultState(); state.species = '${id}'; state.morale = 50;
+      for (const r of RESOURCES) { state.seen[r.id] = true; state.res[r.id] = 20; }
+      Math.random = () => 0`);
+    const before = run('JSON.stringify([state.res, state.morale, state.seen])');
+    run('updateRandomEvents(60)');
+    assert.equal(run('JSON.stringify([state.res, state.morale, state.seen])'), before, `${id}: flavor has no effect`);
+    assert.equal(run('state.log[0].t'), run(`lineageDef('${id}').name + ': ' + LINEAGE_EVENTS['${id}'][0].text`));
+    run(`{ let rolls = [0, 0, 0.99]; Math.random = () => rolls.length ? rolls.shift() : 0; updateRandomEvents(130); }`);
+    assert.notEqual(run('JSON.stringify([state.res, state.morale, state.seen])'), before, `${id}: consequential event changes state`);
+    assert.ok(run('state.log[0].t').includes(run(`LINEAGE_EVENTS['${id}'][1].text`)));
+    assert.match(run('state.log[0].t'), /[+-]\d/);
+    assert.equal(run('state.log.length'), 2);
+  }
+});
+
+test('lineage happenings respect timing, storage, morale, discovery and save/load', () => {
+  const { run } = game();
+  function effect() {
+    run(`{ let rolls = [0, 0, 0.99]; Math.random = () => rolls.length ? rolls.shift() : 0; updateRandomEvents(130); }`);
+  }
+  run(`state.species = 'clocklings'; updateRandomEvents(30); saveGame(true); state = loadGame()`);
+  assert.equal(run('state.randomEventT'), 30);
+  assert.equal(run('state.species'), 'clocklings');
+  assert.equal(run('state.log.length'), 0);
+  effect();
+  assert.equal(run('state.res.tools'), 0);
+  assert.equal(run('!!state.seen.tools'), false);
+  assert.doesNotMatch(run('state.log[0].t'), /Tools \+/);
+  run('state.seen.tools = true; state.res.tools = capacityOf("tools") - 0.5');
+  effect();
+  assert.equal(run('state.res.tools'), run('capacityOf("tools")'));
+  assert.match(run('state.log[0].t'), /Tools \+0\.5/);
+  run('state.res.tools = capacityOf("tools") + 10');
+  effect();
+  assert.equal(run('state.res.tools'), run('capacityOf("tools") + 10'));
+  assert.doesNotMatch(run('state.log[0].t'), /Tools \+/);
+  run(`state.species = 'carpfolk'; state.res.food = 2`);
+  effect();
+  assert.equal(run('state.res.food'), 0);
+  assert.match(run('state.log[0].t'), /Food -2/);
+  run(`state.species = 'glimmerfolk'; state.morale = moraleCap()`);
+  effect();
+  assert.equal(run('state.morale'), run('moraleCap()'));
+  assert.doesNotMatch(run('state.log[0].t'), /Morale/);
+  run(`{ let rolls = [0, 0.9, 0]; Math.random = () => rolls.length ? rolls.shift() : 0; updateRandomEvents(130); }`);
+  assert.ok(run('state.log[0].t').includes(run('RANDOM_EVENTS[0].text')), 'general happenings remain available');
+});
+
 test('resource breakdown reconciles income and costs with scoped modifiers', () => {
   const { run } = game();
   run(`state.jobs = { forager: 3, guard: 2, tinkerer: 1, woodcutter: 2 };
@@ -216,8 +367,9 @@ test('new tribes can be encountered, allied, inherited, and saved', () => {
   for (const id of ['dunewalkers', 'cinderforged', 'thornkin', 'clocklings', 'glimmerfolk']) {
     const { run } = game();
     run(`Math.random = () => 0; const target = '${id}';
-      const index = TRIBES.filter(t => t.id !== 'human').findIndex(t => t.id === target);
-      let rolls = [0, (index + 0.5) / (TRIBES.length - 1)];
+      const pool = TRIBES.filter(t => t.id !== 'human' && habitatAllows(t, state.landing));
+      const index = pool.findIndex(t => t.id === target);
+      let rolls = [0, (index + 0.5) / pool.length];
       Math.random = () => rolls.length ? rolls.shift() : 0;
       rollTradePartner()`);
     assert.equal(run('state.tradePartner'), id);
