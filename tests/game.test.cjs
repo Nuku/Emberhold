@@ -24,6 +24,42 @@ function game() {
   return { run, context };
 }
 
+test('neutral tribes do not raid, while hostile tribes still can', () => {
+  const { run } = game();
+  run(`ensureDiplomacyEntry('human'); let raids = 0;
+    resolveTribeRaid = () => { raids++; }; Math.random = () => 0;
+    state.diplomacy.human.disposition = 0; updateDiplomacy(180)`);
+  assert.equal(run('raids'), 0);
+  assert.equal(run('state.diplomacy.human.disposition'), 5);
+  run('state.diplomacy.human.disposition = -1; updateDiplomacy(180)');
+  assert.equal(run('raids'), 1);
+});
+
+test('one diplomat makes progress even through repeated worst diplomatic slights', () => {
+  const { run } = game();
+  run(`ensureDiplomacyEntry('human'); state.diplomacy.human.disposition = 0;
+    state.techs.diplomacy = true; state.diplomats.human = 1;
+    Math.random = () => 0.999;
+    for (let i = 0; i < 16; i++) updateDiplomacy(180)`);
+  assert.equal(run('state.diplomacy.human.disposition'), 80);
+  run('state.diplomacy.human.disposition = 99; updateDiplomacy(60)');
+  assert.equal(run('state.diplomacy.human.disposition'), 100);
+});
+
+test('fulfilling requests gives meaningful recovery and caps relations at 100', () => {
+  const { run } = game();
+  run(`ensureDiplomacyEntry('human'); state.techs.currency = true;
+    state.diplomacy.human.disposition = -10;
+    state.diplomacy.human.request = { res: 'wood', amount: 100, age: 1 };
+    state.res.wood = 200; supplyDiplomacyRequest('human')`);
+  assert.equal(run('state.diplomacy.human.disposition'), 5);
+  assert.equal(run('state.res.wood'), 100);
+  run(`state.diplomacy.human.disposition = 95;
+    state.diplomacy.human.request = { res: 'wood', amount: 100, age: 1 };
+    supplyDiplomacyRequest('human')`);
+  assert.equal(run('state.diplomacy.human.disposition'), 100);
+});
+
 test('expedition tab hides other landing expeditions, including completed ones', () => {
   const { run } = game();
   const sites = JSON.parse(run('JSON.stringify(EXPEDITIONS.filter(e => e.landing))'));

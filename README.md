@@ -107,9 +107,10 @@ invalid imports, storage failures, and offline time accounting.
   Observatories, and the Beacon all require Factory output in addition to their
   other materials.
 - **Diplomacy.** Contacted tribes have dispositions, make requests in tones
-  ranging from pleas to demands, and may improve when their requests are met.
+  ranging from pleas to demands, and gain 15 relations when their requests are met.
   Age-of-Iron Diplomacy unlocks Diplomats, who can be assigned to individual
-  tribes; random diplomatic events can help or harm relations.
+  tribes, each adding 3 relations per minute. Random diplomatic events grant
+  5–10 relations or lose 2–4; only hostile tribes (below 0) may raid the village.
 - **Governance.** Civic Law unlocks five mutually exclusive settlement policies
   such as Common Granaries, Merchant Charter, and War Council. The Council adds
   one Governor and two paid advisor seats; their bonuses reset when a new

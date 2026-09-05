@@ -663,7 +663,7 @@ function updateDiplomacy(dt) {
   if (!state.diplomacy) return;
   for (const id in state.diplomacy) {
     const entry = state.diplomacy[id];
-    const nudged = diplomatCount(id) * 0.02 * dt;
+    const nudged = diplomatCount(id) * 0.05 * dt;
     if (nudged) entry.disposition = Math.min(100, entry.disposition + nudged);
   }
   if (state.guardInjuries > 0) state.guardInjuries = Math.max(0, state.guardInjuries - dt / guardHealingNeed());
@@ -675,11 +675,11 @@ function updateDiplomacy(dt) {
   const id = ids[Math.floor(Math.random() * ids.length)];
   const entry = state.diplomacy[id];
   const tribe = tribeDef(id);
-  if (entry.disposition < 50 && Math.random() < 0.45) {
+  if (entry.disposition < 0 && Math.random() < 0.45) {
     resolveTribeRaid(id);
     return;
   }
-  const delta = Math.random() < 0.55 ? 5 + Math.floor(Math.random() * 6) : -(5 + Math.floor(Math.random() * 6));
+  const delta = Math.random() < 0.55 ? 5 + Math.floor(Math.random() * 6) : -(2 + Math.floor(Math.random() * 3));
   entry.disposition = Math.max(-100, Math.min(100, entry.disposition + delta));
   addLog(`${tribe.name}: ${delta > 0 ? 'a diplomatic success' : 'a diplomatic slight'} shifts relations by ${delta > 0 ? '+' : ''}${delta}.`, delta > 0 ? 'log-good' : 'log-bad');
 }
@@ -1176,10 +1176,10 @@ function supplyDiplomacyRequest(id) {
   const entry = state.diplomacy[id];
   if (!canAfford({ [entry.request.res]: entry.request.amount })) return;
   payCost({ [entry.request.res]: entry.request.amount });
-  entry.disposition = Math.min(100, entry.disposition + 8);
+  entry.disposition = Math.min(100, entry.disposition + 15);
   state.morale = Math.min(moraleCap(), state.morale + 2);
   const tribe = tribeDef(id);
-  addLog(`The ${tribe.name} accept the requested goods. Relations improve by 8.`, 'log-good');
+  addLog(`The ${tribe.name} accept the requested goods. Relations improve by 15.`, 'log-good');
   entry.request = randomDiplomacyRequest(id);
 }
 
@@ -1515,7 +1515,7 @@ function renderDiplomacy() {
       (entry.disposition >= 80 ? '<div class="trial-reward">Active ally: +5% to all village incomes.</div>' : '') +
       (entry.disposition < 0 ? `<div class="trial-mod">Relations are strained: the ${tribe.name} may raid the village.</div>` : '') +
       `<div class="trial-goal">${diplomacyRequestText(tribe, entry)}</div>` +
-      `<div class="card-cost">offer: ${costHtml(requestCost)}</div>` +
+      `<div class="card-cost">offer: ${costHtml(requestCost)} — +15 relations</div>` +
       `<div class="card-actions"><button data-action="diplomacy-supply" data-tribe="${id}" ${canSupply ? '' : 'disabled'}>Supply the request</button></div>`;
     if (tech('guards')) {
       const raidCost = { food: 30, tools: 2 };
@@ -1524,7 +1524,7 @@ function renderDiplomacy() {
         `<div class="card-actions"><button data-action="raid" data-tribe="${id}" ${canRaid ? '' : 'disabled'}>Raid the ${tribe.name}</button></div>`;
     }
     if (tech('diplomacy')) {
-      h += `<div class="res-note">${JOBS.diplomat.name}s assigned: ${diplomatCount(id)} — each nudges relations upward over time</div>` +
+      h += `<div class="res-note">${JOBS.diplomat.name}s assigned: ${diplomatCount(id)} — each adds +3 relations per minute</div>` +
         `<div class="card-actions"><button data-action="diplomat-dec" data-tribe="${id}" ${diplomatCount(id) > 0 ? '' : 'disabled'}>−</button> ` +
         `<button data-action="diplomat-inc" data-tribe="${id}" ${unassigned() > 0 ? '' : 'disabled'}>Assign Diplomat</button></div>`;
     }
