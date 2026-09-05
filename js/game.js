@@ -1907,7 +1907,7 @@ function loadLatestUpdatesTooltip() {
       const updates = [...(section?.section.querySelectorAll('li') || [])]
         .map(item => item.textContent.replace(/\s+/g, ' ').trim())
         .filter(Boolean);
-      if (date && updates.length) button.dataset.tooltip = `Latest updates (${date}): ${updates.join(' • ')}`;
+      if (date && updates.length) button.dataset.tooltip = `Latest updates (${date}):\n${updates.join('\n')}`;
     })
     .catch(() => {});
 }
