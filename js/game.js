@@ -62,6 +62,8 @@ function defaultState() {
     migrating: false,
     pendingEchoes: 0,
     won: false,
+    achievements: {},
+    settings: { autosave: true, reducedMotion: false, compactStores: false },
     log: [],
   };
   s.res.food = 60;
@@ -476,6 +478,7 @@ function globalProductionFactors() {
     ['All six sites explored', siteExpeditionsComplete() ? 1.05 : 1],
     ['Everwarm', perm('everwarm') ? 1.05 : 1],
     ['Deep Roots', 1 + 0.05 * upg('deepRoots')],
+    ['Completion bonus', 1 + 0.001 * completedAchievementCount()],
     ['Haste trial', trialActive('haste') ? 0.70 : 1],
   ];
 }
@@ -1029,6 +1032,7 @@ function chooseLineage(id) {
 // ---------- core tick ----------
 function tick(dt) {
   state.day += dt * DAY_RATE;
+  updateAchievements();
 
   const rates = production(dt);
   for (const r in rates) {
@@ -1090,6 +1094,7 @@ function tick(dt) {
     };
     addLog(flavor[SEASONS[sIdx].name], SEASONS[sIdx].name === 'Winter' ? 'log-bad' : '');
   }
+  updateAchievements();
   emitAutomationEvent('tick', { dt });
 }
 
@@ -1469,6 +1474,53 @@ function costHtml(cost) {
     parts.push(`<span class="${have >= cost[r] ? 'ok' : 'lack'}">${fmt(cost[r])} ${RESOURCES.find(x => x.id === r).name}</span>`);
   }
   return parts.join(', ');
+}
+
+function lineageAccessCount() { return LINEAGES.filter(lineage => lineageUnlocked(lineage.id)).length; }
+
+const ACHIEVEMENTS = [
+  { id: 'firstDay', name: 'Ashes to Ashes', desc: 'Let Emberhold see its first day.', test: () => state.day >= 1, progress: () => `${fmt(Math.min(state.day, 1))} / 1 day` },
+  { id: 'stoneAge', name: 'Stone Remembered', desc: 'Reach the Age of Stone.', test: () => state.era >= 2, progress: () => `Age ${Math.min(state.era, 2)} / 2` },
+  { id: 'builder', name: 'A Place to Stand', desc: 'Raise three Huts.', test: () => bld('hut') >= 3, progress: () => `${fmt(Math.min(bld('hut'), 3))} / 3 Huts` },
+  { id: 'scholar', name: 'A Curious People', desc: 'Complete five research projects.', test: () => Object.keys(state.techs).length >= 5, progress: () => `${Math.min(Object.keys(state.techs).length, 5)} / 5 projects` },
+  { id: 'diplomat', name: 'Good Neighbors', desc: 'Reach 80 disposition with a tribe.', test: () => Object.values(state.diplomacy || {}).some(e => e.disposition >= 80), progress: () => `${Math.max(0, ...Object.values(state.diplomacy || {}).map(e => e.disposition || 0))} / 80 disposition` },
+  { id: 'wayfarer', name: 'The Long Road', desc: 'Establish three expedition sites.', test: () => Object.keys(state.expeditions || {}).length >= 3, progress: () => `${Math.min(Object.keys(state.expeditions || {}).length, 3)} / 3 sites` },
+  { id: 'trialist', name: 'Oathbound', desc: 'Complete a trial.', test: () => Object.values(state.trialDone || {}).some(n => n > 0), progress: () => `${Object.values(state.trialDone || {}).reduce((a, n) => a + n, 0)} completed` },
+  { id: 'beacon', name: 'The Beacon Burns', desc: 'Reach the Age of Light.', test: () => state.era >= 5 || state.won, progress: () => `Age ${Math.min(state.era, 5)} / 5` },
+  { id: 'manyHands', name: 'Many Hands', desc: 'Grow Emberhold to 25 people.', test: () => state.pop >= 25, progress: () => `${Math.min(state.pop, 25)} / 25 people` },
+  ...LINEAGES.map(lineage => ({
+    id: `lineage-${lineage.id}`,
+    name: `Lineage: ${lineage.name}`,
+    desc: `Gain access to the ${lineage.name} lineage.`,
+    test: () => lineageUnlocked(lineage.id),
+    progress: () => lineageUnlocked(lineage.id) ? 'Lineage available' : 'Not yet available',
+  })),
+  { id: 'lineage-half', name: 'Many Peoples', desc: 'Gain access to at least half of all lineages.', test: () => lineageAccessCount() >= Math.ceil(LINEAGES.length / 2), progress: () => `${lineageAccessCount()} / ${Math.ceil(LINEAGES.length / 2)} lineages` },
+  { id: 'lineage-all', name: 'A World of Kin', desc: 'Gain access to every lineage.', test: () => lineageAccessCount() >= LINEAGES.length, progress: () => `${lineageAccessCount()} / ${LINEAGES.length} lineages` },
+];
+
+function completedAchievementCount() { return Object.keys(state.achievements || {}).filter(id => state.achievements[id]).length; }
+function updateAchievements() {
+  state.achievements = state.achievements || {};
+  for (const achievement of ACHIEVEMENTS) {
+    if (achievement.test() && !state.achievements[achievement.id]) {
+      state.achievements[achievement.id] = true;
+      addLog(`Achievement completed: ${achievement.name}. Completion bonus +0.1% to all production.`, 'log-good');
+    }
+  }
+}
+function totalTrialsCompleted() { return Object.values(state.trialDone || {}).reduce((sum, n) => sum + n, 0); }
+function totalUpgrades() { return Object.values(state.upgrades || {}).reduce((sum, n) => sum + n, 0); }
+function setSetting(id) {
+  state.settings = state.settings || {};
+  state.settings[id] = !state.settings[id];
+  applySettings();
+  saveGame(true);
+}
+function applySettings() {
+  if (typeof document === 'undefined' || !document.body) return;
+  document.body.classList.toggle('reduced-motion', !!state.settings?.reducedMotion);
+  document.body.classList.toggle('compact-stores', !!state.settings?.compactStores);
 }
 
 // ---------- UI ----------
@@ -1882,6 +1934,59 @@ function renderShop() {
   return h;
 }
 
+function renderStats() {
+  const tab = state.statsTab || 'stats';
+  const completed = completedAchievementCount();
+  let h = '<h2 class="section">Emberhold record</h2>' +
+    `<div class="subtabs" role="tablist" aria-label="Statistics sections">` +
+    ['stats', 'achievements', 'perks'].map(id => `<button class="subtab ${tab === id ? 'active' : ''}" data-action="stats-tab" data-stats-tab="${id}" role="tab" aria-selected="${tab === id}">${id[0].toUpperCase() + id.slice(1)}${id === 'achievements' ? ` <span class="subtab-count">${completed}/${ACHIEVEMENTS.length}</span>` : ''}</button>`).join('') + '</div>';
+  if (tab === 'achievements') {
+    h += '<div class="res-note stats-intro">Achievements are the work Emberhold is expected to do. Complete them naturally as your settlement grows.</div>';
+    h += ACHIEVEMENTS.map(a => { const done = !!state.achievements?.[a.id]; return `<div class="achievement-card card ${done ? 'done' : 'dimmed'}"><div class="card-head"><span class="card-title">${done ? '✦ ' : ''}${a.name}</span><span class="card-count">${done ? 'Complete' : 'In progress'}</span><span class="card-effect">+0.1% production</span></div><div class="card-desc">${a.desc}</div><div class="achievement-progress">${done ? 'Completion bonus earned' : a.progress()}</div></div>`; }).join('');
+    return h;
+  }
+  if (tab === 'perks') {
+    h += '<div class="res-note stats-intro">Perks are your proof of passage — permanent progress and rare accomplishments worth showing off.</div>';
+    const perks = [
+      ['Echoes carried', fmt(state.echoes), 'The ancestral currency of every migration.'],
+      ['Ancestral upgrades', `${totalUpgrades()} levels`, `${Object.keys(state.upgrades || {}).length} upgrade paths awakened.`],
+      ['Trials completed', fmt(totalTrialsCompleted()), 'Oaths that left a mark on the lineage.'],
+      ['Expeditions established', `${Object.keys(state.expeditions || {}).length} / ${LANDINGS.length}`, 'Roads and sites remembered across migrations.'],
+      ['Lineages unlocked', `${Object.keys(state.lineagesUnlocked || {}).length} / ${LINEAGES.length}`, 'The peoples who may yet call Emberhold home.'],
+      ['Tribes encountered', `${Object.keys(state.tribesSeen || {}).length}`, 'Contacts recorded in the chronicle.'],
+    ];
+    h += perks.map(([name, value, desc]) => `<div class="perk-card card"><div class="card-head"><span class="card-title">${name}</span><span class="card-effect">${value}</span></div><div class="card-desc">${desc}</div></div>`).join('');
+    return h;
+  }
+  const buildings = Object.values(state.bld || {}).reduce((sum, n) => sum + n, 0);
+  const research = Object.keys(state.techs || {}).length;
+  h += '<div class="stats-grid">' + [
+    ['Current era', ERAS[state.era - 1]?.name || 'Unknown', `Age ${state.era} of ${ERAS.length}`],
+    ['Settlement age', `${fmt(state.day)} days`, `at ${landingDef().name}`],
+    ['Population', fmt(state.pop), `${fmt(popCap())} housing capacity`],
+    ['Buildings raised', fmt(buildings), `${Object.keys(state.bld || {}).length} types`],
+    ['Research completed', fmt(research), `${Object.keys(state.techs || {}).length} discoveries`],
+    ['Current lineage', lineageDef(state.species).name, lineageDef(state.species).effect],
+    ['Completion bonus', `+${(completed * 0.1).toFixed(1)}%`, `${completed} of ${ACHIEVEMENTS.length} achievements completed`],
+  ].map(([label, value, note]) => `<div class="stat-card"><div class="stat-label">${label}</div><div class="stat-value">${value}</div><div class="stat-note">${note}</div></div>`).join('') + '</div>';
+  h += '<h2 class="section">Lifetime marks</h2><div class="res-note">Completed trials: ' + fmt(totalTrialsCompleted()) + ' · Sites established: ' + Object.keys(state.expeditions || {}).length + ' · Echoes held: ' + fmt(state.echoes) + '</div>';
+  return h;
+}
+
+function renderSettings() {
+  const settings = state.settings || {};
+  let h = '<h2 class="section">Settings</h2><div class="res-note settings-intro">Tune the chronicle to suit your session. Preferences are stored with your save.</div>';
+  const options = [
+    ['autosave', 'Autosave', 'Save the chronicle automatically every 15 seconds.'],
+    ['reducedMotion', 'Reduced motion', 'Remove hover lifts and animated transitions.'],
+    ['compactStores', 'Compact stores', 'Use a tighter resource list in the persistent sidebar.'],
+  ];
+  h += options.map(([id, name, desc]) => `<div class="setting-row"><div><div class="setting-name">${name}</div><div class="setting-desc">${desc}</div></div><button class="setting-toggle ${settings[id] ? 'enabled' : ''}" data-action="setting-toggle" data-setting="${id}" aria-pressed="${!!settings[id]}">${settings[id] ? 'On' : 'Off'}</button></div>`).join('');
+  h += '<h2 class="section">Chronicle tools</h2><div class="settings-actions"><button data-action="save">Save now</button><button data-action="export">Export save</button><button data-action="import">Import save</button><button data-action="reset" class="danger-button">Reset Emberhold</button></div>';
+  h += '<div class="res-note settings-note">Export a backup before resetting. Imported saves replace the current chronicle after validation.</div>';
+  return h;
+}
+
 function renderLog() {
   const el = document.getElementById('log');
   let h = '';
@@ -1913,6 +2018,7 @@ function loadLatestUpdatesTooltip() {
 }
 
 function render() {
+  updateAchievements();
   renderHeader();
   document.getElementById('stores').innerHTML = renderStores();
   const panels = {
@@ -1924,6 +2030,8 @@ function render() {
     trials: renderTrials,
     expeditions: renderExpeditions,
     migration: renderMigration,
+    stats: renderStats,
+    settings: renderSettings,
   };
   document.getElementById('panel-' + activeTab).innerHTML = panels[activeTab]();
   renderLog();
@@ -2065,6 +2173,8 @@ function runAction(btn) {
     case 'landing': chooseLanding(btn.dataset.id); render(); break;
     case 'migration-buy': migrationBuy(btn.dataset.id); render(); break;
     case 'migration-refund': migrationRefund(btn.dataset.id); render(); break;
+    case 'stats-tab': state.statsTab = btn.dataset.statsTab; render(); break;
+    case 'setting-toggle': setSetting(btn.dataset.setting); render(); break;
     case 'save': saveGame(); render(); break;
     case 'export': exportSave(); break;
     case 'import': importSave(); break;
@@ -2150,6 +2260,10 @@ function boot() {
   state.diplomats = state.diplomats || {};
   state.policy = state.policy || 'commons';
   state.council = Array.isArray(state.council) ? state.council : [];
+  state.settings = { autosave: true, reducedMotion: false, compactStores: false, ...(state.settings || {}) };
+  state.achievements = state.achievements || {};
+  state.statsTab = ['stats', 'achievements', 'perks'].includes(state.statsTab) ? state.statsTab : 'stats';
+  applySettings();
   state.tribesSeen = state.tribesSeen || { human: true };
   state.species = state.species || 'human';
   ensureDiplomacyEntry(state.tradePartner || 'human');
@@ -2185,7 +2299,7 @@ function boot() {
     tick(dt);
   }, 250);
   setInterval(() => { if (!tooltipHover && !pointerDown && !document.activeElement?.closest('.has-tooltip')) render(); }, 500);
-  setInterval(() => saveGame(true), 15000);
+  setInterval(() => { if (state.settings.autosave) saveGame(true); }, 15000);
   window.addEventListener('beforeunload', () => saveGame(true));
   render();
 }

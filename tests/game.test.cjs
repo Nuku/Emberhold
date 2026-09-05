@@ -518,7 +518,7 @@ test('Great Migration resets research and research-derived armor', () => {
 
 test('tribal requests use discovered cultural preferences and renew after supplying', () => {
   const { run } = game();
-  run(`Math.random = () => 0; state.seen = { food: true };
+  run(`Math.random = () => 0; state.tradePartner = 'clocklings'; state.seen = { food: true };
     ensureDiplomacyEntry('clocklings')`);
   assert.equal(run('state.diplomacy.clocklings.request.res'), 'food');
   run(`state.techs.currency = true; state.res.food = 200; state.seen.copper = true;

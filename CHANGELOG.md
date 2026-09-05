@@ -4,6 +4,10 @@ All notable changes to Emberhold are recorded here, with the newest changes firs
 
 ## 2026-09-05
 
+- Added Settings and Stats tabs. Stats includes Stats, Achievements, and Perks subtabs for settlement records, expected accomplishments, and permanent bragging rights.
+- Added persistent Settings controls for autosave, reduced motion, compact stores, and chronicle tools.
+- Added achievement progress tracking and a Completion bonus of +0.1% to all production per completed achievement. The bonus stacks additively and survives migration and reloads.
+- Added a quick achievement for gaining access to each lineage, plus Many Peoples for half of all lineages and A World of Kin for every lineage.
 - Added independent one-slot queues for building and research, with automatic completion when resources become available, cancellation by clicking, and estimated completion times.
 - Added Echo upgrades for extra construction and research queue slots, plus one-time Expansion and Scholarship trials that each unlock another slot.
 - Added an independent one-slot expedition queue with automatic launch when supplies arrive, cancellation, and completion estimates.
