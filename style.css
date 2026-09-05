@@ -42,3 +42,28 @@ h2.section::after { content: ''; height: 1px; flex: 1; background: linear-gradie
 #banner { position: fixed; right: 18px; bottom: 18px; left: 18px; z-index: 30; border: 1px solid var(--amber); border-radius: 8px; background: #211a13; box-shadow: var(--shadow); color: var(--amber); text-align: center; padding: 11px; font-size: 13px; }
 @media (max-width:820px) { #app { padding: 18px 16px 36px; } header { grid-template-columns: 1fr auto; gap: 18px; } #status-block { grid-column: 1/-1; grid-row: 2; } #controls { grid-column: 2; grid-row: 1; align-self: start; } }
 @media (max-width:560px) { #app { padding-inline: 12px; } header { display: block; } #controls { justify-content: flex-start; margin-top: 18px; } #status-block { margin-top: 18px; } .res-row { grid-template-columns: minmax(90px,1fr) auto; gap: 8px; } .res-rate { grid-column: 1/-1; padding-left: 102px; margin-top: -8px; } .job-row { grid-template-columns: minmax(92px,1fr) auto auto; gap: 8px; } .job-rate { grid-column: 1/-1; grid-row: 2; padding-left: 100px; margin-top: -8px; } }
+
+/* Persistent resource column alongside every tab. */
+#app { display: grid; grid-template-columns: 300px minmax(0,1fr); grid-template-areas: "header header" "stores tabs" "stores main" "stores log"; column-gap: 28px; }
+header { grid-area: header; }
+#tabs { grid-area: tabs; min-width: 0; }
+#main { grid-area: main; min-width: 0; }
+#log-panel { grid-area: log; min-width: 0; }
+#stores-panel { grid-area: stores; align-self: start; position: sticky; top: 16px; margin-top: 20px; padding: 16px 12px; max-height: calc(100dvh - 32px); overflow-y: auto; scrollbar-width: thin; border: 1px solid var(--border); border-radius: 9px; background: var(--bg-soft); box-shadow: var(--shadow); }
+#stores-panel .res-row { grid-template-columns: minmax(0,1fr) auto; gap: 2px 8px; padding: 8px 4px; }
+#stores-panel .res-amount { white-space: nowrap; }
+#stores-panel .res-rate { grid-column: 1/-1; justify-self: end; margin: 0; padding: 0; font-size: 12px; }
+#stores-panel .has-tooltip::after { max-width: 250px; }
+#stores-panel .res-rate.has-tooltip::after { width: 250px; }
+@media (min-width:821px) and (max-width:1100px) {
+  .job-row { grid-template-columns: minmax(92px,1fr) auto auto; gap: 8px; }
+  .job-rate { grid-column: 1/-1; grid-row: 2; }
+}
+@media (max-width:820px) {
+  #app { grid-template-columns: minmax(0,1fr); grid-template-areas: "header" "stores" "tabs" "main" "log"; }
+  #stores-panel { position: static; max-height: none; }
+  #stores { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 0 20px; }
+}
+@media (max-width:420px) {
+  #stores { grid-template-columns: minmax(0,1fr); }
+}

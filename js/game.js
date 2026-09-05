@@ -1330,17 +1330,10 @@ function renderHeader() {
   }
 }
 
-function renderVillage() {
+function renderStores() {
   const breakdown = {};
   const rates = production(0.25, breakdown);
-  const L = landingDef();
-  let h = `<h2 class="section">Where you stand — ${L.name}</h2>` +
-    `<div class="res-note">${L.text}</div>` +
-    `<div class="res-note" style="margin:2px 0 6px">The land gives: ${modsHtml(L)}</div>` +
-    `<div class="res-note" style="margin:2px 0 6px">${tradeAvailable() ? `Trading with the ${tribeDef(state.tradePartner).name}; funds arrive at ${fmtRate(0.05)} before Banker work.` : `The ${tribeDef(state.tradePartner).name} are nearby. Research Currency to begin trading.`}</div>` +
-    `<div class="res-note" style="margin:2px 0 6px">Guard armor: level ${fmt(armorLevel())} — each level reduces death odds by 8% (minimum 15%).</div>` +
-    `<div class="res-note" style="margin:2px 0 6px">Morale rises when stores are secure and falls when food runs short or winter bites. The Shrine steadies the people. ${moraleLabel()} morale changes production by ${Math.round((0.70 + state.morale * 0.0042857 - 1) * 100)}%; current ceiling: ${moraleCap()}.</div>` +
-    '<h2 class="section">Stores</h2>';
+  let h = '';
   for (const r of RESOURCES) {
     if (!resVisible(r.id)) continue;
     const rate = rates[r.id];
@@ -1355,6 +1348,17 @@ function renderVillage() {
       `<span class="res-rate has-tooltip ${cls}" tabindex="0" data-tooltip="${attrText(resourceRateTooltip(r, rate, breakdown[r.id]))}">${fmtRate(rate) || '0/s'}</span>` +
       `</div>`;
   }
+  return h;
+}
+
+function renderVillage() {
+  const L = landingDef();
+  let h = `<h2 class="section">Where you stand — ${L.name}</h2>` +
+    `<div class="res-note">${L.text}</div>` +
+    `<div class="res-note" style="margin:2px 0 6px">The land gives: ${modsHtml(L)}</div>` +
+    `<div class="res-note" style="margin:2px 0 6px">${tradeAvailable() ? `Trading with the ${tribeDef(state.tradePartner).name}; funds arrive at ${fmtRate(0.05)} before Banker work.` : `The ${tribeDef(state.tradePartner).name} are nearby. Research Currency to begin trading.`}</div>` +
+    `<div class="res-note" style="margin:2px 0 6px">Guard armor: level ${fmt(armorLevel())} — each level reduces death odds by 8% (minimum 15%).</div>` +
+    `<div class="res-note" style="margin:2px 0 6px">Morale rises when stores are secure and falls when food runs short or winter bites. The Shrine steadies the people. ${moraleLabel()} morale changes production by ${Math.round((0.70 + state.morale * 0.0042857 - 1) * 100)}%; current ceiling: ${moraleCap()}.</div>`;
 
   if (bld('factory') > 0) {
     h += '<h2 class="section">Factory production</h2><div class="res-note">All factories share one production line. Rates below are per factory before bonuses. Production slows when supplies run short and pauses when output storage is full. The Industrialization trial requires Industrial Goods.</div>';
@@ -1686,6 +1690,7 @@ function renderLog() {
 
 function render() {
   renderHeader();
+  document.getElementById('stores').innerHTML = renderStores();
   const panels = {
     village: renderVillage,
     build: renderBuild,

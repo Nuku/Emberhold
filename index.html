@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Emberhold — a text incremental</title>
-<link rel="stylesheet" href="style.css?v=ember-ui-20260904">
+<link rel="stylesheet" href="style.css?v=stores-sidebar-20260904">
 </head>
 <body>
 <div id="app">
@@ -27,6 +27,11 @@
       <button id="btn-reset">Reset</button>
     </div>
   </header>
+
+  <aside id="stores-panel" aria-labelledby="stores-heading">
+    <h2 id="stores-heading" class="section">Stores</h2>
+    <div id="stores"></div>
+  </aside>
 
   <nav id="tabs">
     <button data-tab="village" class="tab active">Village</button>
@@ -59,6 +64,6 @@
 </div>
 
 <script src="js/data.js?v=clickfix"></script>
-<script src="js/game.js?v=50cac7a-expeditions"></script>
+<script src="js/game.js?v=stores-sidebar-20260904"></script>
 </body>
 </html>

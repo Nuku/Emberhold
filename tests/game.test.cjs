@@ -208,9 +208,9 @@ test('resource breakdown explains stopped jobs, factory shortages, full stores a
   assert.ok(run(`detail.machinery[0].factors.some(([label, factor]) => label.includes('storage space') && factor === 0)`));
   run(`state.jobs.woodcutter = 1; state.res.wood = capacityOf('wood'); const fullRates = production(0.25, detail)`);
   assert.ok(run(`resourceRateTooltip(RESOURCES.find(r => r.id === 'wood'), fullRates.wood, detail.wood).includes('excess net income is wasted')`));
-  assert.ok(run(`renderVillage().includes('tabindex="0" data-tooltip=')`));
+  assert.ok(run(`renderStores().includes('tabindex="0" data-tooltip=')`));
   run('state.jobs = {}');
-  assert.ok(run(`renderVillage().includes('>0/s</span>')`));
+  assert.ok(run(`renderStores().includes('>0/s</span>')`));
 });
 
 test('repeatable trials grow harder after rewards and retain difficulty on failure and load', () => {
