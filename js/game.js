@@ -954,6 +954,7 @@ function tick(dt) {
     };
     addLog(flavor[SEASONS[sIdx].name], SEASONS[sIdx].name === 'Winter' ? 'log-bad' : '');
   }
+  emitAutomationEvent('tick', { dt });
 }
 
 // ---------- actions ----------
@@ -1732,6 +1733,91 @@ function switchTab(tab) {
   document.getElementById('panel-' + tab).classList.remove('hidden');
   render();
 }
+
+// ---------- automation API ----------
+// Keep the controller surface separate from the renderer so userscripts and
+// accessibility tools do not need to scrape text or reach into lexical globals.
+const automationListeners = new Set();
+
+function automationSnapshot() {
+  return JSON.parse(JSON.stringify(state));
+}
+
+function emitAutomationEvent(type, detail = {}) {
+  const payload = { type, state: automationSnapshot(), ...detail };
+  for (const listener of automationListeners) listener(payload);
+  if (typeof window.dispatchEvent === 'function' && typeof CustomEvent === 'function') {
+    window.dispatchEvent(new CustomEvent(`emberhold:${type}`, { detail: payload }));
+  }
+  return payload;
+}
+
+const automationActionFns = {
+  assign: doAssign,
+  assignDiplomat: doAssignDiplomat,
+  assignExplorer: doAssignExplorer,
+  assignPerformer: doAssignPerformer,
+  build: doBuild,
+  craft: doCraft,
+  chooseFactoryRecipe,
+  chooseLanding,
+  chooseLineage,
+  choosePolicy,
+  councilor: toggleCouncilor,
+  expedition: doExpedition,
+  migrationBegin: beginMigration,
+  migrationBuy,
+  migrationOut: setOut,
+  migrationRefund,
+  raid: doRaid,
+  research: doResearch,
+  trialAbandon: () => endTrial(false),
+  trialStart: startTrial,
+  supplyDiplomacyRequest,
+  governor: appointGovernor,
+};
+
+function runAutomationAction(name, ...args) {
+  const action = automationActionFns[name];
+  if (!action) throw new Error(`Unknown Emberhold action: ${name}`);
+  const result = action(...args);
+  render();
+  emitAutomationEvent('action', { action: name, args });
+  return result;
+}
+
+window.emberhold = {
+  version: 1,
+  get state() { return automationSnapshot(); },
+  getState: automationSnapshot,
+  action(name, ...args) { return runAutomationAction(name, ...args); },
+  actions: Object.fromEntries(Object.keys(automationActionFns).map(name =>
+    [name, (...args) => runAutomationAction(name, ...args)])),
+  subscribe(listener) {
+    if (typeof listener !== 'function') throw new TypeError('listener must be a function');
+    automationListeners.add(listener);
+    return () => automationListeners.delete(listener);
+  },
+  save() { saveGame(true); return automationSnapshot(); },
+  helpers: {
+    bld,
+    buildingCost,
+    canAfford,
+    capacityOf,
+    expeditionCost,
+    factoryRecipe,
+    landingDef,
+    popCap,
+    production,
+    tech,
+    trialActive,
+    unassigned,
+  },
+  render,
+  switchTab,
+  definitions: { RESOURCES, JOBS, BUILDINGS, CRAFTS, TECHS, CIVICS, GOVERNORS,
+    COUNCILORS, TRIALS, EXPEDITIONS, LANDINGS, LINEAGES, UPGRADES },
+};
 
 // ---------- events ----------
 let repeatTimer = null;
