@@ -788,17 +788,15 @@ function setOut(trialId = null) {
   addLog('The village sets out. The old Emberhold is left to the wind; a new one rises where the ground is kinder.', 'log-important');
 
   const keep = {
-    techs: state.techs, day: state.day, seen: state.seen,
+    day: state.day, seen: state.seen,
     echoes: state.echoes, upgrades: state.upgrades,
     trialDone: state.trialDone, expeditions: state.expeditions,
     landingsSeen: state.landingsSeen,
     species: state.species, tribesSeen: state.tribesSeen,
     diplomacy: state.diplomacy,
-    armor: state.armor,
     won: state.won, savedAt: state.savedAt, log: state.log,
   };
   state = defaultState();
-  state.techs = keep.techs;
   state.day = keep.day;
   state.seen = keep.seen;
   state.echoes = keep.echoes;
@@ -811,7 +809,6 @@ function setOut(trialId = null) {
   state.lineagesUnlocked = unlockedLineages;
   state.tribesSeen = keep.tribesSeen;
   state.diplomacy = keep.diplomacy;
-  state.armor = Math.max(keep.armor || 0, state.techs.leatherArmor ? 1 : 0);
   state.won = keep.won;
   state.savedAt = keep.savedAt;
   state.log = keep.log;

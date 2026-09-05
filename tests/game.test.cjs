@@ -230,6 +230,15 @@ test('new tribes can be encountered, allied, inherited, and saved', () => {
   }
 });
 
+test('Great Migration resets research and research-derived armor', () => {
+  const { run } = game();
+  run(`state.techs.weaponry = true; state.techs.leatherArmor = true;
+    state.armor = 3; state.migrating = true; setOut()`);
+  assert.equal(run('Object.keys(state.techs).length'), 0);
+  assert.equal(run('state.armor'), 0);
+  assert.equal(run('state.era'), 1);
+});
+
 test('tribal requests use discovered cultural preferences and renew after supplying', () => {
   const { run } = game();
   run(`Math.random = () => 0; state.seen = { food: true };

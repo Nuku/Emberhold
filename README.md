@@ -120,9 +120,9 @@ Declaring a migration grants **Echoes** based on the population left behind —
 `floor((villagers − 10)² ÷ 100)` (pop 20 → 1, pop 40 → 9, pop 80 → 49).
 Leaving more people behind is the incentive to grow wide before starting over.
 
-What endures: research, trials and their rewards, expeditions, Echoes, and
-anything bought in the **Ancestral Shop**. What resets: villagers, all
-resources, all buildings.
+What endures: trials and their rewards, expeditions, Echoes, and anything
+bought in the **Ancestral Shop**. What resets: research, villagers, all
+resources, and all buildings.
 
 While the migration is being prepared (and only then), shop points can be
 **bought and refunded freely** — a full respec each loop, ideal for tuning
