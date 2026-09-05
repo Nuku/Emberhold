@@ -12,6 +12,7 @@ All notable changes to Emberhold are recorded here, with the newest changes firs
 - Added the configurable `emberhold_automation.user.js` companion userscript with automatic jobs, research, construction, crafting, diplomacy, and expeditions.
 - Made automation reserve resources required by every queued construction and research item before spending or reallocating them.
 - Improved save export reliability by copying directly to the clipboard and downloading a plain-text backup, with a prompt fallback when clipboard access is unavailable.
+- Kept departed tribes as historical contacts after migration; only the current local tribe can trade, receive diplomats, raid, or provide active-ally income.
 - Added hold-to-repeat controls for repeatable actions. (`6992455`)
 - Improved offline-progress accounting and raid-defense behavior. (`4be94f0`)
 

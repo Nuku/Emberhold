@@ -119,12 +119,13 @@ function habitatAllows(def, landingId) {
 function lineageSelectable(id, landingId = state.pendingLanding) {
   return lineageUnlocked(id) && habitatAllows(LINEAGES.find(l => l.id === id), landingId);
 }
+function localTribe(id) { return id === state.tradePartner && habitatAllows(tribeDef(id), state.landing); }
 function habitatText(def) {
   return def.habitats ? `Habitat: ${LANDINGS.filter(l => habitatAllows(def, l.id)).map(l => l.name).join(', ')}.` : 'Habitat: any landing.';
 }
 function isMephit() { return state.species === 'mephit'; }
 function armorLevel() { return Math.max(0, Number(state.armor) || 0); }
-function tradeAvailable() { return tech('currency') && !!state.tradePartner; }
+function tradeAvailable() { return tech('currency') && localTribe(state.tradePartner); }
 function guardCap() { return bld('barracks') * 2; }
 // Future buildings and research can multiply this rate (guards per second).
 function guardRecruitmentRate() { return 1 / 120; }
@@ -179,7 +180,10 @@ function diplomatCount(id) { return (state.diplomats && state.diplomats[id]) || 
 function totalDiplomats() { return Object.values(state.diplomats || {}).reduce((sum, n) => sum + n, 0); }
 function performerCount() { return state.jobs?.performer || 0; }
 function explorerCount() { return state.jobs?.explorer || 0; }
-function alliedTribes() { return Object.values(state.diplomacy || {}).filter(entry => entry.disposition >= 80).length; }
+function alliedTribes() {
+  const entry = state.diplomacy && state.diplomacy[state.tradePartner];
+  return localTribe(state.tradePartner) && entry?.disposition >= 80 ? 1 : 0;
+}
 function ableGuards() { return Math.max(0, (state.jobs.guard || 0) - (state.guardInjuries || 0)); }
 function trialMax(def) {
   return def.repeat > 0 ? def.repeat + (upg('oathkeepers') ? 1 : 0) : 0;
@@ -788,7 +792,8 @@ function updateTrial(dt) {
 
 function updateDiplomacy(dt) {
   if (!state.diplomacy) return;
-  for (const id in state.diplomacy) {
+  for (const id of [state.tradePartner]) {
+    if (!localTribe(id) || !state.diplomacy[id]) continue;
     const entry = state.diplomacy[id];
     const nudged = diplomatCount(id) * 0.05 * dt;
     if (nudged) entry.disposition = Math.min(100, entry.disposition + nudged);
@@ -797,7 +802,8 @@ function updateDiplomacy(dt) {
   state.diplomacyEventT = (state.diplomacyEventT || 0) + dt;
   if (state.diplomacyEventT < 180) return;
   state.diplomacyEventT = 0;
-  const ids = Object.keys(state.diplomacy);
+  const ids = localTribe(state.tradePartner) && state.diplomacy[state.tradePartner]
+    ? [state.tradePartner] : [];
   if (!ids.length) return;
   const id = ids[Math.floor(Math.random() * ids.length)];
   const entry = state.diplomacy[id];
@@ -1206,7 +1212,7 @@ function doAssignExplorer(delta) {
 }
 
 function doAssignDiplomat(id, delta) {
-  if (!tech('diplomacy') || !state.diplomacy || !state.diplomacy[id]) return;
+  if (!tech('diplomacy') || !localTribe(id) || !state.diplomacy || !state.diplomacy[id]) return;
   state.diplomats = state.diplomats || {};
   state.diplomats[id] = diplomatCount(id);
   if (delta > 0 && unassigned() <= 0) return;
@@ -1253,7 +1259,7 @@ function applyRaidCasualties(deaths, injuries) {
 
 function doRaid(id) {
   const entry = state.diplomacy && state.diplomacy[id];
-  if (!entry || !tech('guards')) return;
+  if (!entry || !localTribe(id) || !tech('guards')) return;
   const able = ableGuards();
   const cost = { food: 30, tools: 2 };
   if (able < 1 || !canAfford(cost)) return;
@@ -1304,7 +1310,7 @@ function doRaid(id) {
 }
 
 function supplyDiplomacyRequest(id) {
-  if (!tech('currency') || !state.diplomacy || !state.diplomacy[id]) return;
+  if (!tech('currency') || !localTribe(id) || !state.diplomacy || !state.diplomacy[id]) return;
   const entry = state.diplomacy[id];
   if (!canAfford({ [entry.request.res]: entry.request.amount })) return;
   payCost({ [entry.request.res]: entry.request.amount });
@@ -1672,32 +1678,34 @@ function renderResearch() {
 
 function renderDiplomacy() {
   let h = '<h2 class="section">Diplomacy — neighbors and foreign courts</h2>';
-  h += '<div class="res-note">Disposition ranges from hostile (−100) to warm (+100). Friendly tribes make gentler requests; diplomats and events can shift relations over time.</div>';
+  h += '<div class="res-note">Only the current local contact can trade, receive diplomats, or raid. Departed tribes remain in the chronicle, and their alliances still unlock lineages for future migrations.</div>';
   if (!tech('currency')) {
     h += '<div class="card"><div class="card-desc">The tribes will speak, but trade requires Currency. Research it to honor their requests with goods.</div></div>';
   }
   for (const id in (state.diplomacy || {})) {
     const tribe = tribeDef(id);
     const entry = state.diplomacy[id];
+    const local = localTribe(id);
     const requestCost = { [entry.request.res]: entry.request.amount };
-    const canSupply = tradeAvailable() && canAfford(requestCost);
-    h += `<div class="card"><div class="card-head"><span class="card-title has-tooltip" data-tooltip="${attrText(tribe.text)}">${tribe.name}</span>` +
+    const canSupply = local && tradeAvailable() && canAfford(requestCost);
+    h += `<div class="card ${local ? '' : 'dimmed'}"><div class="card-head"><span class="card-title has-tooltip" data-tooltip="${attrText(tribe.text)}">${tribe.name}</span>` +
+      (local ? '<span class="card-count">nearby</span>' : '<span class="card-count">departed</span>') +
       `<span class="card-count">disposition ${Math.round(entry.disposition)} / 100</span></div>` +
       `<div class="card-desc">${tribe.text}</div>` +
       `<div class="res-note">${habitatText(tribe)}</div>` +
       `<div class="trial-reward">${lineageDef(id).name} lineage: ${lineageDef(id).effect}. ${lineageUnlocked(id) ? 'Unlocked for future migrations.' : 'Migrate with disposition 80+ to unlock for future migrations.'}</div>` +
-      (entry.disposition >= 80 ? '<div class="trial-reward">Active ally: +5% to all village incomes.</div>' : '') +
-      (entry.disposition < 0 ? `<div class="trial-mod">Relations are strained: the ${tribe.name} may raid the village.</div>` : '') +
-      `<div class="trial-goal">${diplomacyRequestText(tribe, entry)}</div>` +
-      `<div class="card-cost">offer: ${costHtml(requestCost)} — +15 relations</div>` +
-      `<div class="card-actions"><button data-action="diplomacy-supply" data-tribe="${id}" ${canSupply ? '' : 'disabled'}>Supply the request</button></div>`;
-    if (tech('guards')) {
+      (local && entry.disposition >= 80 ? '<div class="trial-reward">Active ally: +5% to all village incomes.</div>' : '') +
+      (local && entry.disposition < 0 ? `<div class="trial-mod">Relations are strained: the ${tribe.name} may raid the village.</div>` : '') +
+      (local ? `<div class="trial-goal">${diplomacyRequestText(tribe, entry)}</div>` : '<div class="res-note">Only a few nice letters can reach them for now.</div>') +
+      (local ? `<div class="card-cost">offer: ${costHtml(requestCost)} — +15 relations</div>` : '') +
+      (local ? `<div class="card-actions"><button data-action="diplomacy-supply" data-tribe="${id}" ${canSupply ? '' : 'disabled'}>Supply the request</button></div>` : '');
+    if (local && tech('guards')) {
       const raidCost = { food: 30, tools: 2 };
       const canRaid = ableGuards() > 0 && canAfford(raidCost);
       h += `<div class="trial-mod">Raid cost: ${costHtml(raidCost)}. This damages relations and may cost Guards.</div>` +
         `<div class="card-actions"><button data-action="raid" data-tribe="${id}" ${canRaid ? '' : 'disabled'}>Raid the ${tribe.name}</button></div>`;
     }
-    if (tech('diplomacy')) {
+    if (local && tech('diplomacy')) {
       h += `<div class="res-note">${JOBS.diplomat.name}s assigned: ${diplomatCount(id)} — each adds +3 relations per minute</div>` +
         `<div class="card-actions"><button data-action="diplomat-dec" data-tribe="${id}" ${diplomatCount(id) > 0 ? '' : 'disabled'}>−</button> ` +
         `<button data-action="diplomat-inc" data-tribe="${id}" ${unassigned() > 0 ? '' : 'disabled'}>Assign Diplomat</button></div>`;
