@@ -465,10 +465,10 @@ test('save failure is visible and does not change the last save timestamp', () =
   assert.match(run('state.log[0].t'), /could not be saved/);
 });
 
-test('offline simulation uses only the elapsed half-speed interval', () => {
+test('offline simulation uses the elapsed interval at real time', () => {
   const { run } = game();
   run('Date.now = () => 100000; state.savedAt = 39000; offlineProgress()');
-  assert.equal(run('state.day'), 61);
+  assert.equal(run('state.day'), 122);
 });
 
 test('a valid save round trips through storage', () => {

@@ -11,8 +11,8 @@ village plays on while you're away.
 - `python -m http.server 8419` in this folder, then open <http://localhost:8419/>
 
 Saves go to `localStorage` (autosave every 15 s) with Export/Import strings
-for backups. On return, offline progress is simulated at half speed, capped at
-8 hours.
+for backups. On return, offline progress is simulated at real time, capped at
+24 hours.
 
 Imports are validated before replacing the stored chronicle. If a manual save
 fails (for example, because browser storage is full), the Chronicle reports it;

@@ -3,8 +3,8 @@
 // ============================================================
 'use strict';
 
-const OFFLINE_CAP = 8 * 3600;   // seconds of offline simulation allowed
-const OFFLINE_RATE = 0.5;       // offline runs at half speed
+const OFFLINE_CAP = 24 * 3600;  // seconds of offline simulation allowed
+const OFFLINE_RATE = 1;         // offline runs at real time
 
 let state = null;
 let activeTab = 'village';
@@ -693,7 +693,7 @@ function resolveTribeRaid(id) {
   const armed = tech('weaponry') ? able : 0;
   // Armor keeps a bad fight from becoming fatal; it does not make the
   // settlement more likely to win the engagement.
-  const defense = (able + wounded * 0.5 + armed * 0.9) * (isMephit() ? 1.35 : 1);
+  const defense = (able + wounded * 0.5 + armed * 0.9) * governanceDefenseMod() * (isMephit() ? 1.35 : 1);
   const raidPower = 3 + (50 - entry.disposition) / 8 + Math.random() * 5;
   if (defense >= raidPower) {
     entry.disposition = Math.max(-100, entry.disposition - 2);
@@ -1254,7 +1254,7 @@ function offlineProgress() {
   for (let t = 0; t < simSeconds; t += step) tick(Math.min(step, simSeconds - t));
   const hrs = (elapsed / 3600).toFixed(1);
   const got = Math.min(elapsed, OFFLINE_CAP);
-  addLog(`While you were away (~${hrs} h, half-speed, capped at 8 h), the village carried on for ${Math.floor(got * OFFLINE_RATE)} seconds.`, 'log-important');
+  addLog(`While you were away (~${hrs} h, real-time, capped at 24 h), the village carried on for ${Math.floor(got * OFFLINE_RATE)} seconds.`, 'log-important');
 }
 
 function exportSave() {
