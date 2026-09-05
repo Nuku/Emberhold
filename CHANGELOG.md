@@ -4,6 +4,8 @@ All notable changes to Emberhold are recorded here, with the newest changes firs
 
 ## 2026-09-05
 
+- Added a stable `window.emberhold` controller API for state inspection, engine actions, planning helpers, and automation events.
+- Added the configurable `emberhold_automation.user.js` companion userscript with automatic jobs, research, construction, crafting, diplomacy, and expeditions.
 - Added hold-to-repeat controls for repeatable actions. (`6992455`)
 - Improved offline-progress accounting and raid-defense behavior. (`4be94f0`)
 
