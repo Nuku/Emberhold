@@ -1470,7 +1470,7 @@ function renderDiplomacy() {
       `<div class="card-desc">${tribe.text}</div>` +
       `<div class="trial-reward">${lineageDef(id).name} lineage: ${lineageDef(id).effect}. ${lineageUnlocked(id) ? 'Unlocked for future migrations.' : 'Migrate with disposition 80+ to unlock for future migrations.'}</div>` +
       (entry.disposition >= 80 ? '<div class="trial-reward">Active ally: +5% to all village incomes.</div>' : '') +
-      (entry.disposition < 50 ? `<div class="trial-mod">Relations are strained: the ${tribe.name} may raid the village.</div>` : '') +
+      (entry.disposition < 0 ? `<div class="trial-mod">Relations are strained: the ${tribe.name} may raid the village.</div>` : '') +
       `<div class="trial-goal">${diplomacyRequestText(tribe, entry)}</div>` +
       `<div class="card-cost">offer: ${costHtml(requestCost)}</div>` +
       `<div class="card-actions"><button data-action="diplomacy-supply" data-tribe="${id}" ${canSupply ? '' : 'disabled'}>Supply the request</button></div>`;
