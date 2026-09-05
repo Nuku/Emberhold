@@ -1467,7 +1467,7 @@ function renderBuild() {
     const ok = !maxed && canAfford(cost);
     h += `<div class="card"><div class="card-head">` +
       `<span class="card-title has-tooltip" data-tooltip="${attrText(b.desc)}">${b.name}</span>` +
-      (b.max > 1 ? `<span class="card-count">${count} / ${b.max}</span>` : (count ? `<span class="card-count">built</span>` : '')) +
+      (b.max === Infinity ? `<span class="card-count">${count} built</span>` : b.max > 1 ? `<span class="card-count">${count} / ${b.max}</span>` : (count ? `<span class="card-count">built</span>` : '')) +
       `<span class="card-effect">${b.effect()}</span></div>` +
       `<div class="card-cost">cost: ${costHtml(cost)}</div>` +
       `<div class="card-actions"><button data-action="build" data-id="${b.id}" ${ok ? '' : 'disabled'}>${maxed ? 'Complete' : 'Build'}</button></div>` +

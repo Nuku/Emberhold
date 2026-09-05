@@ -24,6 +24,20 @@ function game() {
   return { run, context };
 }
 
+test('expedition tab hides other landing expeditions, including completed ones', () => {
+  const { run } = game();
+  const sites = JSON.parse(run('JSON.stringify(EXPEDITIONS.filter(e => e.landing))'));
+  for (const completed of [false, true]) {
+    run(`for (const e of EXPEDITIONS) state.expeditions[e.id] = ${completed}`);
+    for (const site of sites) {
+      run(`state.landing = '${site.landing}'`);
+      const html = run('renderExpeditions()');
+      for (const e of sites) assert.equal(html.includes(e.name), e.landing === site.landing, `${e.id} at ${site.landing}, completed=${completed}`);
+      assert.ok(!html.includes('migrate here to explore'));
+    }
+  }
+});
+
 test('site expeditions require local settlement, charge once, and retain rewards across migrations', () => {
   const { run } = game();
   const sites = JSON.parse(run('JSON.stringify(EXPEDITIONS.filter(e => e.landing))'));

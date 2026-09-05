@@ -138,12 +138,12 @@ const BUILDINGS = [
     effect: () => 'unlocks the Trials',
     req: () => era() >= 3, desc: 'a stone that dares the village to be better' },
 
-  { id: 'barracks', name: 'Barracks', max: 5, scale: 1.8,
+  { id: 'barracks', name: 'Barracks', max: Infinity, scale: 1.8,
     cost: { wood: 180, stone: 120, tools: 10 },
     effect: () => `+2 Guard capacity (maximum ${bld('barracks') * 2 + 2})`,
     req: () => tech('guards'), desc: 'a roof, a watch bell, and somewhere to hang a spear' },
 
-  { id: 'hospital', name: 'Hospital', max: 10, scale: 1.8,
+  { id: 'hospital', name: 'Hospital', max: Infinity, scale: 1.8,
     cost: { wood: 150, stone: 100, tools: 10 },
     effect: () => '−10% Guard healing and population growth time per level (compounding)',
     req: () => tech('hospital'), desc: 'care for the wounded and a healthy start for new families' },
