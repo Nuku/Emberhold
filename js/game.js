@@ -1891,6 +1891,27 @@ function renderLog() {
   el.innerHTML = h;
 }
 
+function loadLatestUpdatesTooltip() {
+  const button = document.getElementById('btn-updates');
+  if (!button || typeof fetch !== 'function' || typeof DOMParser !== 'function') return;
+  fetch('changelog.html')
+    .then(response => response.ok ? response.text() : Promise.reject(new Error('changelog unavailable')))
+    .then(source => {
+      const doc = new DOMParser().parseFromString(source, 'text/html');
+      const sections = [...doc.querySelectorAll('main section')];
+      const section = sections
+        .map(section => ({ section, date: section.querySelector('h2')?.textContent.trim() }))
+        .filter(entry => entry.date)
+        .sort((a, b) => b.date.localeCompare(a.date))[0];
+      const date = section?.date;
+      const updates = [...(section?.section.querySelectorAll('li') || [])]
+        .map(item => item.textContent.replace(/\s+/g, ' ').trim())
+        .filter(Boolean);
+      if (date && updates.length) button.dataset.tooltip = `Latest updates (${date}): ${updates.join(' • ')}`;
+    })
+    .catch(() => {});
+}
+
 function render() {
   renderHeader();
   document.getElementById('stores').innerHTML = renderStores();
@@ -2154,6 +2175,7 @@ function boot() {
   document.getElementById('btn-reset').addEventListener('click', resetGame);
   document.querySelectorAll('#tabs .tab').forEach(b =>
     b.addEventListener('click', () => switchTab(b.dataset.tab)));
+  loadLatestUpdatesTooltip();
 
   let last = performance.now();
   setInterval(() => {
