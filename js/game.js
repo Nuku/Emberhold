@@ -1392,7 +1392,7 @@ function renderVillage() {
       `<span class="job-btns"><button data-action="explorer-dec" ${n > 0 ? '' : 'disabled'}>−</button>` +
       `<button data-action="explorer-inc" ${unassigned() > 0 ? '' : 'disabled'}>+</button></span></div>`;
   }
-  if (tech('guards')) {
+  if (JOBS.guard.unlock() && guardCap() > 0) {
     const guards = state.jobs.guard || 0;
     const recruitment = guards < guardCap()
       ? `Next Guard in ${Math.ceil((1 - state.guardRecruitment) / guardRecruitmentRate())}s`

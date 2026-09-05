@@ -122,6 +122,14 @@ test('guard cap and injuries are repaired on load', () => {
   assert.equal(run('state.guardInjuries'), 2);
 });
 
+test('guard section is hidden until guards have capacity', () => {
+  const { run } = game();
+  run('state.techs.guards = true');
+  assert.equal(run("renderVillage().includes('Guards — independent watch')"), false);
+  run('state.bld.barracks = 1');
+  assert.equal(run("renderVillage().includes('Guards — independent watch')"), true);
+});
+
 test('old saves receive new resources and researched armor', () => {
   const { run } = game();
   run('delete state.res.goods; delete state.armor; delete state.diplomats; state.techs.leatherArmor = true; state = normalizeSave(state)');
