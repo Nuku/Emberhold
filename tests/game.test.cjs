@@ -24,6 +24,37 @@ function game() {
   return { run, context };
 }
 
+test('Aphrodisiac and Hospitals unlock, compound timers, and persist through saves', () => {
+  const { run } = game();
+  assert.equal(run('popGrowthNeed()'), 36);
+  assert.equal(run('guardHealingNeed()'), 90);
+  run("state.res.knowledge = 1000; doResearch('hospital'); doBuild('hospital')");
+  assert.equal(run("tech('hospital')"), false);
+  assert.equal(run("bld('hospital')"), 0);
+  run("doResearch('aphrodisiac')");
+  assert.equal(run('popGrowthNeed()'), 27);
+  assert.equal(run('guardHealingNeed()'), 90);
+  run(`doResearch('stoneWorking'); doResearch('craftsmanship'); doResearch('hospital');
+    state.res.wood = 10000; state.res.stone = 10000; state.res.tools = 1000`);
+  for (let level = 1; level <= 5; level++) {
+    run("doBuild('hospital')");
+    assert.equal(run("bld('hospital')"), level);
+    assert.ok(Math.abs(run('popGrowthNeed()') - 27 * 0.9 ** level) < 1e-10);
+    assert.ok(Math.abs(run('guardHealingNeed()') - 90 * 0.9 ** level) < 1e-10);
+  }
+  run('saveGame(true); state = loadGame()');
+  assert.equal(run("bld('hospital')"), 5);
+  assert.equal(run("tech('aphrodisiac')"), true);
+  run('state.guardInjuries = 2; updateDiplomacy(guardHealingNeed())');
+  assert.equal(run('state.guardInjuries'), 1);
+  run('updateDiplomacy(guardHealingNeed() * 2)');
+  assert.equal(run('state.guardInjuries'), 0);
+  run('state.growthT = popGrowthNeed() - 0.1; tick(0.05)');
+  assert.equal(run('state.pop'), 4);
+  run('tick(0.1)');
+  assert.equal(run('state.pop'), 5);
+});
+
 test('20 animal lineages have reachable habitats and matching encounter and selection rules', () => {
   const { run } = game();
   const habitats = {

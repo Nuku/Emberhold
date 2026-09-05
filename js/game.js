@@ -568,7 +568,9 @@ function resourceRateTooltip(resource, rate, entries) {
   return lines.join('\n');
 }
 
-function popGrowthNeed() { return 20 + state.pop * 4; }
+function hospitalTimeMod() { return Math.pow(0.9, bld('hospital')); }
+function popGrowthNeed() { return (20 + state.pop * 4) * (tech('aphrodisiac') ? 0.75 : 1) * hospitalTimeMod(); }
+function guardHealingNeed() { return 90 * hospitalTimeMod(); }
 
 // ---------- log ----------
 function addLog(text, cls) {
@@ -657,7 +659,7 @@ function updateDiplomacy(dt) {
     const nudged = diplomatCount(id) * 0.02 * dt;
     if (nudged) entry.disposition = Math.min(100, entry.disposition + nudged);
   }
-  if (state.guardInjuries > 0) state.guardInjuries = Math.max(0, state.guardInjuries - dt / 90);
+  if (state.guardInjuries > 0) state.guardInjuries = Math.max(0, state.guardInjuries - dt / guardHealingNeed());
   state.diplomacyEventT = (state.diplomacyEventT || 0) + dt;
   if (state.diplomacyEventT < 180) return;
   state.diplomacyEventT = 0;
@@ -1355,6 +1357,7 @@ function renderVillage() {
   const L = landingDef();
   let h = `<h2 class="section">Where you stand — ${L.name}</h2>` +
     `<div class="res-note">${L.text}</div>` +
+    `<div class="res-note">Population growth: ${fmt(popGrowthNeed())} seconds per new villager while food and housing are available. Guard healing: ${fmt(guardHealingNeed())} seconds per injury.</div>` +
     `<div class="res-note" style="margin:2px 0 6px">The land gives: ${modsHtml(L)}</div>` +
     `<div class="res-note" style="margin:2px 0 6px">${tradeAvailable() ? `Trading with the ${tribeDef(state.tradePartner).name}; funds arrive at ${fmtRate(0.05)} before Banker work.` : `The ${tribeDef(state.tradePartner).name} are nearby. Research Currency to begin trading.`}</div>` +
     `<div class="res-note" style="margin:2px 0 6px">Guard armor: level ${fmt(armorLevel())} — each level reduces death odds by 8% (minimum 15%).</div>` +

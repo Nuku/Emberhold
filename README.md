@@ -30,6 +30,10 @@ invalid imports, storage failures, and offline time accounting.
 - **Flow over time.** Villagers are assigned to jobs (forager, woodcutter,
   miner, thinker, tinkerer…). Every villager eats. Population grows on a food surplus
   and starves when the store runs dry.
+  Aphrodisiac research (50 Knowledge) cuts growth time by 25%. Hospital research
+  (150 Knowledge, after Stone Working and Craftsmanship) unlocks Hospitals:
+  each of up to 10 levels multiplies population growth and Guard healing timers
+  by 0.9, stacking with Aphrodisiac for growth.
 - **Seasons.** A year is 200 in-game days (~100 real seconds). Autumn slows
   the fields and **winter halves them** — keep a store.
 - **Morale.** The settlement's 0–100 morale rises when food is secure and falls

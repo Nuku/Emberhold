@@ -143,6 +143,11 @@ const BUILDINGS = [
     effect: () => `+2 Guard capacity (maximum ${bld('barracks') * 2 + 2})`,
     req: () => tech('guards'), desc: 'a roof, a watch bell, and somewhere to hang a spear' },
 
+  { id: 'hospital', name: 'Hospital', max: 10, scale: 1.8,
+    cost: { wood: 150, stone: 100, tools: 10 },
+    effect: () => '−10% Guard healing and population growth time per level (compounding)',
+    req: () => tech('hospital'), desc: 'care for the wounded and a healthy start for new families' },
+
   { id: 'deepMine', name: 'Deep Mine', max: 1, scale: 1,
     cost: { stone: 260, tools: 30 },
     effect: () => 'unlocks Iron and Iron Miners',
@@ -217,6 +222,11 @@ const BUILDINGS = [
 
 // --- research ---
 const TECHS = [
+  { id: 'aphrodisiac', name: 'Aphrodisiac', cost: 50,
+    desc: 'Reduces population growth time by 25%. Stacks with Hospitals.' },
+  { id: 'hospital', name: 'Hospital', cost: 150,
+    desc: 'Unlocks Hospitals. Each level reduces Guard healing and population growth time by 10%, compounding.',
+    req: () => tech('stoneWorking') && tech('craftsmanship') },
   { id: 'stoneWorking', name: 'Stone Working', cost: 15,
     desc: 'Unlocks the Quarry. Enters the Age of Stone.' },
   { id: 'currency', name: 'Currency', cost: 100,
