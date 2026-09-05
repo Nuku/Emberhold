@@ -31,6 +31,7 @@ function defaultState() {
     seen,
     jobs: {},
     bld: {},
+    queues: { build: [], research: [], expedition: [] },
     factoryRecipe: 'goods',
     techs: {},
     trialDone: {},
@@ -332,6 +333,121 @@ function payCost(cost) {
   for (const r in cost) state.res[r] -= cost[r];
 }
 
+function queueDef(entry) {
+  if (!entry || !['build', 'research', 'expedition'].includes(entry.type)) return null;
+  if (entry.type === 'build') return BUILDINGS.find(def => def.id === entry.id);
+  if (entry.type === 'research') return TECHS.find(def => def.id === entry.id);
+  return EXPEDITIONS.find(def => def.id === entry.id);
+}
+
+function queueCost(entry) {
+  const def = queueDef(entry);
+  if (!def) return null;
+  if (entry.type === 'build') return buildingCost(def);
+  if (entry.type === 'research') return { knowledge: def.cost };
+  return expeditionCost(def);
+}
+
+function queueDemand() {
+  const demand = {};
+  for (const type of ['build', 'research']) {
+    for (const entry of state.queues[type]) {
+      const cost = queueCost(entry);
+      if (!cost) continue;
+      for (const [resource, amount] of Object.entries(cost)) {
+        demand[resource] = (demand[resource] || 0) + amount;
+      }
+    }
+  }
+  return demand;
+}
+
+function queueCapacity(type) {
+  if (type === 'expedition') return 1;
+  const upgrade = type === 'build' ? 'buildingQueue' : 'researchQueue';
+  const trial = type === 'build' ? 'buildingQueueTrial' : 'researchQueueTrial';
+  return 1 + upg(upgrade) + trialCount(trial);
+}
+
+function queueTime(entry) {
+  const cost = queueCost(entry);
+  if (!cost) return Infinity;
+  const rates = production(1);
+  let seconds = 0;
+  for (const resource in cost) {
+    const missing = Math.max(0, cost[resource] - (state.res[resource] || 0));
+    if (!missing) continue;
+    if ((rates[resource] || 0) <= 0) return Infinity;
+    seconds = Math.max(seconds, missing / rates[resource]);
+  }
+  return seconds;
+}
+
+function queueLabel(seconds) {
+  if (seconds === Infinity) return 'waiting for supplies';
+  if (seconds <= 0.01) return 'ready';
+  return `${fmt(Math.ceil(seconds))}s`;
+}
+
+function queueEntry(type, id) {
+  const def = queueDef({ type, id });
+  if (!def || state.queues[type].length >= queueCapacity(type)) return false;
+  if (type === 'build') {
+    if (bld(id) >= def.max || (def.req && !def.req())) return false;
+    if (trialActive('overflow') && Object.values(STORAGE).some(s => s.bld === id)) return false;
+  } else if (type === 'research') {
+    if (tech(id) || (def.req && !def.req())) return false;
+  } else {
+    if (expDone(id) || (def.landing && def.landing !== state.landing) || state.pop < def.reqPop) return false;
+  }
+  const cost = queueCost({ type, id });
+  if (canAfford(cost)) return false;
+  state.queues[type].push({ type, id });
+  return true;
+}
+
+function cancelQueue(type, index) {
+  if (Number.isInteger(index) && state.queues[type][index]) state.queues[type].splice(index, 1);
+}
+
+function attemptBuild(id) {
+  const def = BUILDINGS.find(b => b.id === id);
+  if (!def || state.queues.build.length >= queueCapacity('build')) return;
+  if (canAfford(buildingCost(def))) doBuild(id);
+  else queueEntry('build', id);
+}
+
+function attemptResearch(id) {
+  const def = TECHS.find(t => t.id === id);
+  if (!def || state.queues.research.length >= queueCapacity('research')) return;
+  if (state.res.knowledge >= def.cost) doResearch(id);
+  else queueEntry('research', id);
+}
+
+function attemptExpedition(id) {
+  const def = EXPEDITIONS.find(e => e.id === id);
+  if (!def || state.queues.expedition.length >= queueCapacity('expedition')) return;
+  if (canAfford(expeditionCost(def))) doExpedition(id);
+  else queueEntry('expedition', id);
+}
+
+function updateQueues() {
+  for (const type of ['build', 'research', 'expedition']) {
+    for (let i = state.queues[type].length - 1; i >= 0; i--) {
+      const entry = state.queues[type][i];
+      const def = queueDef(entry);
+      if (!def) { state.queues[type].splice(i, 1); continue; }
+      if (!canAfford(queueCost(entry))) continue;
+      const before = type === 'build' ? bld(entry.id) : type === 'research' ? tech(entry.id) : expDone(entry.id);
+      if (type === 'build') doBuild(entry.id);
+      else if (type === 'research') doResearch(entry.id);
+      else doExpedition(entry.id);
+      const after = type === 'build' ? bld(entry.id) : type === 'research' ? tech(entry.id) : expDone(entry.id);
+      if (after !== before) state.queues[type].splice(i, 1);
+    }
+  }
+}
+
 // ---------- production ----------
 function seasonIndex() { return Math.floor((state.day % DAYS_PER_YEAR) / DAYS_PER_SEASON); }
 function seasonMult() {
@@ -414,6 +530,11 @@ function updateExploration(dt) {
 function randomRange(pair) {
   return Math.round(pair[0] + Math.random() * (pair[1] - pair[0]));
 }
+function randomEventResourceAmount(resource, pair) {
+  const storage = STORAGE[resource];
+  const scale = storage ? capacityOf(resource) / storage.base : 1;
+  return Math.round(randomRange(pair) * scale);
+}
 function updateRandomEvents(dt) {
   state.randomEventT = (state.randomEventT || 0) + dt;
   if (state.randomEventT < (state.randomEventNext || 60)) return;
@@ -437,7 +558,7 @@ function updateRandomEvents(dt) {
   }
   for (const { id: resource, name } of RESOURCES) {
     if (!event[resource] || !state.seen[resource]) continue;
-    const amount = randomRange(event[resource]);
+    const amount = randomEventResourceAmount(resource, event[resource]);
     const before = state.res[resource];
     // Rewards never discard an existing over-cap stockpile.
     state.res[resource] = amount > 0 ? before + Math.min(amount, Math.max(0, capacityOf(resource) - before)) : Math.max(0, before + amount);
@@ -623,6 +744,12 @@ function updateTrial(dt) {
     case 'frugality':
       if (tr.buildings >= 12) { endTrial(true); return; }
       break;
+    case 'expansion':
+      if (tr.buildings >= 8) { endTrial(true); return; }
+      break;
+    case 'scholarship':
+      if ((tr.researches || 0) >= 5) { endTrial(true); return; }
+      break;
     case 'silence':
       if (tech('metallurgy')) { endTrial(true); return; }
       break;
@@ -731,6 +858,8 @@ function trialProgressText() {
     case 'scarcity': case 'longnight':
       return `${Math.floor(tr.daysActive)} / ${tr.id === 'scarcity' ? 240 : DAYS_PER_YEAR} days endured`;
     case 'frugality': return `${tr.buildings} / 12 buildings raised`;
+    case 'expansion': return `${tr.buildings} / 8 buildings raised`;
+    case 'scholarship': return `${tr.researches || 0} / 5 research projects completed`;
     case 'silence': return 'Metallurgy must be researched in silence';
     case 'solitude': return `knowledge stockpiled: ${fmt(state.res.knowledge)} / 800`;
     case 'overflow': {
@@ -939,6 +1068,7 @@ function tick(dt) {
   updateDiplomacy(dt);
   updateRandomEvents(dt);
   updateExploration(dt);
+  updateQueues();
 
   // seasons
   const doy = Math.floor(state.day % DAYS_PER_YEAR);
@@ -1003,6 +1133,7 @@ function doResearch(id) {
   if (state.res.knowledge < def.cost) return;
   state.res.knowledge -= def.cost;
   state.techs[id] = true;
+  if (state.trial && state.trial.id === 'scholarship') state.trial.researches = (state.trial.researches || 0) + 1;
   if (id === 'leatherArmor') state.armor = Math.max(armorLevel(), 1);
   addLog(`Research complete: ${def.name}. ${def.desc}`, 'log-good');
   if (ERA_GATE[id] && ERA_GATE[id] > state.era) {
@@ -1223,6 +1354,16 @@ function normalizeSave(s) {
   for (const key of ['res', 'jobs', 'bld', 'trialDone', 'upgrades', 'diplomats']) {
     for (const n of Object.values(s[key]))
       if (typeof n !== 'number' || n < 0) throw new Error(`Invalid ${key}`);
+  }
+  for (const type of ['build', 'research', 'expedition']) {
+    if (!Array.isArray(s.queues[type])) {
+      if (s.queues[type] === undefined || s.queues[type] === null) s.queues[type] = [];
+      else if (object(s.queues[type])) s.queues[type] = [s.queues[type]];
+      else throw new Error(`Invalid ${type} queue`);
+    }
+    for (const entry of s.queues[type])
+      if (!object(entry) || entry.type !== type || typeof entry.id !== 'string' || !queueDef(entry))
+        throw new Error(`Invalid ${type} queue`);
   }
   for (const r of RESOURCES) if (s.res[r.id] === undefined) s.res[r.id] = 0;
   for (const entry of Object.values(s.diplomacy)) {
@@ -1449,8 +1590,20 @@ function renderVillage() {
   return h;
 }
 
+function renderQueue(type) {
+  const entries = state.queues[type];
+  const label = type === 'build' ? 'Construction' : type === 'research' ? 'Research' : 'Expedition';
+  if (!entries.length) return `<div class="queue-empty">${label} queue empty (${queueCapacity(type)} slot${queueCapacity(type) === 1 ? '' : 's'})</div>`;
+  return entries.map((entry, index) => {
+    const def = queueDef(entry);
+    return `<button class="queue-item" data-action="queue-cancel" data-type="${type}" data-index="${index}" title="Click to cancel">` +
+      `<span>${esc(def ? def.name : entry.id)}</span><span class="queue-time">${queueLabel(queueTime(entry))}</span></button>`;
+  }).join('') + `<div class="queue-capacity">${entries.length} / ${queueCapacity(type)} slots used</div>`;
+}
+
 function renderBuild() {
   let h = '<h2 class="section">Construction</h2>';
+  h += `<div class="queue"><div class="queue-label">Construction queue</div>${renderQueue('build')}</div>`;
   const knownBuildings = BUILDINGS.filter(b => bld(b.id) > 0 || !b.req || b.req());
   const completedCount = knownBuildings.filter(b => bld(b.id) >= b.max).length;
   const incompleteCount = knownBuildings.length - completedCount;
@@ -1465,13 +1618,15 @@ function renderBuild() {
     if ((buildFilter === 'complete') !== maxed) continue;
     any = true;
     const cost = buildingCost(b);
-    const ok = !maxed && canAfford(cost);
+    const queued = state.queues.build.some(entry => entry.id === b.id);
+    const forbidden = trialActive('overflow') && Object.values(STORAGE).some(s => s.bld === b.id);
+    const ok = !maxed && !forbidden && state.queues.build.length < queueCapacity('build');
     h += `<div class="card"><div class="card-head">` +
       `<span class="card-title has-tooltip" data-tooltip="${attrText(b.desc)}">${b.name}</span>` +
       (b.max === Infinity ? `<span class="card-count">${count} built</span>` : b.max > 1 ? `<span class="card-count">${count} / ${b.max}</span>` : (count ? `<span class="card-count">built</span>` : '')) +
       `<span class="card-effect">${b.effect()}</span></div>` +
       `<div class="card-cost">cost: ${costHtml(cost)}</div>` +
-      `<div class="card-actions"><button data-action="build" data-id="${b.id}" ${ok ? '' : 'disabled'}>${maxed ? 'Complete' : 'Build'}</button></div>` +
+      `<div class="card-actions"><button data-action="build" data-id="${b.id}" ${ok ? '' : 'disabled'}>${maxed ? 'Complete' : queued ? 'Queued' : canAfford(cost) ? 'Build' : 'Queue'}</button></div>` +
       `</div>`;
   }
   if (!any) h += `<div class="res-note">${buildFilter === 'complete' ? 'No completed buildings yet.' : 'Nothing remains to build yet. Learn from the world first.'}</div>`;
@@ -1480,16 +1635,18 @@ function renderBuild() {
 
 function renderResearch() {
   let h = '<h2 class="section">Research</h2>';
+  h += `<div class="queue"><div class="queue-label">Research queue</div>${renderQueue('research')}</div>`;
   let any = false;
   for (const t of TECHS) {
     if (t.req && !t.req()) continue;
     if (tech(t.id)) continue;
     any = true;
-    const ok = state.res.knowledge >= t.cost;
+    const queued = state.queues.research.some(entry => entry.id === t.id);
+    const ok = state.queues.research.length < queueCapacity('research');
     h += `<div class="card"><div class="card-head">` +
       `<span class="card-title has-tooltip" data-tooltip="${attrText(t.desc)}">${t.name}</span>` +
       `<span class="card-count">${fmt(t.cost)} Knowledge</span></div>` +
-      `<div class="card-actions"><button data-action="research" data-id="${t.id}" ${ok ? '' : 'disabled'}>Research</button></div>` +
+      `<div class="card-actions"><button data-action="research" data-id="${t.id}" ${ok ? '' : 'disabled'}>${queued ? 'Queued' : state.res.knowledge >= t.cost ? 'Research' : 'Queue'}</button></div>` +
       `</div>`;
   }
   if (!any) h += '<div class="res-note">The wise have nothing left to learn here.</div>';
@@ -1585,6 +1742,7 @@ function renderTrials() {
 
 function renderExpeditions() {
   let h = '<h2 class="section">Expeditions — widen the world</h2>';
+  h += `<div class="queue"><div class="queue-label">Expedition queue</div>${renderQueue('expedition')}</div>`;
   h += '<div class="res-note">Each expedition is sent once. What it finds stays with Emberhold forever.</div>';
   const sitesDone = EXPEDITIONS.filter(e => e.landing && expDone(e.id)).length;
   h += `<div class="res-note">Site expeditions: ${sitesDone}/${LANDINGS.length} established. Develop a settlement at each landing to send its unique expedition. Rewards endure at every landing. Complete all six for +5% to all production${siteExpeditionsComplete() ? ' — earned!' : ' forever.'}</div>`;
@@ -1603,12 +1761,13 @@ function renderExpeditions() {
     any = true;
     const popOk = state.pop >= e.reqPop;
     const site = LANDINGS.find(l => l.id === e.landing);
-    const ok = popOk && canAfford(cost);
+    const queued = state.queues.expedition.some(entry => entry.id === e.id);
+    const ok = popOk && state.queues.expedition.length < queueCapacity('expedition');
     h += `<div class="card"><div class="card-head"><span class="card-title has-tooltip" data-tooltip="${attrText(e.text)}">${e.name}</span></div>` +
       `<div class="card-effect">Grants: ${e.effect}</div>` +
       (site ? `<div class="res-note">Requires settlement at ${site.name} — you are here.</div>` : '') +
       `<div class="card-cost">cost: ${costHtml(cost)} — needs ${e.reqPop} villagers</div>` +
-      `<div class="card-actions"><button data-action="exp" data-id="${e.id}" ${ok ? '' : 'disabled'}>Send the expedition</button></div>` +
+      `<div class="card-actions"><button data-action="exp" data-id="${e.id}" ${ok ? '' : 'disabled'}>${queued ? 'Queued' : canAfford(cost) ? 'Send the expedition' : 'Queue the expedition'}</button></div>` +
       `</div>`;
   }
   if (!any) h += '<div class="res-note">No expeditions within reach yet. Increase storage and maintain positive income for their supplies.</div>';
@@ -1757,20 +1916,20 @@ const automationActionFns = {
   assignDiplomat: doAssignDiplomat,
   assignExplorer: doAssignExplorer,
   assignPerformer: doAssignPerformer,
-  build: doBuild,
+  build: attemptBuild,
   craft: doCraft,
   chooseFactoryRecipe,
   chooseLanding,
   chooseLineage,
   choosePolicy,
   councilor: toggleCouncilor,
-  expedition: doExpedition,
+  expedition: attemptExpedition,
   migrationBegin: beginMigration,
   migrationBuy,
   migrationOut: setOut,
   migrationRefund,
   raid: doRaid,
-  research: doResearch,
+  research: attemptResearch,
   trialAbandon: () => endTrial(false),
   trialStart: startTrial,
   supplyDiplomacyRequest,
@@ -1809,6 +1968,7 @@ window.emberhold = {
     landingDef,
     popCap,
     production,
+    queueDemand,
     tech,
     trialActive,
     unassigned,
@@ -1834,11 +1994,12 @@ function runAction(btn) {
     case 'tab': switchTab(btn.dataset.tab); break;
     case 'job-inc': doAssign(btn.dataset.job, +1); render(); break;
     case 'job-dec': doAssign(btn.dataset.job, -1); render(); break;
-    case 'build': doBuild(btn.dataset.id); render(); break;
+    case 'build': attemptBuild(btn.dataset.id); render(); break;
     case 'build-filter': buildFilter = btn.dataset.filter; render(); break;
     case 'craft': doCraft(btn.dataset.id); render(); break;
     case 'factory-recipe': chooseFactoryRecipe(btn.dataset.id); render(); break;
-    case 'research': doResearch(btn.dataset.id); render(); break;
+    case 'research': attemptResearch(btn.dataset.id); render(); break;
+    case 'queue-cancel': cancelQueue(btn.dataset.type, +btn.dataset.index); render(); break;
     case 'diplomacy-supply': supplyDiplomacyRequest(btn.dataset.tribe); render(); break;
     case 'raid': doRaid(btn.dataset.tribe); render(); break;
     case 'diplomat-inc': doAssignDiplomat(btn.dataset.tribe, +1); render(); break;
@@ -1852,7 +2013,7 @@ function runAction(btn) {
     case 'councilor': toggleCouncilor(btn.dataset.id); render(); break;
     case 'trial-start': startTrial(btn.dataset.id); render(); break;
     case 'trial-abandon': endTrial(false); render(); break;
-    case 'exp': doExpedition(btn.dataset.id); render(); break;
+    case 'exp': attemptExpedition(btn.dataset.id); render(); break;
     case 'migration-begin': beginMigration(); render(); break;
     case 'migration-out': setOut(); render(); break;
     case 'lineage': chooseLineage(btn.dataset.id); render(); break;

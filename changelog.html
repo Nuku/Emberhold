@@ -27,8 +27,13 @@ code { color:var(--amber); }
 <section>
 <h2>2026-09-05</h2>
 <ul>
+<li>Added independent one-slot queues for building and research, with automatic completion when resources become available, cancellation by clicking, and estimated completion times.</li>
+<li>Added Echo upgrades for extra construction and research queue slots, plus one-time Expansion and Scholarship trials that each unlock another slot.</li>
+<li>Added an independent one-slot expedition queue with automatic launch when supplies arrive, cancellation, and completion estimates.</li>
+<li>Scaled resource rewards and losses from random happenings with the affected resource's storage capacity.</li>
 <li>Added a stable <code>window.emberhold</code> controller API for state inspection, engine actions, planning helpers, and automation events.</li>
 <li>Added the configurable <code>emberhold_automation.user.js</code> companion userscript with automatic jobs, research, construction, crafting, diplomacy, and expeditions.</li>
+<li>Made automation reserve resources required by every queued construction and research item before spending or reallocating them.</li>
 <li>Added hold-to-repeat controls for repeatable actions. <code>6992455</code></li>
 <li>Improved offline-progress accounting and raid-defense behavior. <code>4be94f0</code></li>
 </ul>

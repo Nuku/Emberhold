@@ -545,6 +545,16 @@ const TRIALS = [
     goal: 'Build a Factory and produce 100 Industrial Goods within 1200 days.',
     reward: 'Industrialization: Factories remain available in every future Emberhold.',
     req: () => tech('metallurgy') && bld('coalSeam') > 0 && state.res.coal > 0 },
+  { id: 'expansion', name: 'Trial of Expansion', repeat: 0,
+    mod: 'The village must prove it can grow without wasting a foundation.',
+    goal: 'Complete 8 constructions while the trial is active.',
+    reward: 'Master Builders: unlocks one additional construction queue slot, permanently.',
+    req: () => bld('monument') > 0 },
+  { id: 'scholarship', name: 'Trial of Scholarship', repeat: 0,
+    mod: 'The village must invest its knowledge before it can claim another voice in the archive.',
+    goal: 'Complete 5 research projects while the trial is active.',
+    reward: 'Grand Archive: unlocks one additional research queue slot, permanently.',
+    req: () => bld('monument') > 0 },
 ];
 
 // --- landings: where the migration ends up. Modifiers multiply production
@@ -690,6 +700,12 @@ const UPGRADES = [
   { id: 'oldMaps', name: 'Old Maps', max: 1, costs: [12],
     effect: 'all expedition costs reduced 25%',
     desc: 'the scouts no longer wander lost' },
+  { id: 'buildingQueue', name: 'Master Builders', max: 1, costs: [8],
+    effect: '+1 construction queue slot',
+    desc: 'more hands can raise foundations at once' },
+  { id: 'researchQueue', name: 'Grand Archive', max: 1, costs: [8],
+    effect: '+1 research queue slot',
+    desc: 'more minds can pursue old questions at once' },
 ];
 
 // --- expeditions: one-time, expand the playing field permanently ---

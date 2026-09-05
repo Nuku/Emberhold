@@ -4,8 +4,13 @@ All notable changes to Emberhold are recorded here, with the newest changes firs
 
 ## 2026-09-05
 
+- Added independent one-slot queues for building and research, with automatic completion when resources become available, cancellation by clicking, and estimated completion times.
+- Added Echo upgrades for extra construction and research queue slots, plus one-time Expansion and Scholarship trials that each unlock another slot.
+- Added an independent one-slot expedition queue with automatic launch when supplies arrive, cancellation, and completion estimates.
+- Scaled resource rewards and losses from random happenings with the affected resource's storage capacity.
 - Added a stable `window.emberhold` controller API for state inspection, engine actions, planning helpers, and automation events.
 - Added the configurable `emberhold_automation.user.js` companion userscript with automatic jobs, research, construction, crafting, diplomacy, and expeditions.
+- Made automation reserve resources required by every queued construction and research item before spending or reallocating them.
 - Added hold-to-repeat controls for repeatable actions. (`6992455`)
 - Improved offline-progress accounting and raid-defense behavior. (`4be94f0`)
 

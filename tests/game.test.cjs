@@ -290,6 +290,16 @@ test('lineage happenings respect timing, storage, morale, discovery and save/loa
   assert.ok(run('state.log[0].t').includes(run('RANDOM_EVENTS[0].text')), 'general happenings remain available');
 });
 
+test('resource happenings scale with the affected resource storage capacity', () => {
+  const { run } = game();
+  run(`state.species = 'human'; state.seen.wood = true; state.res.wood = 0;
+    Math.random = () => 0.5; updateRandomEvents(60)`);
+  const baseGain = run('state.res.wood');
+  run(`state.res.wood = 0; state.bld.storehouse = 1; state.randomEventT = 60;
+    Math.random = () => 0.5; updateRandomEvents(60)`);
+  assert.equal(run('state.res.wood'), baseGain * 3);
+});
+
 test('resource breakdown reconciles income and costs with scoped modifiers', () => {
   const { run } = game();
   run(`state.jobs = { forager: 3, guard: 2, tinkerer: 1, woodcutter: 2 };
