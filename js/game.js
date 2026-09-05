@@ -1590,6 +1590,7 @@ function renderExpeditions() {
   const rates = production();
   let any = false;
   for (const e of EXPEDITIONS) {
+    if (e.landing && e.landing !== state.landing) continue;
     if (expDone(e.id)) {
       any = true;
       h += `<div class="card done"><div class="card-head"><span class="card-title">${e.name}</span>` +
@@ -1600,12 +1601,11 @@ function renderExpeditions() {
     if (!e.landing && !Object.entries(cost).every(([res, amount]) => capacityOf(res) >= amount && rates[res] > 0)) continue;
     any = true;
     const popOk = state.pop >= e.reqPop;
-    const siteOk = !e.landing || e.landing === state.landing;
     const site = LANDINGS.find(l => l.id === e.landing);
-    const ok = siteOk && popOk && canAfford(cost);
+    const ok = popOk && canAfford(cost);
     h += `<div class="card"><div class="card-head"><span class="card-title has-tooltip" data-tooltip="${attrText(e.text)}">${e.name}</span></div>` +
       `<div class="card-effect">Grants: ${e.effect}</div>` +
-      (site ? `<div class="res-note">Requires settlement at ${site.name}${siteOk ? ' — you are here' : ' — migrate here to explore'}.</div>` : '') +
+      (site ? `<div class="res-note">Requires settlement at ${site.name} — you are here.</div>` : '') +
       `<div class="card-cost">cost: ${costHtml(cost)} — needs ${e.reqPop} villagers</div>` +
       `<div class="card-actions"><button data-action="exp" data-id="${e.id}" ${ok ? '' : 'disabled'}>Send the expedition</button></div>` +
       `</div>`;
