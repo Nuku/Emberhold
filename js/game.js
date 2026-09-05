@@ -271,7 +271,7 @@ function capacityOf(id) {
 function isFull(id) { return state.res[id] >= capacityOf(id) - 0.001; }
 
 function popCap() {
-  let cap = 6;
+  let cap = 6 + 2 * upg('wanderers');
   cap += bld('hut') * (3 + upg('grandHut') + (perm('twinSouls') ? 2 : 0));
   cap += bld('aqueduct') * 4;
   if (trialActive('solitude')) cap = Math.min(cap, 10);

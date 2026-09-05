@@ -670,7 +670,7 @@ const UPGRADES = [
     effect: '+5% to all production, per level',
     desc: 'the village remembers how to flourish' },
   { id: 'wanderers', name: 'Wandering Kin', max: 5, costs: [1, 2, 4, 8, 16],
-    effect: 'begin each age with +2 villagers, per level',
+    effect: '+2 starting villagers and +2 population cap, per level',
     desc: 'kin hear the call and arrive' },
   { id: 'grandHut', name: 'Grand Designs', max: 3, costs: [3, 7, 15],
     effect: 'every Hut grants +1 population cap, per level',
