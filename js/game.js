@@ -350,7 +350,7 @@ function queueCost(entry) {
 
 function queueDemand() {
   const demand = {};
-  for (const type of ['build', 'research']) {
+  for (const type of ['build', 'research', 'expedition']) {
     for (const entry of state.queues[type]) {
       const cost = queueCost(entry);
       if (!cost) continue;
@@ -1399,10 +1399,26 @@ function offlineProgress() {
   addLog(`While you were away (~${hrs} h, real-time, capped at 24 h), the village carried on for ${Math.floor(got * OFFLINE_RATE)} seconds.`, 'log-important');
 }
 
-function exportSave() {
+async function exportSave() {
   saveGame(true);
   const data = btoa(unescape(encodeURIComponent(JSON.stringify(state))));
-  window.prompt('Copy your save string:', data);
+  const filename = `emberhold-save-${new Date().toISOString().replace(/[:.]/g, '-')}.txt`;
+  const blob = new Blob([data], { type: 'text/plain;charset=ascii' });
+  const link = document.createElement('a');
+  link.href = URL.createObjectURL(blob);
+  link.download = filename;
+  link.click();
+  setTimeout(() => URL.revokeObjectURL(link.href), 0);
+
+  try {
+    if (!navigator.clipboard?.writeText) throw new Error('Clipboard API unavailable');
+    await navigator.clipboard.writeText(data);
+    addLog(`Save exported and copied to the clipboard (${data.length} characters).`, 'log-good');
+  } catch (e) {
+    window.prompt('Clipboard access was unavailable. Copy this save string manually:', data);
+    addLog(`Save backup downloaded. Copy the string from the prompt if needed (${data.length} characters).`, 'log-important');
+  }
+  render();
 }
 function importSave() {
   const data = window.prompt('Paste your save string:');
