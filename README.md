@@ -89,7 +89,9 @@ invalid imports, storage failures, and offline time accounting.
   one Governor and two paid advisor seats; their bonuses reset when a new
   Emberhold is founded, keeping each migration a fresh political build.
 - **Guards.** Guards hunt while keeping watch, producing Food even in winter,
-  though each one has a Food upkeep. Barracks determine how many can serve;
+  though each one has a Food upkeep. They are separate from villagers and do
+  not use worker slots or population capacity. One Guard recruits automatically
+  every 120 seconds, including replacements for losses, up to Barracks capacity.
   Weaponry and Weapon Efficiency improve their hunting yield.
 - **Expanding the field.** One-time **Expeditions** (Old Forest, Foothills,
   Sunken Ruins, Ember Vein, Glacial Peaks) permanently add passive income and
@@ -177,3 +179,5 @@ you'll have them.
 - `js/data.js` — all content and balance (resources, jobs, buildings, techs,
   crafts, trials, expeditions)
 - `js/game.js` — engine (tick, production, trials, saves) and the UI renderer
+
+Repeatable trials get harder after each success, including Oathkeepers runs: Scarcity's food multiplier is divided by 1.25, Frugality's cost multiplier increases by 50%, and Overflow's storage targets increase by 25% while sworn (in addition to permanent rewards). Trial cards show current restrictions; the table shows the first run. Failures do not increase difficulty.

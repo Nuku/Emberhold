@@ -56,6 +56,7 @@ function defaultState() {
     governor: null,
     council: [],
     guardInjuries: 0,
+    guardRecruitment: 0,
     armor: 0,
     migrating: false,
     pendingEchoes: 0,
@@ -114,6 +115,20 @@ function isMephit() { return state.species === 'mephit'; }
 function armorLevel() { return Math.max(0, Number(state.armor) || 0); }
 function tradeAvailable() { return tech('currency') && !!state.tradePartner; }
 function guardCap() { return bld('barracks') * 2; }
+// Future buildings and research can multiply this rate (guards per second).
+function guardRecruitmentRate() { return 1 / 120; }
+function updateGuardRecruitment(dt) {
+  const total = state.jobs.guard || 0;
+  const cap = guardCap();
+  if (!JOBS.guard.unlock() || total >= cap) {
+    state.guardRecruitment = 0;
+    return;
+  }
+  state.guardRecruitment += dt * guardRecruitmentRate();
+  const recruits = Math.min(cap - total, Math.floor(state.guardRecruitment));
+  state.jobs.guard = total + recruits;
+  state.guardRecruitment = total + recruits >= cap ? 0 : state.guardRecruitment - recruits;
+}
 function randomDiplomacyRequest(id) {
   const available = RESOURCES.filter(r => r.id !== 'knowledge' && r.id !== 'currency' && r.id !== 'machinery' && r.id !== 'aether' && state.seen[r.id]);
   const preferred = available.filter(r => (tribeDef(id).requests || []).includes(r.id));
@@ -157,6 +172,24 @@ function alliedTribes() { return Object.values(state.diplomacy || {}).filter(ent
 function ableGuards() { return Math.max(0, (state.jobs.guard || 0) - (state.guardInjuries || 0)); }
 function trialMax(def) {
   return def.repeat > 0 ? def.repeat + (upg('oathkeepers') ? 1 : 0) : 0;
+}
+function trialDifficulty(id) {
+  const completed = trialCount(id);
+  switch (id) {
+    case 'scarcity': return 0.5 / Math.pow(1.25, completed);
+    case 'frugality': return 1.5 * Math.pow(1.5, completed);
+    case 'overflow': return Math.pow(1.25, completed);
+    default: return 1;
+  }
+}
+function trialModifierText(def) {
+  const multiplier = trialDifficulty(def.id);
+  switch (def.id) {
+    case 'scarcity': return `Food production is reduced to ${+(multiplier * 100).toFixed(2)}%.`;
+    case 'frugality': return `All building costs are multiplied by ${+multiplier.toFixed(3)}.`;
+    case 'overflow': return `${def.mod} Storage ceilings are multiplied by ${+multiplier.toFixed(3)} while sworn.`;
+    default: return def.mod;
+  }
 }
 function echoesEarned() {
   return Math.max(0, Math.floor(Math.pow(Math.max(0, state.pop - 10), 2) / 100));
@@ -222,7 +255,8 @@ function capacityOf(id) {
   const s = STORAGE[id];
   if (!s) return Infinity; // knowledge
   return Math.ceil((s.base + s.per * bld(s.bld)) *
-    (1 + 0.2 * trialCount('overflow') + 0.15 * upg('deepCellars')) * governanceStorageMod());
+    (1 + 0.2 * trialCount('overflow') + 0.15 * upg('deepCellars')) * governanceStorageMod() *
+    (trialActive('overflow') ? trialDifficulty('overflow') : 1));
 }
 function isFull(id) { return state.res[id] >= capacityOf(id) - 0.001; }
 
@@ -235,7 +269,7 @@ function popCap() {
 }
 function assignedWorkers() {
   let n = 0;
-  for (const j in state.jobs) if (JOBS[j] && !JOBS[j].targeted) n += state.jobs[j];
+  for (const j in state.jobs) if (JOBS[j] && !JOBS[j].targeted && j !== 'guard') n += state.jobs[j];
   return n + totalDiplomats() + performerCount() + explorerCount();
 }
 function unassigned() { return state.pop - assignedWorkers(); }
@@ -249,10 +283,10 @@ function reconcileWorkers() {
     const job = JOBS[id];
     let n = job.unlock() && id !== 'diplomat' ? count(state.jobs[id]) : 0;
     if (id === 'guard') n = Math.min(n, guardCap());
-    n = Math.min(n, remaining);
+    if (id !== 'guard') n = Math.min(n, remaining);
     if (n) state.jobs[id] = n;
     else delete state.jobs[id];
-    remaining -= n;
+    if (id !== 'guard') remaining -= n;
   }
   for (const id of Object.keys(state.jobs)) if (!JOBS[id]) delete state.jobs[id];
   for (const id of Object.keys(state.diplomats)) {
@@ -263,11 +297,13 @@ function reconcileWorkers() {
     remaining -= n;
   }
   state.guardInjuries = Math.min(count(state.guardInjuries), state.jobs.guard || 0);
+  state.guardRecruitment = JOBS.guard.unlock() && (state.jobs.guard || 0) < guardCap()
+    ? Math.max(0, Math.min(0.999999, Number(state.guardRecruitment) || 0)) : 0;
 }
 
 function buildingCost(def) {
   const mult = Math.pow(def.scale, bld(def.id)) *
-    (trialActive('frugality') ? 1.5 : 1) *
+    (trialActive('frugality') ? trialDifficulty('frugality') : 1) *
     Math.pow(0.9, trialCount('frugality')) *
     (perm('blueprints') ? 0.85 : 1) * governanceCostMod();
   const out = {};
@@ -293,17 +329,31 @@ function seasonMult() {
 }
 
 function allMult() {
-  let m = 1;
-  m *= 0.70 + Math.max(0, Math.min(100, Number(state.morale) || 0)) * 0.0042857;
-  m *= 1 + 0.05 * bld('shrine') + 0.10 * bld('factory');
-  m *= 1 + 0.15 * bld('dynamo');
-  m *= 1 + 0.05 * alliedTribes();
-  m *= 1 + 0.002 * state.res.machinery;
-  if (expDone('glacialPeaks')) m *= 1.10;
-  if (perm('everwarm')) m *= 1.05;
-  m *= 1 + 0.05 * upg('deepRoots');
-  if (trialActive('haste')) m *= 0.70;
-  return m;
+  return globalProductionFactors().reduce((m, [, factor]) => m * factor, 1);
+}
+
+function globalProductionFactors() {
+  return [
+    ['Morale', 0.70 + Math.max(0, Math.min(100, Number(state.morale) || 0)) * 0.0042857],
+    [`Shrines (${bld('shrine')} × 5%) + factories (${bld('factory')} × 10%)`, 1 + 0.05 * bld('shrine') + 0.10 * bld('factory')],
+    ['Dynamos', 1 + 0.15 * bld('dynamo')],
+    ['Allied tribes', 1 + 0.05 * alliedTribes()],
+    ['Stored machinery', 1 + 0.002 * state.res.machinery],
+    ['Glacial Peaks', expDone('glacialPeaks') ? 1.10 : 1],
+    ['Everwarm', perm('everwarm') ? 1.05 : 1],
+    ['Deep Roots', 1 + 0.05 * upg('deepRoots')],
+    ['Haste trial', trialActive('haste') ? 0.70 : 1],
+  ];
+}
+
+function settlementProductionFactors(res) {
+  const factors = [[landingDef().name, landingMod(res)], [lineageDef(state.species).name, lineageMod(res)]];
+  if (tech('civics')) {
+    for (const def of [civicDef(state.policy), governorDef(state.governor), ...(state.council || []).map(councilorDef)]) {
+      if (def) factors.push([def.name, def.mods?.[res] || 1]);
+    }
+  }
+  return factors;
 }
 
 function moraleCap() {
@@ -379,12 +429,25 @@ function chooseFactoryRecipe(id) {
   state.factoryRecipe = id;
 }
 
-function production(dt = 0.25) {
+function production(dt = 0.25, breakdown = null) {
   const rates = {};
-  for (const r of RESOURCES) rates[r.id] = 0;
-  const global = allMult();
-  let winterproofFood = 0;
-  let guardUpkeep = 0;
+  for (const r of RESOURCES) {
+    rates[r.id] = 0;
+    if (breakdown) breakdown[r.id] = [];
+  }
+  const add = (res, label, base, factors = []) => {
+    const amount = factors.reduce((value, [, factor]) => value * factor, base);
+    rates[res] += amount;
+    if (breakdown) breakdown[res].push({ label, base, amount, factors: factors.filter(([, factor]) => factor !== 1) });
+  };
+  const scale = (res, factors) => {
+    rates[res] *= factors.reduce((value, [, factor]) => value * factor, 1);
+    if (breakdown) for (const entry of breakdown[res]) {
+      entry.amount = factors.reduce((value, [, factor]) => value * factor, entry.amount);
+      entry.factors.push(...factors.filter(([, factor]) => factor !== 1));
+    }
+  };
+  const global = globalProductionFactors();
 
   // job output
   for (const j in JOBS) {
@@ -392,79 +455,91 @@ function production(dt = 0.25) {
     const n = state.jobs[j] || 0;
     if (job.targeted) continue;
     if (n > 0) {
-      const able = j === 'guard' ? ableGuards() : n;
-      if (job.winterproof) {
-        winterproofFood += able * job.base;
-      } else if (!job.inputs || (state.res.wood > 0 && state.res.stone > 0)) {
-        rates[job.res] += n * job.base;
+      if (!job.winterproof) {
+        const supplied = !job.inputs || (state.res.wood > 0 && state.res.stone > 0);
+        add(job.res, `${job.name}: ${n} × ${job.base}/s`, n * job.base, supplied ? [] : [['Missing wood or stone', 0]]);
       }
-      if (job.upkeep) guardUpkeep += n * job.upkeep;
       if (job.inputs) {
-        for (const r in job.inputs) rates[r] -= n * job.inputs[r];
+        for (const r in job.inputs) add(r, `${job.name} inputs: ${n} × ${job.inputs[r]}/s`, -n * job.inputs[r]);
       }
     }
   }
 
   // expedition passives
-  if (expDone('oldForest')) rates.wood += 1.5;
-  if (expDone('foothills')) rates.stone += 1.0;
-  if (expDone('sunkenRuins')) rates.knowledge += 0.3;
-  if (expDone('emberVein')) rates.coal += 0.5;
-  if (expDone('glacialPeaks')) rates.aether += 0.1;
-  if (tradeAvailable()) rates.currency += 0.05;
-  if (era() >= 2) rates.copper += 0.02; // trace deposits found throughout the Stone age
+  if (expDone('oldForest')) add('wood', 'Old Forest passive', 1.5);
+  if (expDone('foothills')) add('stone', 'Foothills passive', 1.0);
+  if (expDone('sunkenRuins')) add('knowledge', 'Sunken Ruins passive', 0.3);
+  if (expDone('emberVein')) add('coal', 'Ember Vein passive', 0.5);
+  if (expDone('glacialPeaks')) add('aether', 'Glacial Peaks passive', 0.1);
+  if (tradeAvailable()) add('currency', `Trade with ${tribeDef(state.tradePartner).name}`, 0.05);
+  if (era() >= 2) add('copper', 'Stone age trace deposits', 0.02);
 
   // per-resource modifiers
-  rates.food *= global * seasonMult() *
-    (1 + 0.10 * bld('foragerLodge')) *
-    (1 + 0.20 * bld('aqueduct')) *
-    (1 + 0.10 * trialCount('scarcity')) *
-    (trialActive('scarcity') ? 0.5 : 1);
-  winterproofFood *= global *
-    (1 + 0.50 * (tech('weaponry') ? 1 : 0)) *
-    (1 + 0.75 * (tech('weaponEfficiency') ? 1 : 0));
-  rates.food += winterproofFood - guardUpkeep;
-
-  rates.wood *= global * (1 + 0.10 * bld('lumberYard')) * (expDone('oldForest') ? 1.15 : 1);
-  rates.stone *= global * (1 + 0.10 * bld('stoneWorks')) * (expDone('foothills') ? 1.15 : 1);
-  rates.knowledge *= global * (1 + 0.10 * bld('library')) *
-    (tech('writing') ? 1.25 : 1) *
-    (expDone('sunkenRuins') ? 1.15 : 1) *
-    (perm('oralTradition') ? 1.5 : 1) *
-    (trialActive('silence') ? 0 : 1);
-  rates.iron *= global * (expDone('emberVein') ? 1.10 : 1);
-  rates.copper *= global *
-    (tech('copperProspecting') ? 1.75 : 1) *
-    (tech('metallurgy') ? 2 : 1) *
-    (tech('electricalEngineering') ? 1.5 : 1);
-  rates.aether *= global * (expDone('glacialPeaks') ? 1.10 : 1);
-  rates.coal *= global;
-  rates.tools *= global;
-  rates.currency *= global;
+  scale('food', [...global, [`${SEASONS[seasonIndex()].name}${trialActive('longnight') ? ' (Long Night)' : perm('everwarm') ? ' (Everwarm)' : ''}`, seasonMult()],
+    ['Forager Lodges', 1 + 0.10 * bld('foragerLodge')], ['Aqueducts', 1 + 0.20 * bld('aqueduct')],
+    ['Scarcity completions', 1 + 0.10 * trialCount('scarcity')], ['Scarcity trial', trialActive('scarcity') ? trialDifficulty('scarcity') : 1]]);
+  for (const j in JOBS) {
+    const job = JOBS[j], n = state.jobs[j] || 0;
+    if (!n || job.targeted) continue;
+    if (job.winterproof) add('food', `${job.name} hunting: ${j === 'guard' ? ableGuards() : n}/${n} able, winterproof`, (j === 'guard' ? ableGuards() : n) * job.base,
+      [...global, ['Weaponry', tech('weaponry') ? 1.50 : 1], ['Weapon Efficiency', tech('weaponEfficiency') ? 1.75 : 1]]);
+    if (job.upkeep) add('food', `${job.name} upkeep: ${n} × ${job.upkeep}/s`, -n * job.upkeep);
+  }
+  scale('wood', [...global, ['Lumber Yards', 1 + 0.10 * bld('lumberYard')], ['Old Forest', expDone('oldForest') ? 1.15 : 1]]);
+  scale('stone', [...global, ['Stone Works', 1 + 0.10 * bld('stoneWorks')], ['Foothills', expDone('foothills') ? 1.15 : 1]]);
+  scale('knowledge', [...global, ['Libraries', 1 + 0.10 * bld('library')], ['Writing', tech('writing') ? 1.25 : 1],
+    ['Sunken Ruins', expDone('sunkenRuins') ? 1.15 : 1], ['Oral Tradition', perm('oralTradition') ? 1.5 : 1], ['Silence trial', trialActive('silence') ? 0 : 1]]);
+  scale('iron', [...global, ['Ember Vein', expDone('emberVein') ? 1.10 : 1]]);
+  scale('copper', [...global, ['Copper Prospecting', tech('copperProspecting') ? 1.75 : 1],
+    ['Metallurgy', tech('metallurgy') ? 2 : 1], ['Electrical Engineering', tech('electricalEngineering') ? 1.5 : 1]]);
+  scale('aether', [...global, ['Glacial Peaks', expDone('glacialPeaks') ? 1.10 : 1]]);
+  for (const res of ['coal', 'tools', 'currency']) scale(res, global);
 
   if (bld('steamPlant') > 0) {
-    rates.power += bld('steamPlant') * 1.2;
-    rates.coal -= bld('steamPlant') * 0.08;
+    add('power', `Steam Plants: ${bld('steamPlant')} × 1.2/s`, bld('steamPlant') * 1.2);
+    add('coal', `Steam Plant fuel: ${bld('steamPlant')} × 0.08/s`, -bld('steamPlant') * 0.08);
   }
-  if (bld('dynamo') > 0) rates.power += bld('dynamo') * 1.5;
+  if (bld('dynamo') > 0) add('power', `Dynamos: ${bld('dynamo')} × 1.5/s`, bld('dynamo') * 1.5);
   // The land, lineage, and civic choices shape output; population upkeep is
   // applied afterward so food policies do not alter how much villagers eat.
-  for (const r in rates) rates[r] *= landingMod(r) * lineageMod(r) * governanceMod(r);
+  for (const r in rates) scale(r, settlementProductionFactors(r));
   // Reserve inputs after other consumption; bonuses affect output, not costs.
   if (bld('factory') > 0 && dt > 0) {
     const recipe = factoryRecipe();
-    const output = bld('factory') * recipe.rate * landingMod(recipe.id) * lineageMod(recipe.id) * governanceMod(recipe.id);
+    const factors = settlementProductionFactors(recipe.id);
+    const output = factors.reduce((value, [, factor]) => value * factor, bld('factory') * recipe.rate);
     const inputs = { ...recipe.inputs, power: 0.35 };
     let fraction = Math.min(1, Math.max(0, capacityOf(recipe.id) - state.res[recipe.id]) / (output * dt));
+    let limitation = fraction < 1 ? `${recipe.name} storage space` : 'Factory utilization';
     for (const r in inputs) {
       const available = Math.max(0, state.res[r] + Math.min(0, rates[r]) * dt);
-      fraction = Math.min(fraction, available / (inputs[r] * bld('factory') * dt));
+      const supplied = available / (inputs[r] * bld('factory') * dt);
+      if (supplied < fraction) limitation = `${RESOURCES.find(resource => resource.id === r).name} shortage`;
+      fraction = Math.min(fraction, supplied);
     }
-    rates[recipe.id] += output * fraction;
-    for (const r in inputs) rates[r] -= inputs[r] * bld('factory') * fraction;
+    add(recipe.id, `Factories (${recipe.name}): ${bld('factory')} × ${recipe.rate}/s`, bld('factory') * recipe.rate, [...factors, [limitation, fraction]]);
+    for (const r in inputs) add(r, `Factory inputs (${recipe.name}): ${bld('factory')} × ${inputs[r]}/s`, -inputs[r] * bld('factory'), [[limitation, fraction]]);
   }
-  rates.food -= state.pop * FOOD_PER_POP;
+  if (state.pop) add('food', `Villager upkeep: ${state.pop} × ${FOOD_PER_POP}/s`, -state.pop * FOOD_PER_POP);
   return rates;
+}
+
+function resourceRateTooltip(resource, rate, entries) {
+  const number = value => Number(value.toFixed(4)).toString();
+  const signed = value => `${value > 0 ? '+' : ''}${number(value)}/s`;
+  const lines = [`${resource.name} — net ${signed(rate)}`, 'Amounts per second; modifiers multiply in order.'];
+  for (const [heading, outgoing] of [['Income', false], ['Outgoing', true]]) {
+    const group = entries.filter(entry => (entry.base < 0) === outgoing);
+    lines.push('', `${heading}: ${signed(group.reduce((sum, entry) => sum + entry.amount, 0))}`);
+    for (const entry of group) {
+      lines.push(`${entry.label}: ${signed(entry.base)}`);
+      if (entry.factors.length) lines.push(`  ${entry.factors.map(([label, factor]) => `${label} ×${number(factor)}`).join('; ')} → ${signed(entry.amount)}`);
+    }
+    if (!group.length) lines.push('None');
+  }
+  if (isFull(resource.id) && rate > 0) lines.push('', 'Storage full: excess net income is wasted.');
+  if (state.res[resource.id] <= 0 && rate < 0) lines.push('', 'Store empty: the shortfall cannot be deducted below zero.');
+  return lines.join('\n');
 }
 
 function popGrowthNeed() { return 20 + state.pop * 4; }
@@ -485,7 +560,7 @@ function startTrial(id) {
   if (def.req && !def.req()) return;
   if (!confirm(`Start ${def.name}? This restarts your migration in the same location with the same lineage, upgrades, and governance settings. Your village, resources, and jobs reset to migration starting values; permanent progress is kept. No Echoes are awarded. Continue?`)) return;
   setOut(id);
-  addLog(`The village swears the ${def.name}. ${def.mod}`, 'log-important');
+  addLog(`The village swears the ${def.name}. ${trialModifierText(def)}`, 'log-important');
   saveGame(true);
 }
 
@@ -824,6 +899,7 @@ function tick(dt) {
     }
   }
 
+  updateGuardRecruitment(dt);
   updateTrial(dt);
   updateDiplomacy(dt);
   updateRandomEvents(dt);
@@ -935,10 +1011,9 @@ function doExpedition(id) {
 
 function doAssign(job, delta) {
   const j = JOBS[job];
-  if (!j || j.targeted || !j.unlock()) return;
+  if (!j || j.targeted || job === 'guard' || !j.unlock()) return;
   state.jobs[job] = state.jobs[job] || 0;
   if (delta > 0 && unassigned() <= 0) return;
-  if (delta > 0 && job === 'guard' && (state.jobs.guard || 0) >= guardCap()) return;
   if (delta < 0 && state.jobs[job] <= 0) return;
   state.jobs[job] += delta;
 }
@@ -1230,7 +1305,8 @@ function renderHeader() {
 }
 
 function renderVillage() {
-  const rates = production();
+  const breakdown = {};
+  const rates = production(0.25, breakdown);
   const L = landingDef();
   let h = `<h2 class="section">Where you stand — ${L.name}</h2>` +
     `<div class="res-note">${L.text}</div>` +
@@ -1250,7 +1326,7 @@ function renderVillage() {
     h += `<div class="res-row">` +
       `<span class="res-name has-tooltip" data-tooltip="${attrText(r.note)}">${r.name}</span>` +
       `<span class="res-amount ${isFull(r.id) ? 'res-full' : ''}">${amount}</span>` +
-      `<span class="res-rate ${cls}">${fmtRate(rate)}</span>` +
+      `<span class="res-rate has-tooltip ${cls}" tabindex="0" data-tooltip="${attrText(resourceRateTooltip(r, rate, breakdown[r.id]))}">${fmtRate(rate) || '0/s'}</span>` +
       `</div>`;
   }
 
@@ -1286,18 +1362,18 @@ function renderVillage() {
     `<span class="res-rate">of ${state.pop} villagers</span></div>`;
   for (const j in JOBS) {
     const job = JOBS[j];
-    if (job.targeted) continue;
+    if (job.targeted || j === 'guard') continue;
     if (!job.unlock()) continue;
     const n = state.jobs[j] || 0;
     h += `<div class="job-row">` +
       `<span class="job-name has-tooltip" data-tooltip="${attrText(job.desc)}">${job.name}</span>` +
-      `<span class="job-assign">${j === 'guard' && state.guardInjuries ? `${n} (${Math.floor(ableGuards())} able)` : n}</span>` +
+      `<span class="job-assign">${n}</span>` +
       `<span class="job-rate">${fmt(job.base)} ${RESOURCES.find(r => r.id === job.res).name}/s each` +
       (job.inputs ? ` (uses ${Object.entries(job.inputs).map(([r, v]) => `${fmt(v)} ${RESOURCES.find(x => x.id === r).name.toLowerCase()}/s`).join(' + ')})` : '') +
       `</span>` +
       `<span class="job-btns">` +
       `<button data-action="job-dec" data-job="${j}" ${n > 0 ? '' : 'disabled'}>−</button>` +
-      `<button data-action="job-inc" data-job="${j}" ${unassigned() > 0 && (j !== 'guard' || n < guardCap()) ? '' : 'disabled'}>+</button>` +
+      `<button data-action="job-inc" data-job="${j}" ${unassigned() > 0 ? '' : 'disabled'}>+</button>` +
       `</span></div>`;
   }
   if (JOBS.performer.unlock()) {
@@ -1316,7 +1392,16 @@ function renderVillage() {
       `<span class="job-btns"><button data-action="explorer-dec" ${n > 0 ? '' : 'disabled'}>−</button>` +
       `<button data-action="explorer-inc" ${unassigned() > 0 ? '' : 'disabled'}>+</button></span></div>`;
   }
-  h += `<div class="res-note" style="margin-top:6px">Every villager eats ${fmt(FOOD_PER_POP)} food/s, working or not. Guards also require ${fmt(JOBS.guard.upkeep)} food/s each, but their hunting is not reduced by winter. Weaponry and Leather Armor research strengthen the watch; injuries heal over time. Every store but Knowledge and Currency has a ceiling — what flows in past a full store is wasted. Storehouses raise the ceilings.</div>`;
+  if (tech('guards')) {
+    const guards = state.jobs.guard || 0;
+    const recruitment = guards < guardCap()
+      ? `Next Guard in ${Math.ceil((1 - state.guardRecruitment) / guardRecruitmentRate())}s`
+      : 'At capacity';
+    h += '<h2 class="section">Guards — independent watch</h2>' +
+      `<div class="res-row"><span class="res-name">Guards</span><span class="res-amount">${guards} / ${guardCap()} (${Math.floor(ableGuards())} able)</span><span class="res-rate">${recruitment}</span></div>` +
+      `<div class="res-note">Guards recruit automatically, one every ${fmt(1 / guardRecruitmentRate())} seconds, and replace losses up to barracks capacity. They use no villager assignments or population housing. Build Barracks to raise their capacity.</div>`;
+  }
+  h += `<div class="res-note" style="margin-top:6px">Every villager eats ${fmt(FOOD_PER_POP)} food/s, working or not. Each Guard requires ${fmt(JOBS.guard.upkeep)} food/s, but their hunting is not reduced by winter. Weaponry and Leather Armor research strengthen the watch; injuries heal over time. Every store but Knowledge and Currency has a ceiling — what flows in past a full store is wasted. Storehouses raise the ceilings.</div>`;
 
   return h;
 }
@@ -1437,7 +1522,7 @@ function renderTrials() {
     h += `<div class="card ${active ? 'trial-active' : ''} ${maxed ? 'done' : ''}">` +
       `<div class="card-head"><span class="card-title">${t.name}</span>` +
       `<span class="trial-count">${t.repeat > 0 ? `completed ${done} / ${max}` : (done ? 'completed' : 'sworn once only')}</span></div>` +
-      `<div class="trial-mod">While sworn: ${t.mod}</div>` +
+      `<div class="trial-mod">While sworn: ${trialModifierText(t)}</div>` +
       `<div class="trial-goal">Goal: ${t.goal}</div>` +
       `<div class="trial-reward">Reward: ${t.reward}</div>`;
     if (active) {
@@ -1684,7 +1769,7 @@ function boot() {
     last = now;
     tick(dt);
   }, 250);
-  setInterval(() => { if (!tooltipHover && !pointerDown) render(); }, 500);
+  setInterval(() => { if (!tooltipHover && !pointerDown && !document.activeElement?.closest('.has-tooltip')) render(); }, 500);
   setInterval(() => saveGame(true), 15000);
   window.addEventListener('beforeunload', () => saveGame(true));
   render();

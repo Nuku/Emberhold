@@ -24,6 +24,78 @@ function game() {
   return { run, context };
 }
 
+test('resource breakdown reconciles income and costs with scoped modifiers', () => {
+  const { run } = game();
+  run(`state.jobs = { forager: 3, guard: 2, tinkerer: 1, woodcutter: 2 };
+    state.guardInjuries = 1; state.morale = 50; state.day = DAYS_PER_SEASON * 3;
+    state.bld.shrine = 2; state.bld.foragerLodge = 1; state.techs.weaponry = true;
+    state.techs.civics = true; state.policy = 'warCouncil'; state.council = ['granaryKeeper'];
+    state.expeditions.oldForest = true; state.res.wood = 100; state.res.stone = 100;
+    const detail = {}; const rates = production(0.25, detail)`);
+  const expected = run(`((3 * JOBS.forager.base * allMult() * seasonMult() * 1.1
+    + ableGuards() * JOBS.guard.base * allMult() * 1.5 - 2 * JOBS.guard.upkeep)
+    * landingMod('food') * lineageMod('food') * 0.95 * 1.1) - state.pop * FOOD_PER_POP`);
+  assert.ok(Math.abs(run('rates.food') - expected) < 1e-10);
+  assert.ok(run(`RESOURCES.every(r => Math.abs(detail[r.id].reduce((sum, e) => sum + e.amount, 0) - rates[r.id]) < 1e-10)`));
+  assert.equal(run(`detail.food.find(e => e.label.startsWith('Villager upkeep')).factors.length`), 0);
+  assert.equal(run(`detail.food.find(e => e.label.includes('hunting')).factors.some(([label]) => label.includes('Winter'))`), false);
+  const tooltip = run(`resourceRateTooltip(RESOURCES.find(r => r.id === 'food'), rates.food, detail.food)`);
+  for (const label of ['Income:', 'Outgoing:', 'Morale', 'Winter', 'War Council', 'Tovin', 'Villager upkeep', '1/2 able']) assert.ok(tooltip.includes(label), label);
+  assert.ok(run(`detail.wood.some(e => e.label.includes('inputs') && e.amount < 0)`));
+});
+
+test('resource breakdown explains stopped jobs, factory shortages, full stores and zero rates', () => {
+  const { run } = game();
+  run(`state.jobs = { tinkerer: 1 }; state.res.wood = 0;
+    state.bld.factory = 1; state.res.power = 0;
+    const detail = {}; const rates = production(0.25, detail)`);
+  assert.ok(run(`detail.tools[0].factors.some(([label, factor]) => label === 'Missing wood or stone' && factor === 0)`));
+  assert.ok(run(`detail.goods[0].factors.some(([label, factor]) => label === 'Power shortage' && factor === 0)`));
+  assert.ok(run('detail.power[0].amount === 0'));
+  run(`state.techs.machineryTech = true; chooseFactoryRecipe('machinery');
+    state.res.power = 10; state.res.machinery = capacityOf('machinery'); production(0.25, detail)`);
+  assert.ok(run(`detail.machinery[0].factors.some(([label, factor]) => label.includes('storage space') && factor === 0)`));
+  run(`state.jobs.woodcutter = 1; state.res.wood = capacityOf('wood'); const fullRates = production(0.25, detail)`);
+  assert.ok(run(`resourceRateTooltip(RESOURCES.find(r => r.id === 'wood'), fullRates.wood, detail.wood).includes('excess net income is wasted')`));
+  assert.ok(run(`renderVillage().includes('tabindex="0" data-tooltip=')`));
+  run('state.jobs = {}');
+  assert.ok(run(`renderVillage().includes('>0/s</span>')`));
+});
+
+test('repeatable trials grow harder after rewards and retain difficulty on failure and load', () => {
+  const { run } = game();
+  for (const id of ['scarcity', 'frugality', 'overflow']) {
+    run(`state = defaultState(); state.upgrades.oathkeepers = 1; state.jobs.forager = 2;
+      state.trial = { id: '${id}', daysActive: 0, buildings: 0 }`);
+    const measure = id === 'scarcity' ? 'production().food' :
+      id === 'frugality' ? 'buildingCost(BUILDINGS.find(b => b.id === "hut")).wood' : 'capacityOf("food")';
+    let previous = run(measure);
+    const max = run(`trialMax(TRIALS.find(t => t.id === '${id}'))`);
+    for (let completed = 1; completed < max; completed++) {
+      run(`state.trialDone['${id}'] = ${completed}`);
+      const current = run(measure);
+      assert.ok(id === 'scarcity' ? current < previous : current > previous, `${id} run ${completed + 1}`);
+      previous = current;
+    }
+    const difficulty = run(`trialDifficulty('${id}')`);
+    run('saveGame(true); state = loadGame(); endTrial(false)');
+    assert.equal(run(`trialDifficulty('${id}')`), difficulty);
+  }
+});
+
+test('Overflow uses raised ceilings for progress and completion', () => {
+  const { run } = game();
+  run(`state.trialDone.overflow = 1; state.seen = { food: true };
+    state.res.food = capacityOf('food');
+    state.trial = { id: 'overflow', daysActive: 0, buildings: 0 }; updateTrial(0)`);
+  assert.equal(run('state.trial.id'), 'overflow');
+  assert.match(run('trialProgressText()'), /80% full/);
+  assert.match(run('renderTrials()'), /Storage ceilings are multiplied by 1.25/);
+  run(`state.res.food = capacityOf('food'); updateTrial(0)`);
+  assert.equal(run('state.trial'), null);
+  assert.equal(run('trialCount("overflow")'), 2);
+});
+
 test('starvation trims total assignments to surviving population', () => {
   const { run } = game();
   run('state.pop = 4; state.jobs = { forager: 1, woodcutter: 3 }; state.res.food = 0; state.starveT = 20; state.day = 150; tick(0.25)');
@@ -56,6 +128,46 @@ test('old saves receive new resources and researched armor', () => {
   assert.equal(run('state.res.goods'), 0);
   assert.equal(run('state.armor'), 1);
   assert.equal(run('totalDiplomats()'), 0);
+});
+
+test('guards remain separate from a fully assigned population and cannot be assigned manually', () => {
+  const { run } = game();
+  run(`state.pop = 2; state.jobs = { forager: 2, guard: 4 };
+    state.techs.guards = true; state.bld.barracks = 2; reconcileWorkers()`);
+  assert.equal(run('state.jobs.guard'), 4);
+  assert.equal(run('unassigned()'), 0);
+  run('doAssign("guard", -1); doAssign("guard", 1); state.pop = 1; reconcileWorkers()');
+  assert.equal(run('state.jobs.guard'), 4);
+  assert.equal(run('assignedWorkers()'), 1);
+});
+
+test('guards recruit slowly through ticks, cap without banking recruits, and replace losses', () => {
+  const { run } = game();
+  run('updateGuardRecruitment(120)');
+  assert.equal(run('state.jobs.guard || 0'), 0);
+  run(`state.techs.guards = true; state.bld.barracks = 1;
+    state.pop = popCap(); state.jobs.forager = state.pop; updateGuardRecruitment(119)`);
+  assert.equal(run('state.jobs.guard'), 0);
+  run('tick(1)');
+  assert.equal(run('state.jobs.guard'), 1);
+  assert.equal(run('state.pop'), run('popCap()'));
+  assert.equal(run('unassigned()'), 0);
+  run('updateGuardRecruitment(1000)');
+  assert.equal(run('state.jobs.guard'), 2);
+  assert.equal(run('state.guardRecruitment'), 0);
+  run('applyRaidCasualties(1, 0); updateGuardRecruitment(119)');
+  assert.equal(run('state.jobs.guard'), 1);
+  run('updateGuardRecruitment(1)');
+  assert.equal(run('state.jobs.guard'), 2);
+});
+
+test('guard recruitment progress survives saves and older saves default to zero', () => {
+  const { run } = game();
+  run(`state.techs.guards = true; state.bld.barracks = 1;
+    updateGuardRecruitment(60); saveGame(true); state = loadGame()`);
+  assert.equal(run('state.guardRecruitment'), 0.5);
+  run('delete state.guardRecruitment; state = normalizeSave(state)');
+  assert.equal(run('state.guardRecruitment'), 0);
 });
 
 test('malformed saves are rejected before storage is touched', () => {
