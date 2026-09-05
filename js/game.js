@@ -1394,7 +1394,7 @@ function renderVillage() {
       `<span class="card-title has-tooltip" data-tooltip="${attrText(c.desc)}">${c.name}</span>` +
       `<span class="card-effect">${fullNote.replace(/^ — /, '')}</span></div>` +
       `<div class="card-cost">cost: ${costHtml(c.cost)}</div>` +
-      `<div class="card-actions"><button data-action="craft" data-id="${c.id}" ${ok ? '' : 'disabled'}>Craft ${fmt(c.give[Object.keys(c.give)[0]] * lineageMod(Object.keys(c.give)[0]))}</button></div>` +
+      `<div class="card-actions"><button data-action="craft" data-id="${c.id}" data-repeat title="Hold to repeat" ${ok ? '' : 'disabled'}>Craft ${fmt(c.give[Object.keys(c.give)[0]] * lineageMod(Object.keys(c.give)[0]))}</button></div>` +
       `</div>`;
   }
 
@@ -1414,8 +1414,8 @@ function renderVillage() {
       (job.inputs ? ` (uses ${Object.entries(job.inputs).map(([r, v]) => `${fmt(v)} ${RESOURCES.find(x => x.id === r).name.toLowerCase()}/s`).join(' + ')})` : '') +
       `</span>` +
       `<span class="job-btns">` +
-      `<button data-action="job-dec" data-job="${j}" ${n > 0 ? '' : 'disabled'}>−</button>` +
-      `<button data-action="job-inc" data-job="${j}" ${unassigned() > 0 ? '' : 'disabled'}>+</button>` +
+      `<button data-action="job-dec" data-job="${j}" data-repeat title="Hold to repeat" ${n > 0 ? '' : 'disabled'}>−</button>` +
+      `<button data-action="job-inc" data-job="${j}" data-repeat title="Hold to repeat" ${unassigned() > 0 ? '' : 'disabled'}>+</button>` +
       `</span></div>`;
   }
   if (JOBS.performer.unlock()) {
@@ -1423,16 +1423,16 @@ function renderVillage() {
     h += `<div class="job-row"><span class="job-name has-tooltip" data-tooltip="${attrText(JOBS.performer.desc)}">${JOBS.performer.name}</span>` +
       `<span class="job-assign">${n}</span>` +
       `<span class="job-rate">+0.10 morale/s each</span>` +
-      `<span class="job-btns"><button data-action="performer-dec" ${n > 0 ? '' : 'disabled'}>−</button>` +
-      `<button data-action="performer-inc" ${unassigned() > 0 ? '' : 'disabled'}>+</button></span></div>`;
+      `<span class="job-btns"><button data-action="performer-dec" data-repeat title="Hold to repeat" ${n > 0 ? '' : 'disabled'}>−</button>` +
+      `<button data-action="performer-inc" data-repeat title="Hold to repeat" ${unassigned() > 0 ? '' : 'disabled'}>+</button></span></div>`;
   }
   if (JOBS.explorer.unlock()) {
     const n = explorerCount();
     h += `<div class="job-row"><span class="job-name has-tooltip" data-tooltip="${attrText(JOBS.explorer.desc)}">${JOBS.explorer.name}</span>` +
       `<span class="job-assign">${n}</span>` +
       `<span class="job-rate">+0.025 Survey/s each</span>` +
-      `<span class="job-btns"><button data-action="explorer-dec" ${n > 0 ? '' : 'disabled'}>−</button>` +
-      `<button data-action="explorer-inc" ${unassigned() > 0 ? '' : 'disabled'}>+</button></span></div>`;
+      `<span class="job-btns"><button data-action="explorer-dec" data-repeat title="Hold to repeat" ${n > 0 ? '' : 'disabled'}>−</button>` +
+      `<button data-action="explorer-inc" data-repeat title="Hold to repeat" ${unassigned() > 0 ? '' : 'disabled'}>+</button></span></div>`;
   }
   if (JOBS.guard.unlock() && guardCap() > 0) {
     const guards = state.jobs.guard || 0;
@@ -1734,9 +1734,15 @@ function switchTab(tab) {
 }
 
 // ---------- events ----------
-document.addEventListener('click', (e) => {
-  const btn = e.target.closest('[data-action]');
-  if (!btn || btn.disabled) return;
+let repeatTimer = null;
+let repeatButton = null;
+let suppressRepeatClick = false;
+
+function repeatable(btn) {
+  return btn.hasAttribute('data-repeat');
+}
+
+function runAction(btn) {
   const a = btn.dataset.action;
   switch (a) {
     case 'tab': switchTab(btn.dataset.tab); break;
@@ -1772,6 +1778,57 @@ document.addEventListener('click', (e) => {
     case 'import': importSave(); break;
     case 'reset': resetGame(); break;
   }
+}
+
+function findRepeatButton(meta) {
+  return [...document.querySelectorAll('[data-action][data-repeat]')]
+    .find(b => b.dataset.action === meta.action &&
+      Object.entries(meta).every(([key, value]) => key === 'action' || b.dataset[key] === value));
+}
+
+function stopRepeating() {
+  if (repeatTimer !== null) clearTimeout(repeatTimer);
+  repeatTimer = null;
+  repeatButton = null;
+}
+
+function repeatStep(meta, startedAt) {
+  const btn = findRepeatButton(meta);
+  if (!btn || btn.disabled || repeatButton !== meta) {
+    stopRepeating();
+    return;
+  }
+  runAction(btn);
+  render();
+  const heldFor = performance.now() - startedAt;
+  const delay = Math.max(40, 180 - heldFor * 0.12);
+  repeatTimer = setTimeout(() => repeatStep(meta, startedAt), delay);
+}
+
+document.addEventListener('click', (e) => {
+  const btn = e.target.closest('[data-action]');
+  if (!btn || btn.disabled) return;
+  if (suppressRepeatClick && repeatable(btn)) {
+    suppressRepeatClick = false;
+    return;
+  }
+  runAction(btn);
+  render();
+});
+
+document.addEventListener('pointerdown', (e) => {
+  pointerDown = true;
+  const btn = e.target.closest('[data-action][data-repeat]');
+  if (!btn || btn.disabled || e.button !== 0) return;
+  e.preventDefault();
+  stopRepeating();
+  suppressRepeatClick = true;
+  repeatButton = { action: btn.dataset.action, ...btn.dataset };
+  runAction(btn);
+  render();
+  const meta = repeatButton;
+  const startedAt = performance.now();
+  repeatTimer = setTimeout(() => repeatStep(meta, startedAt), 350);
 });
 
 document.addEventListener('mouseover', (e) => {
@@ -1781,9 +1838,16 @@ document.addEventListener('mouseout', (e) => {
   const tip = e.target.closest('.has-tooltip');
   if (tip && !e.relatedTarget?.closest?.('.has-tooltip')) tooltipHover = false;
 });
-document.addEventListener('pointerdown', () => { pointerDown = true; });
-document.addEventListener('pointerup', () => { pointerDown = false; });
-document.addEventListener('pointercancel', () => { pointerDown = false; });
+document.addEventListener('pointerup', () => {
+  pointerDown = false;
+  stopRepeating();
+  setTimeout(() => { suppressRepeatClick = false; }, 0);
+});
+document.addEventListener('pointercancel', () => {
+  pointerDown = false;
+  stopRepeating();
+  suppressRepeatClick = false;
+});
 
 // ---------- boot ----------
 function boot() {
