@@ -147,6 +147,7 @@
       if (!def || state.bld[id] >= def.max || !unlocked(def, state)) continue;
       const cost = typeof api().helpers?.buildingCost === 'function'
         ? api().helpers.buildingCost(def) : def.cost;
+      if (craftMissingFor(cost, state)) return;
       if (affordable(cost, state)) {
         invoke('build', id);
         return;
@@ -154,12 +155,32 @@
     }
   }
 
-  function autoCraft(state) {
+  function craftMissingFor(cost, state, seen = new Set()) {
     const defs = definitions().CRAFTS || [];
-    const tools = state.res.tools || 0;
-    const target = tools < 2 ? 'tools' : state.res.steel < 5 ? 'steel' : 'tools';
-    const def = defs.find(item => item.id === target);
-    if (def && unlocked(def, state) && affordable(def.cost, state)) invoke('craft', target);
+    for (const [resource, amount] of Object.entries(cost || {})) {
+      if ((state.res[resource] || 0) >= amount) continue;
+      const recipe = defs.find(def => def.give?.[resource] && unlocked(def, state));
+      if (!recipe || seen.has(recipe.id)) continue;
+      const nextSeen = new Set(seen).add(recipe.id);
+      const missingInput = Object.entries(recipe.cost || {})
+        .find(([input, inputAmount]) => (state.res[input] || 0) < inputAmount);
+      if (missingInput && craftMissingFor({ [missingInput[0]]: missingInput[1] }, state, nextSeen)) return true;
+      if (!missingInput && affordable(recipe.cost, state)) {
+        return invoke('craft', recipe.id);
+      }
+    }
+    return false;
+  }
+
+  function autoCraft(state) {
+    // Crafting is demand-driven: autoBuildings handles the next build's
+    // craftable dependencies. This fallback keeps manually selected recipes
+    // moving once their inputs are available without stockpiling everything.
+    const defs = definitions().CRAFTS || [];
+    const target = defs.find(def => unlocked(def, state) && affordable(def.cost, state) &&
+      Object.entries(def.give || {}).some(([id, amount]) =>
+        (state.res[id] || 0) < amount));
+    if (target) invoke('craft', target.id);
   }
 
   function autoDiplomacy(state) {
