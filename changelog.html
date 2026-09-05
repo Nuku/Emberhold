@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Emberhold — Changelog</title>
+<style>
+:root { --bg:#0c0d0f; --panel:#17191e; --border:#30343d; --text:#e8e2d7; --dim:#9298a3; --amber:#f2a447; }
+* { box-sizing:border-box; }
+body { margin:0; background:radial-gradient(circle at 10% -10%,rgba(173,92,27,.14),transparent 32rem),linear-gradient(180deg,#111216 0,var(--bg) 420px); color:var(--text); font:14px/1.6 Inter,ui-sans-serif,system-ui,sans-serif; }
+main { max-width:820px; margin:0 auto; padding:42px 28px 64px; }
+h1 { margin:0 0 8px; color:var(--amber); font:700 clamp(28px,5vw,42px) Georgia,serif; letter-spacing:.08em; }
+.intro { margin:0 0 34px; color:var(--dim); }
+section { margin:30px 0 0; padding:22px 24px; border:1px solid var(--border); border-radius:9px; background:var(--panel); }
+h2 { margin:0 0 16px; color:var(--amber); font:700 18px Georgia,serif; }
+h3 { margin:24px 0 8px; color:var(--text); font-size:13px; letter-spacing:.12em; text-transform:uppercase; }
+h3:first-of-type { margin-top:0; }
+li { margin:6px 0; color:var(--dim); }
+code { color:var(--amber); }
+</style>
+</head>
+<body>
+<main>
+<h1>EMBERHOLD</h1>
+<p class="intro">Changelog — all notable changes, newest first.</p>
+
+<section>
+<h2>2026-09-05</h2>
+<ul>
+<li>Added hold-to-repeat controls for repeatable actions. <code>6992455</code></li>
+<li>Improved offline-progress accounting and raid-defense behavior. <code>4be94f0</code></li>
+</ul>
+</section>
+
+<section>
+<h2>2026-09-04</h2>
+<h3>Expeditions and progression</h3>
+<ul>
+<li>Expanded settlement expeditions with additional content and outcomes. <code>158cf83</code></li>
+<li>Restricted expedition choices to locations available from the current landing. <code>f6fdc33</code></li>
+<li>Refined expedition availability and costs. <code>50cac7a</code></li>
+<li>Updated expedition content alongside building progression. <code>b380d25</code></li>
+<li>Fixed the explorer job definition. <code>72e2106</code></li>
+</ul>
+<h3>Population, migration, and lineages</h3>
+<ul>
+<li>Added population-growth and Hospital systems. <code>13e640e</code></li>
+<li>Updated population progression and related settlement pacing. <code>b3916db</code></li>
+<li>Expanded lineage and migration systems. <code>5bcb874</code></li>
+<li>Updated migration and governance copy, and refined the trial migration flow. <code>85d323c</code>, <code>1ad2ea1</code></li>
+<li>Reset research on migration to support the new progression flow. <code>e98d83c</code></li>
+</ul>
+<h3>Diplomacy, tribes, and defense</h3>
+<ul>
+<li>Rebalanced diplomacy and added regression tests. <code>5c2542b</code></li>
+<li>Expanded diplomacy and factory production. <code>c861cdf</code></li>
+<li>Added tribes, Currency, and Banking progression. <code>9f472d0</code></li>
+<li>Added diplomacy, tribe requests, and Diplomats. <code>82a58d5</code></li>
+<li>Scaled diplomacy requests by era and added tribal aid for high disposition. <code>532e33b</code>, <code>60f31b9</code></li>
+<li>Added tribe raids and guard defenses. <code>52daccf</code></li>
+<li>Added Guards, Barracks, and weapon research, then adjusted Guard food upkeep. <code>a2be8d6</code>, <code>77bef3a</code></li>
+<li>Made guard equipment research-based and hid Guards until Barracks provide capacity. <code>c843a65</code>, <code>6184565</code></li>
+<li>Refined the strained-relations warning. <code>c23ecf7</code></li>
+</ul>
+<h3>Interface and player experience</h3>
+<ul>
+<li>Rebuilt the Emberhold interface and page UI. <code>95fc9cb</code>, <code>622981b</code>, <code>49f5ef1</code></li>
+<li>Added Morale, governance, scouting, and compact tooltips. <code>bc04ba0</code></li>
+<li>Prevented missed clicks during UI refreshes and kept hover tooltips stable. <code>5127d20</code>, <code>acbd906</code></li>
+</ul>
+<h3>Resources and industry</h3>
+<ul>
+<li>Added Copper and Electrical Engineering. <code>0fe2ff7</code></li>
+<li>Added the powered-industrialization trial and used Industrial Goods in late construction. <code>11d8a38</code>, <code>747bab7</code></li>
+<li>Added the Trial of Tinkering and automated toolmaking, including Tinkerers during their trial. <code>198b880</code>, <code>bf69269</code></li>
+</ul>
+<h3>Maintenance and publishing</h3>
+<ul>
+<li>Rebuilt the Emberhold page and published game updates. <code>49f5ef1</code></li>
+<li>Hardened saves and workforce recovery. <code>95e14e3</code></li>
+<li>Refreshed published asset versions and busted GitHub Pages stylesheet/script caches after updates. <code>5f1fb54</code>, <code>9e03a96</code>, <code>da6ea39</code>, <code>358cb0c</code></li>
+</ul>
+<h3>Foundation</h3>
+<ul><li>Began Emberhold as a text-only incremental settlement game. <code>696e1a9</code></li></ul>
+</section>
+</main>
+</body>
+</html>

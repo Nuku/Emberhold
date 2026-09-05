@@ -18,6 +18,7 @@ header { display: grid; grid-template-columns: minmax(200px,1fr) minmax(330px,au
 #time-line::before { content: '◷'; } #pop-line::before { content: '♟'; } #morale-line::before { content: '✦'; }
 #morale-line { color: var(--blue); } #morale-line.morale-low { color: var(--red); } #morale-line.morale-high { color: var(--green); } #echo-line { color: var(--amber); }
 #controls { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 7px; }
+#btn-updates.has-tooltip::after { left: auto; right: 0; max-width: min(330px, calc(100vw - 32px)); }
 button { border: 1px solid var(--border); border-radius: 6px; background: var(--panel-raised); color: var(--text); padding: 7px 12px; font: inherit; font-size: 12px; cursor: pointer; transition: border-color .16s,background .16s,color .16s,transform .16s; }
 button:hover:not(:disabled) { border-color: var(--amber); background: #29241d; color: var(--amber); transform: translateY(-1px); } button:disabled { opacity: .38; cursor: default; }
 nav#tabs { display: flex; gap: 4px; overflow-x: auto; padding: 14px 0 0; scrollbar-width: thin; }

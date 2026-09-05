@@ -1875,6 +1875,9 @@ function boot() {
     document.getElementById('banner').classList.remove('hidden');
   }
   document.getElementById('btn-save').addEventListener('click', () => { saveGame(); render(); });
+  document.getElementById('btn-updates').addEventListener('click', () => {
+    window.open('changelog.html', '_blank', 'noopener,noreferrer');
+  });
   document.getElementById('btn-export').addEventListener('click', exportSave);
   document.getElementById('btn-import').addEventListener('click', importSave);
   document.getElementById('btn-reset').addEventListener('click', resetGame);
