@@ -213,6 +213,9 @@ function expeditionCost(def) {
   for (const r in def.cost) out[r] = def.cost[r] * 0.75;
   return out;
 }
+function siteExpeditionsComplete() {
+  return LANDINGS.every(l => EXPEDITIONS.some(e => e.landing === l.id && expDone(e.id)));
+}
 
 // ---------- landings ----------
 function landingDef() { return LANDINGS.find(l => l.id === state.landing) || LANDINGS[0]; }
@@ -350,6 +353,7 @@ function globalProductionFactors() {
     ['Allied tribes', 1 + 0.05 * alliedTribes()],
     ['Stored machinery', 1 + 0.002 * state.res.machinery],
     ['Glacial Peaks', expDone('glacialPeaks') ? 1.10 : 1],
+    ['All six sites explored', siteExpeditionsComplete() ? 1.05 : 1],
     ['Everwarm', perm('everwarm') ? 1.05 : 1],
     ['Deep Roots', 1 + 0.05 * upg('deepRoots')],
     ['Haste trial', trialActive('haste') ? 0.70 : 1],
@@ -358,6 +362,9 @@ function globalProductionFactors() {
 
 function settlementProductionFactors(res) {
   const factors = [[landingDef().name, landingMod(res)], [lineageDef(state.species).name, lineageMod(res)]];
+  for (const e of EXPEDITIONS) {
+    if (expDone(e.id) && e.mods?.[res]) factors.push([e.name, e.mods[res]]);
+  }
   if (tech('civics')) {
     for (const def of [civicDef(state.policy), governorDef(state.governor), ...(state.council || []).map(councilorDef)]) {
       if (def) factors.push([def.name, def.mods?.[res] || 1]);
@@ -1029,12 +1036,14 @@ function toggleCouncilor(id) {
 function doExpedition(id) {
   const def = EXPEDITIONS.find(e => e.id === id);
   if (!def || expDone(id)) return;
+  if (def.landing && def.landing !== state.landing) return;
   if (state.pop < def.reqPop) return;
   const cost = expeditionCost(def);
   if (!canAfford(cost)) return;
   payCost(cost);
   state.expeditions[id] = true;
   addLog(`Expedition returned: ${def.name} is now part of Emberhold's world. ${def.effect}`, 'log-good');
+  if (def.landing && siteExpeditionsComplete()) addLog('All six sites explored! Emberhold gains +5% to all production forever.', 'log-good');
 }
 
 function doAssign(job, delta) {
@@ -1576,6 +1585,8 @@ function renderTrials() {
 function renderExpeditions() {
   let h = '<h2 class="section">Expeditions — widen the world</h2>';
   h += '<div class="res-note">Each expedition is sent once. What it finds stays with Emberhold forever.</div>';
+  const sitesDone = EXPEDITIONS.filter(e => e.landing && expDone(e.id)).length;
+  h += `<div class="res-note">Site expeditions: ${sitesDone}/${LANDINGS.length} established. Develop a settlement at each landing to send its unique expedition. Rewards endure at every landing. Complete all six for +5% to all production${siteExpeditionsComplete() ? ' — earned!' : ' forever.'}</div>`;
   const rates = production();
   let any = false;
   for (const e of EXPEDITIONS) {
@@ -1586,12 +1597,15 @@ function renderExpeditions() {
       continue;
     }
     const cost = expeditionCost(e);
-    if (!Object.entries(cost).every(([res, amount]) => capacityOf(res) >= amount && rates[res] > 0)) continue;
+    if (!e.landing && !Object.entries(cost).every(([res, amount]) => capacityOf(res) >= amount && rates[res] > 0)) continue;
     any = true;
     const popOk = state.pop >= e.reqPop;
-    const ok = popOk && canAfford(cost);
+    const siteOk = !e.landing || e.landing === state.landing;
+    const site = LANDINGS.find(l => l.id === e.landing);
+    const ok = siteOk && popOk && canAfford(cost);
     h += `<div class="card"><div class="card-head"><span class="card-title has-tooltip" data-tooltip="${attrText(e.text)}">${e.name}</span></div>` +
       `<div class="card-effect">Grants: ${e.effect}</div>` +
+      (site ? `<div class="res-note">Requires settlement at ${site.name}${siteOk ? ' — you are here' : ' — migrate here to explore'}.</div>` : '') +
       `<div class="card-cost">cost: ${costHtml(cost)} — needs ${e.reqPop} villagers</div>` +
       `<div class="card-actions"><button data-action="exp" data-id="${e.id}" ${ok ? '' : 'disabled'}>Send the expedition</button></div>` +
       `</div>`;
@@ -1641,8 +1655,10 @@ function renderMigration() {
   for (const landing of (state.pendingLandings || [])) {
     const selected = state.pendingLanding === landing.id;
     const allowed = lineageSelectable(state.pendingSpecies || state.species, landing.id);
+    const expedition = EXPEDITIONS.find(e => e.landing === landing.id);
     h += `<div class="card ${selected ? 'lineage-selected' : ''} ${allowed ? '' : 'dimmed'}"><div class="card-head"><span class="card-title has-tooltip" data-tooltip="${attrText(landing.text)}">${landing.name}</span>${selected ? '<span class="card-count">chosen</span>' : ''}</div>` +
       `<div class="card-effect">${modsHtml(landing)}</div>` +
+      (expedition ? `<div class="res-note">${expedition.name}: ${expDone(expedition.id) ? 'established' : 'unexplored'} — ${expedition.effect}</div>` : '') +
       `<div class="card-actions"><button data-action="landing" data-id="${landing.id}" ${selected || !allowed ? 'disabled' : ''}>${!allowed ? 'Unsuitable for chosen lineage' : selected ? 'Chosen' : 'Choose this landing'}</button></div></div>`;
   }
   h += '<h2 class="section">Choose a lineage</h2>' +

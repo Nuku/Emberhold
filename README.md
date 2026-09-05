@@ -163,6 +163,16 @@ supplies), Oathkeepers (repeatable trials +1 use each), Old Maps (expeditions
 
 ## Landings
 
+Each of the six landings has a unique, one-time expedition requiring 18 villagers
+and supplies from a developed settlement there. The First Roads (Emberplain)
+and Living Channels (Floodmeadows) each grant +10% food; Heartwood Grove
+(Greenfold) grants +10% wood; High Quarries (Grayrocks) grants +10% stone and
++5% iron; Sleeping Fires (Ashfen) grants +10% coal; Mirrored Sky (Windmere)
+grants +10% knowledge and +5% aether. These rewards stack and persist through
+migrations and trials, applying at every landing. Completing all six grants
+another +5% to all production. The expedition list tracks progress, and scout
+reports show which destination expeditions remain unexplored.
+
 Where a migration ends up is decided by the road, not the village — revealed
 only on arrival. The landing multiplies production of its resources (expedition
 passive income included); food *consumption* is never modified, only growth:

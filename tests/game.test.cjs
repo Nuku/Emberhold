@@ -24,6 +24,40 @@ function game() {
   return { run, context };
 }
 
+test('site expeditions require local settlement, charge once, and retain rewards across migrations', () => {
+  const { run } = game();
+  const sites = JSON.parse(run('JSON.stringify(EXPEDITIONS.filter(e => e.landing))'));
+  assert.equal(sites.length, run('LANDINGS.length'));
+  assert.equal(new Set(sites.map(e => e.landing)).size, sites.length);
+  assert.match(run('renderExpeditions()'), /0\/6 established/);
+  for (const e of sites) {
+    run(`state.pop = 30; for (const r of RESOURCES) state.res[r.id] = 10000;
+      state.landing = LANDINGS.find(l => l.id !== '${e.landing}').id;
+      doExpedition('${e.id}')`);
+    assert.equal(run(`expDone('${e.id}')`), false, 'wrong landing');
+    run(`state.landing = '${e.landing}'; state.pop = 4; doExpedition('${e.id}')`);
+    assert.equal(run(`expDone('${e.id}')`), false, 'arrival alone is insufficient');
+    const resource = Object.keys(e.cost)[0];
+    run(`state.pop = 18; state.res.${resource} = 0; doExpedition('${e.id}')`);
+    assert.equal(run(`expDone('${e.id}')`), false, 'requires supplies');
+    run(`state.res.${resource} = 10000; state.upgrades.oldMaps = 1; doExpedition('${e.id}')`);
+    assert.equal(run(`expDone('${e.id}')`), true);
+    assert.equal(run(`state.res.${resource}`), 10000 - e.cost[resource] * 0.75);
+    run(`doExpedition('${e.id}')`);
+    assert.equal(run(`state.res.${resource}`), 10000 - e.cost[resource] * 0.75, 'cannot pay twice');
+  }
+  assert.equal(run('siteExpeditionsComplete()'), true);
+  assert.equal(run("globalProductionFactors().find(([label]) => label === 'All six sites explored')[1]"), 1.05);
+  run(`saveGame(true); state = loadGame(); state.migrating = true;
+    state.pendingLanding = 'greenfold'; state.pendingSpecies = 'human'; setOut()`);
+  assert.equal(run('siteExpeditionsComplete()'), true);
+  assert.equal(run("settlementProductionFactors('food').filter(([label]) => ['The First Roads', 'The Living Channels'].includes(label)).reduce((m, [, value]) => m * value, 1)"), 1.1 * 1.1);
+  run('state.jobs.woodcutter = 1; const siteDetail = {}; const siteRates = production(0.25, siteDetail)');
+  assert.ok(run("siteDetail.wood.some(e => e.factors.some(([label]) => label === 'The Heartwood Grove'))"));
+  assert.ok(run('RESOURCES.every(r => Math.abs(siteDetail[r.id].reduce((sum, e) => sum + e.amount, 0) - siteRates[r.id]) < 1e-10)'));
+  assert.match(run('renderExpeditions()'), /6\/6 established/);
+});
+
 test('Aphrodisiac and Hospitals unlock, compound timers, and persist through saves', () => {
   const { run } = game();
   assert.equal(run('popGrowthNeed()'), 36);
