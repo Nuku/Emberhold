@@ -1520,7 +1520,7 @@ function renderDiplomacy() {
 function renderGovernance() {
   if (!tech('civics')) return '<h2 class="section">Governance</h2><div class="card"><div class="card-desc">Writing and the Age of Iron will give Emberhold the laws needed to govern itself.</div></div>';
   let h = '<h2 class="section">Governance — the Civic Hall</h2>';
-  h += '<div class="res-note">Choose one policy per settlement. Policies reset on migration, while the knowledge of Civic Law endures.</div>';
+  h += '<div class="res-note">Choose one policy per settlement. Policies and research reset on migration; Civic Law must be researched again.</div>';
   for (const c of CIVICS) h += `<div class="card ${state.policy === c.id ? 'trial-active' : ''}"><div class="card-head"><span class="card-title">${c.name}</span>${state.policy === c.id ? '<span class="card-count">current policy</span>' : ''}</div><div class="card-effect">${c.desc}</div><div class="card-actions"><button data-action="policy" data-id="${c.id}" ${state.policy === c.id ? 'disabled' : ''}>Adopt</button></div></div>`;
   if (!tech('council')) return h + '<div class="card"><div class="card-desc">Research The Council to appoint a Governor and advisors.</div></div>';
   h += '<h2 class="section">Governor</h2><div class="res-note">Appointments cost 40 Currency. Only one governor may serve at a time.</div>';
@@ -1602,8 +1602,8 @@ function renderMigration() {
   }
 
   let h = '<h2 class="section">The Great Migration</h2>';
-  h += `<div class="res-note">Declaring a migration abandons the village — villagers, stores, and every building are left behind. ` +
-    `Research, trials learned, expeditions made, Echoes and everything bought with them endure. ` +
+  h += `<div class="res-note">Setting out on a migration abandons the village — research resets, and villagers, stores, and every building are left behind. ` +
+    `Completed trials and their rewards, expeditions made, Echoes and everything bought with them endure. ` +
     `Echoes gained grow with the population you leave: floor((villagers − 10)² ÷ 100). ` +
     `The road, not the village, chooses the destination — each founding lands in different country, with its own gifts and shortages.</div>`;
 
