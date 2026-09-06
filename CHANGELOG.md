@@ -4,11 +4,14 @@ All notable changes to Emberhold are recorded here, with the newest changes firs
 
 ## 2026-09-05
 
+- Replaced the one-off Foundry Steel unlock with scalable Forges that automatically smelt Steel from Iron and Coal; existing saves migrate Foundries to Forges.
 - Added Settings and Stats tabs. Stats includes Stats, Achievements, and Perks subtabs for settlement records, expected accomplishments, and permanent bragging rights.
 - Added persistent Settings controls for autosave, reduced motion, compact stores, and chronicle tools.
 - Added achievement progress tracking and a Completion bonus of +0.1% to all production per completed achievement. The bonus stacks additively and survives migration and reloads.
 - Added a quick achievement for gaining access to each lineage, plus Many Peoples for half of all lineages and A World of Kin for every lineage.
 - Changed the Trial of Silence to require producing 100 Steel after researching Metallurgy, with enough knowledge banked to complete the research before knowledge production stops.
+- Increased the Silence Trial's starting Knowledge reserve to 1,700 to cover Currency and the steel setup. (`17651c4`, `e532cc6`)
+- Fixed save import persistence and diagnostics, and protected imported saves from stale tabs overwriting them. (`282f3ac`, `84d6c71`)
 - Improved automation job selection to avoid zero-output jobs during trials, prioritize unmet resource targets, and rebalance surplus workers more reliably.
 - Exposed effective per-worker production through the controller API for automation planning.
 - Added independent one-slot queues for building and research, with automatic completion when resources become available, cancellation by clicking, and estimated completion times.

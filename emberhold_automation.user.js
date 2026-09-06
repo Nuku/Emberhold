@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Emberhold Automation
 // @namespace    https://github.com/emberhold
-// @version      1.8.0
+// @version      1.10.0
 // @description  Configurable automation for Emberhold
 // @updateURL    https://raw.githubusercontent.com/Nuku/Emberhold-Automation/main/emberhold_automation.user.js
 // @downloadURL  https://raw.githubusercontent.com/Nuku/Emberhold-Automation/main/emberhold_automation.user.js
@@ -102,7 +102,7 @@
   const BUILD_ORDER = [
     'hut', 'storehouse', 'foragerLodge', 'lumberYard', 'quarry', 'stoneWorks',
     'workbench', 'library', 'monument', 'barracks', 'deepMine', 'deepStore',
-    'coalSeam', 'foundry', 'aqueduct', 'shrine', 'amphitheatre', 'workshop',
+    'coalSeam', 'forge', 'aqueduct', 'shrine', 'amphitheatre', 'workshop',
     'steamPlant', 'dynamo', 'vault', 'factory', 'observatory', 'beacon',
   ];
   const JOB_ORDER = [
@@ -125,7 +125,8 @@
       ['miner', state.pop >= 6 ? 1 : 0],
       ['thinker', state.pop >= 8 ? 1 : 0],
     ];
-    const minimum = id => minimums.find(item => item[0] === id)?.[1] || 0;
+    const minimum = id => effectiveJobRate && effectiveJobRate(id) <= 0
+      ? 0 : minimums.find(item => item[0] === id)?.[1] || 0;
     const rates = api().helpers?.production?.(1) || {};
     const needs = [
       ['forager', 'food', 60],
@@ -154,7 +155,12 @@
     // floor, and prefer removing the largest surplus first.
     const donors = Object.keys(state.jobs || {})
       .filter(id => id !== target && count(id) > minimum(id))
-      .sort((a, b) => (count(b) - minimum(b)) - (count(a) - minimum(a)));
+      .sort((a, b) => {
+        const aZeroed = effectiveJobRate && defs[a]?.res && Number(defs[a].base) > 0 && effectiveJobRate(a) <= 0;
+        const bZeroed = effectiveJobRate && defs[b]?.res && Number(defs[b].base) > 0 && effectiveJobRate(b) <= 0;
+        return Number(bZeroed) - Number(aZeroed) ||
+          (count(b) - minimum(b)) - (count(a) - minimum(a));
+      });
     const donor = donors[0];
     if (donor && target) {
       invoke('assign', donor, -1);

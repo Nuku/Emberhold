@@ -658,6 +658,26 @@ function production(dt = 0.25, breakdown = null) {
   scale('aether', [...global, ['Glacial Peaks', expDone('glacialPeaks') ? 1.10 : 1]]);
   for (const res of ['coal', 'tools', 'currency']) scale(res, global);
 
+  // Forges are independent production buildings: each one smelts Steel
+  // continuously, using Iron and Coal. Output bonuses apply to Steel, while
+  // the material recipe remains fixed.
+  if (bld('forge') > 0 && dt > 0) {
+    const rate = 0.04;
+    const inputs = { iron: 0.6, coal: 0.4 };
+    const factors = settlementProductionFactors('steel');
+    const output = factors.reduce((value, [, factor]) => value * factor, bld('forge') * rate);
+    let fraction = Math.min(1, Math.max(0, capacityOf('steel') - state.res.steel) / (output * dt));
+    let limitation = fraction < 1 ? 'Steel storage space' : 'Forge utilization';
+    for (const r in inputs) {
+      const available = Math.max(0, state.res[r] + Math.min(0, rates[r]) * dt);
+      const supplied = available / (inputs[r] * bld('forge') * dt);
+      if (supplied < fraction) limitation = `${RESOURCES.find(resource => resource.id === r).name} shortage`;
+      fraction = Math.min(fraction, supplied);
+    }
+    add('steel', `Forges: ${bld('forge')} × ${rate}/s`, bld('forge') * rate, [...factors, [limitation, fraction]]);
+    for (const r in inputs) add(r, `Forge inputs: ${bld('forge')} × ${inputs[r]}/s`, -inputs[r] * bld('forge'), [[limitation, fraction]]);
+  }
+
   if (bld('steamPlant') > 0) {
     add('power', `Steam Plants: ${bld('steamPlant')} × 1.2/s`, bld('steamPlant') * 1.2);
     add('coal', `Steam Plant fuel: ${bld('steamPlant')} × 0.08/s`, -bld('steamPlant') * 0.08);
@@ -1422,6 +1442,12 @@ function normalizeSave(s) {
         throw new Error(`Invalid ${type} queue`);
   }
   for (const r of RESOURCES) if (s.res[r.id] === undefined) s.res[r.id] = 0;
+  // Foundry was the original one-off Steel unlock. Preserve it as a Forge
+  // when loading saves made before Steel became a building production line.
+  if (s.bld.foundry) {
+    s.bld.forge = (s.bld.forge || 0) + s.bld.foundry;
+    delete s.bld.foundry;
+  }
   for (const entry of Object.values(s.diplomacy)) {
     if (!object(entry) || typeof entry.disposition !== 'number') throw new Error('Invalid diplomacy');
   }
@@ -1668,6 +1694,11 @@ function renderVillage() {
         `<div class="card-desc">Produces ${recipe.rate}/s; consumes ${inputs}.</div>` +
         `<div class="card-actions"><button data-action="factory-recipe" data-id="${recipe.id}" ${!unlocked || selected ? 'disabled' : ''}>${selected ? 'Producing ' : 'Produce '}${recipe.name}</button></div></div>`;
     }
+  }
+  if (bld('forge') > 0) {
+    h += '<h2 class="section">Forge production</h2><div class="res-note">Each Forge smelts Steel automatically. Production slows when Iron or Coal runs short and pauses when the Steel store is full.</div>';
+    h += `<div class="card"><div class="card-head"><span class="card-title">Steel</span><span class="card-count">${bld('forge')} Forge${bld('forge') === 1 ? '' : 's'}</span></div>` +
+      `<div class="card-desc">Produces ${fmt(0.04 * bld('forge'))}/s; consumes ${fmt(0.6 * bld('forge'))} Iron/s and ${fmt(0.4 * bld('forge'))} Coal/s.</div></div>`;
   }
   h += '<h2 class="section">Crafting</h2>';
   for (const c of CRAFTS) {

@@ -98,8 +98,8 @@ invalid imports, storage failures, and offline time accounting.
   In the Village, switch all factories between Industrial Goods (the default),
   Tools (Craftsmanship), Steel (Metallurgy), and Machinery (Mechanism).
   Each factory consumes 0.35 Power/s. Tools use Wood, Steel uses Iron and Coal,
-  and Machinery uses Steel and Coal, at the same base material ratios as hand
-  crafting. Recipe cards show output and input rates. Lineage and governance
+  and Machinery uses Steel and Coal. Steel is smelted automatically by scalable
+  Forges; it is no longer a hand-crafted item. Recipe cards show output and input rates. Lineage and governance
   bonuses affect output, while input costs stay fixed. Production slows when
   supplies run short and pauses when storage fills. Your selection is saved;
   a new settlement starts with Industrial Goods selected.

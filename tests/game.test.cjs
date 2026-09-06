@@ -581,20 +581,36 @@ test('new lineages change actual income with both bonuses and tradeoffs', () => 
   }
 });
 
-test('lineage crafting yields honor bonuses, penalties, costs, and storage limits', () => {
+test('lineage crafting yields honor bonuses, costs, and storage limits', () => {
   for (const [species, recipe, expected] of [
     ['clocklings', 'tools', 1.20], ['clocklings', 'machinery', 1.25],
-    ['cinderforged', 'steel', 1.20], ['thornkin', 'steel', 0.85],
   ]) {
     const { run } = game();
-    run(`state.species = '${species}'; state.bld = { workbench: 1, foundry: 1, workshop: 1 };
+    run(`state.species = '${species}'; state.bld = { workbench: 1, workshop: 1 };
       state.res.wood = 100; state.res.iron = 100; state.res.coal = 100; state.res.steel = 25;
       state.res['${recipe}'] = 0; doCraft('${recipe}')`);
     assert.equal(run(`state.res['${recipe}']`), expected);
-    assert.equal(run(recipe === 'tools' ? 'state.res.wood' : 'state.res.coal'), recipe === 'tools' ? 60 : recipe === 'steel' ? 90 : 80);
+    assert.equal(run(recipe === 'tools' ? 'state.res.wood' : 'state.res.coal'), recipe === 'tools' ? 60 : 80);
     run(`state.res['${recipe}'] = capacityOf('${recipe}') - 0.1; doCraft('${recipe}')`);
     assert.equal(run(`state.res['${recipe}']`), run(`capacityOf('${recipe}')`));
   }
+});
+
+test('Forges automatically smelt Steel, throttle on inputs, and migrate old Foundries', () => {
+  const { run } = game();
+  run(`state.bld.forge = 2; state.techs.metallurgy = true;
+    state.res.iron = 100; state.res.coal = 100; state.res.steel = 0;
+    const rates = production(1)`);
+  assert.equal(run('rates.steel'), 0.08);
+  assert.equal(run('rates.iron'), -1.2);
+  assert.equal(run('rates.coal'), -0.8);
+  run(`state.res.iron = 0.3; state.res.coal = 100; const limited = production(1)`);
+  assert.equal(run('limited.steel'), 0.02);
+  assert.equal(run('limited.iron'), -0.3);
+  run(`state.bld = { foundry: 1 }; state = normalizeSave(state)`);
+  assert.equal(run('state.bld.forge'), 1);
+  assert.equal(run('state.bld.foundry || 0'), 0);
+  assert.equal(run('CRAFTS.some(c => c.id === "steel")'), false);
 });
 
 test('factory lines unlock through research, persist in saves, and default safely', () => {
