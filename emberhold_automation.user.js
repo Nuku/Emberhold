@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Emberhold Automation
 // @namespace    https://github.com/emberhold
-// @version      1.22.0
+// @version      1.24.0
 // @description  Configurable automation for Emberhold
 // @updateURL    https://raw.githubusercontent.com/Nuku/Emberhold-Automation/main/emberhold_automation.user.js
 // @downloadURL  https://raw.githubusercontent.com/Nuku/Emberhold-Automation/main/emberhold_automation.user.js
@@ -59,8 +59,10 @@
   }
 
   function invoke(name, ...args) {
-    if (!settings.enabled || !api()?.actions?.[name]) return false;
-    api().actions[name](...args);
+    if (!settings.enabled) return false;
+    const action = api()?.actions?.[name] || (api()?.action ? (...values) => api().action(name, ...values) : null);
+    if (!action) return false;
+    action(...args);
     lastAction = `${name}${args.length ? ` (${args.join(', ')})` : ''}`;
     return true;
   }
@@ -117,8 +119,14 @@
     const assigned = Object.values(state.jobs || {}).reduce((sum, n) => sum + (Number(n) || 0), 0);
     const diplomats = Object.values(state.diplomats || {}).reduce((sum, n) => sum + (Number(n) || 0), 0);
     const available = Math.max(0, state.pop - assigned - diplomats);
-    if ((state.morale || 0) < 100 && available > 0) return invoke('assignPerformer', 1);
-    if ((state.morale || 0) >= 100 && performers > 1) return invoke('assignPerformer', -1);
+    if ((state.morale || 0) < 100 && available > 0) {
+      invoke('assignPerformer', 1);
+      return Number(api().getState()?.jobs?.performer || 0) > performers;
+    }
+    if ((state.morale || 0) >= 100 && performers > 1) {
+      invoke('assignPerformer', -1);
+      return Number(api().getState()?.jobs?.performer || 0) < performers;
+    }
     return false;
   }
 
@@ -173,8 +181,12 @@
     const need = [...demandNeeds, ...needs, ...specialistNeeds].find(([job, resource, target]) => assignable.includes(job) &&
       (stock(resource) < target || (rates[resource] || 0) < 0));
 
-    const available = Math.max(0, state.pop - Object.values(state.jobs || {})
-      .reduce((sum, n) => sum + (Number(n) || 0), 0));
+    const assigned = Object.entries(state.jobs || {})
+      .filter(([id]) => id !== 'guard')
+      .reduce((sum, [, n]) => sum + (Number(n) || 0), 0);
+    const diplomats = Object.values(state.diplomats || {})
+      .reduce((sum, n) => sum + (Number(n) || 0), 0);
+    const available = Math.max(0, state.pop - assigned - diplomats);
     const underMinimum = minimums.find(([id, minimumCount]) =>
       minimumCount > 0 && assignable.includes(id) && count(id) < minimum(id));
     const productionJobs = assignable.filter(id => defs[id].res && Number(defs[id].base) > 0 &&
@@ -359,7 +371,8 @@
 
   function updatePanel(state) {
     const status = document.querySelector('#emberhold-automation [data-status]');
-    if (status) status.textContent = `${lastAction} · day ${Math.floor(state.day)}`;
+    const current = state?.state || state;
+    if (status) status.textContent = `${lastAction} · day ${Number.isFinite(current?.day) ? Math.floor(current.day) : 'unknown'}`;
   }
 
   function restart() {
