@@ -1021,7 +1021,7 @@ function setOut(trialId = null) {
   if (trialId === 'silence') {
     // Silence requires the full prerequisite chain plus Metallurgy, but
     // knowledge production is disabled for the entire trial.
-    state.res.knowledge = 1500;
+    state.res.knowledge = 1600;
     state.seen.knowledge = true;
   }
   if (up.caravans) {
