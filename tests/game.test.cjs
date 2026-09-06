@@ -613,6 +613,13 @@ test('Forges automatically smelt Steel, throttle on inputs, and migrate old Foun
   assert.equal(run('CRAFTS.some(c => c.id === "steel")'), false);
 });
 
+test('Steam Plants consume 0.8 Coal/s each', () => {
+  const { run } = game();
+  run(`state.bld.steamPlant = 2; state.res.coal = 100; const rates = production(1)`);
+  assert.equal(run('rates.power'), 2.4);
+  assert.equal(run('rates.coal'), -1.6);
+});
+
 test('Forge input costs are not scaled by expedition production bonuses', () => {
   const { run } = game();
   run(`state.bld.forge = 1; state.techs.metallurgy = true;

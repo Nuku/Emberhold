@@ -673,7 +673,7 @@ function production(dt = 0.25, breakdown = null) {
 
   if (bld('steamPlant') > 0) {
     add('power', `Steam Plants: ${bld('steamPlant')} × 1.2/s`, bld('steamPlant') * 1.2);
-    add('coal', `Steam Plant fuel: ${bld('steamPlant')} × 0.08/s`, -bld('steamPlant') * 0.08);
+    add('coal', `Steam Plant fuel: ${bld('steamPlant')} × 0.8/s`, -bld('steamPlant') * 0.8);
   }
   if (bld('dynamo') > 0) add('power', `Dynamos: ${bld('dynamo')} × 1.5/s`, bld('dynamo') * 1.5);
   // The land, lineage, and civic choices shape output; population upkeep is

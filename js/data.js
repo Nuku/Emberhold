@@ -190,7 +190,7 @@ const BUILDINGS = [
 
   { id: 'steamPlant', name: 'Steam Plant', max: 3, scale: 1.8,
     cost: { steel: 60, coal: 100, tools: 25, currency: 50 },
-    effect: () => '+1.2 Power/s, consumes 0.08 Coal/s',
+    effect: () => '+1.2 Power/s, consumes 0.8 Coal/s',
     req: () => tech('metallurgy'), desc: 'boilers and turbines make a new kind of work possible' },
 
   { id: 'dynamo', name: 'Dynamo', max: 1, scale: 1,

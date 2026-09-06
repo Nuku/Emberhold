@@ -21,7 +21,7 @@ match the current population, job unlocks, and guard capacity.
 
 ## Development checks
 
-Run `node tests/game.test.cjs` with Node.js. The dependency-free engine regression
+Run `npm test` with Node.js. The dependency-free engine regression
 suite covers starvation, specialist assignments, guard limits, older saves,
 invalid imports, storage failures, and offline time accounting.
 
