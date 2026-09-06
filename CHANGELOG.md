@@ -5,6 +5,7 @@ All notable changes to Emberhold are recorded here, with the newest changes firs
 ## 2026-09-06
 
 - Fixed Forge input costs being incorrectly scaled by expedition bonuses to Iron or Coal; expeditions can now affect Forges only through an explicit Forge modifier.
+- Increased population growth speed by 33%.
 
 ## 2026-09-05
 

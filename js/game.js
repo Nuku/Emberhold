@@ -756,7 +756,7 @@ function resourceRateTooltip(resource, rate, entries) {
 }
 
 function hospitalTimeMod() { return Math.pow(0.9, bld('hospital')); }
-function popGrowthNeed() { return (20 + state.pop * 4) * (tech('aphrodisiac') ? 0.75 : 1) * hospitalTimeMod(); }
+function popGrowthNeed() { return (20 + state.pop * 4) * 0.75 * (tech('aphrodisiac') ? 0.75 : 1) * hospitalTimeMod(); }
 function guardHealingNeed() { return 90 * hospitalTimeMod(); }
 
 // ---------- log ----------
