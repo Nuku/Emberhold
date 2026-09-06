@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Emberhold Automation
 // @namespace    https://github.com/emberhold
-// @version      1.24.0
+// @version      1.25.4
 // @description  Configurable automation for Emberhold
 // @updateURL    https://raw.githubusercontent.com/Nuku/Emberhold-Automation/main/emberhold_automation.user.js
 // @downloadURL  https://raw.githubusercontent.com/Nuku/Emberhold-Automation/main/emberhold_automation.user.js
@@ -61,8 +61,17 @@
   function invoke(name, ...args) {
     if (!settings.enabled) return false;
     const action = api()?.actions?.[name] || (api()?.action ? (...values) => api().action(name, ...values) : null);
-    if (!action) return false;
-    action(...args);
+    if (!action) {
+      lastAction = `No action API (${name})`;
+      return false;
+    }
+    try {
+      action(...args);
+    } catch (error) {
+      lastAction = `Error in ${name}: ${error?.message || error}`;
+      console.error('[Emberhold Automation]', lastAction, error);
+      return false;
+    }
     lastAction = `${name}${args.length ? ` (${args.join(', ')})` : ''}`;
     return true;
   }
@@ -148,22 +157,20 @@
     const rates = api().helpers?.production?.(1) || {};
     const currencyTarget = Math.max(100, Math.ceil((demand.currency || 0) * 0.10));
     const capacityOf = api().helpers?.capacityOf;
-    const needsWork = id => {
-      const resource = defs[id]?.res;
-      if (!resource) return true;
-      if (resource === 'currency') return stock('currency') < currencyTarget || (rates.currency || 0) < 0;
-      const full = typeof capacityOf === 'function' && Number.isFinite(capacityOf(resource)) &&
-        (state.res[resource] || 0) >= capacityOf(resource) - 0.001;
-      return !full || (demand[resource] || 0) > 0 || (rates[resource] || 0) < 0;
-    };
-    const minimum = id => id === 'forager' ? 1 :
-      (!needsWork(id) || (effectiveJobRate && effectiveJobRate(id) <= 0)
-        ? 0 : minimums.find(item => item[0] === id)?.[1] || 0);
     const reserve = resource => {
       if (resource === 'knowledge' || resource === 'currency') return 100;
       const cap = typeof capacityOf === 'function' ? capacityOf(resource) : Infinity;
       return Number.isFinite(cap) ? Math.max(10, Math.ceil(cap * 0.5)) : 10;
     };
+    const needsWork = id => {
+      const resource = defs[id]?.res;
+      if (!resource) return true;
+      if (resource === 'currency') return stock('currency') < currencyTarget || (rates.currency || 0) < 0;
+      return stock(resource) < reserve(resource) || (demand[resource] || 0) > 0 || (rates[resource] || 0) < 0;
+    };
+    const minimum = id => id === 'forager' ? 1 :
+      (!needsWork(id) || (effectiveJobRate && effectiveJobRate(id) <= 0)
+        ? 0 : minimums.find(item => item[0] === id)?.[1] || 0);
     const needs = [
       ['forager', 'food', reserve('food')],
       ['woodcutter', 'wood', reserve('wood')],
@@ -195,7 +202,7 @@
     const target = underMinimum?.[0] || (need && need[0]) || balancedJob;
     const reclaimable = Object.keys(state.jobs || {}).filter(id => {
       const zeroed = effectiveJobRate && defs[id]?.res && Number(defs[id].base) > 0 && effectiveJobRate(id) <= 0;
-      return id !== target && count(id) > minimum(id) && (zeroed || !needsWork(id));
+      return id !== 'guard' && id !== target && count(id) > minimum(id) && (zeroed || !needsWork(id));
     });
     if (reclaimable.length) {
       for (const donor of reclaimable) {
@@ -216,7 +223,7 @@
     // when all stores have enough coverage. Never take a minimum job below its
     // floor, and prefer removing the largest surplus first.
     const donors = Object.keys(state.jobs || {})
-      .filter(id => id !== target && count(id) > minimum(id))
+      .filter(id => id !== 'guard' && id !== target && count(id) > minimum(id))
       .sort((a, b) => {
         const aZeroed = effectiveJobRate && defs[a]?.res && Number(defs[a].base) > 0 && effectiveJobRate(a) <= 0;
         const bZeroed = effectiveJobRate && defs[b]?.res && Number(defs[b].base) > 0 && effectiveJobRate(b) <= 0;
@@ -324,6 +331,7 @@
     try {
       const state = snapshot();
       if (!state) return;
+      lastAction = 'Scanning Emberhold';
       const demand = queuedDemand();
       if (settings.jobs && autoMorale(state)) return;
       if (settings.jobs) autoJobs(state, demand);
@@ -333,7 +341,12 @@
       if (settings.diplomacy) autoDiplomacy(state, demand);
       if (settings.expeditions) autoExpeditions(state, demand);
       // Trials and migration are deliberately opt-in and strategy-specific.
+      if (lastAction === 'Scanning Emberhold') lastAction = 'No eligible action';
       updatePanel(state);
+    } catch (error) {
+      lastAction = `Automation error: ${error?.message || error}`;
+      console.error('[Emberhold Automation]', lastAction, error);
+      updatePanel(snapshot());
     } finally {
       busy = false;
     }
@@ -382,6 +395,7 @@
 
   function boot() {
     if (!api()) return setTimeout(boot, 250);
+    lastAction = api().actions ? 'Connected to Emberhold' : api().action ? 'Connected (legacy API)' : 'State API only — actions unavailable';
     makePanel();
     api().subscribe(updatePanel);
     restart();

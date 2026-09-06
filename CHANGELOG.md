@@ -4,6 +4,8 @@ All notable changes to Emberhold are recorded here, with the newest changes firs
 
 ## 2026-09-06
 
+- Added progressive tab unlocking and a guided next-step card so new settlements reveal systems as their prerequisites become available.
+- Improved automation diagnostics: the userscript now reports connection, unavailable-action, and runtime-error states instead of failing silently. The userscript version is now 1.25.4.
 - Fixed early-start migrations carrying stale resource-discovery flags from the previous settlement, which could expose materials before they were unlocked.
 - Updated construction, research, and expedition queue entries to list the resources each item needs to finish.
 - Added three late-game Ancestral Shop upgrades: Far Horizons (125 Echoes) allows unlocked lineages to settle in any habitat; Fear of the Conqueror (300 Echoes), unlocked after conquest and Commonality with 10 other lineages, erodes an enemy's Military strength by the stage number after each victorious battle; and Practiced Migrator (250 Echoes), unlocked by completing every area-specific expedition, starts future settlements in the Age of Stone with Stone Working researched and +5 villagers and population capacity.

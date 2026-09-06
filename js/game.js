@@ -1928,6 +1928,64 @@ function applySettings() {
 function esc(s) { return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;'); }
 function attrText(s) { return esc(s).replace(/"/g, '&quot;'); }
 
+// Keep the first screen focused on the settlement's immediate needs. Systems
+// join the tab bar when the player has enough context to do something with
+// them, rather than asking a new player to understand the whole game at once.
+const TAB_UNLOCKS = {
+  village: () => true,
+  build: () => true,
+  research: () => bld('library') > 0,
+  diplomacy: () => tech('currency'),
+  governance: () => tech('civics'),
+  trials: () => bld('monument') > 0,
+  expeditions: () => era() >= 2 && bld('quarry') > 0,
+  migration: () => bld('monument') > 0,
+  stats: () => state.day >= 1 || state.migrating || state.won,
+  settings: () => true,
+};
+
+function tabUnlocked(id) { return !!TAB_UNLOCKS[id]?.(); }
+
+function renderNextStep() {
+  let title = 'Begin the settlement';
+  let text = 'Assign your four villagers to Foragers and Woodcutters, then keep enough food coming to grow.';
+  let action = 'Village';
+  let tab = 'village';
+  if (unassigned() === 0 && bld('hut') === 0) {
+    title = 'Make room to grow';
+    text = 'Build a Hut from the Build tab. Shelter raises your population capacity.';
+    action = 'Open Build';
+    tab = 'build';
+  } else if (bld('hut') > 0 && bld('library') === 0) {
+    title = 'Preserve what you learn';
+    text = 'Build a Library when you can. It unlocks Thinkers, who produce the Knowledge needed for research.';
+    action = 'Open Build';
+    tab = 'build';
+  } else if (bld('library') > 0 && !tech('stoneWorking')) {
+    title = 'Turn knowledge into progress';
+    text = 'Assign a Thinker, then research Stone Working. It opens the next age and the Quarry.';
+    action = 'Open Research';
+    tab = 'research';
+  } else if (tech('stoneWorking') && !bld('quarry')) {
+    title = 'Reach beyond the ash';
+    text = 'Build the Quarry to reveal stone and miners. New discoveries will open more of Emberhold.';
+    action = 'Open Build';
+    tab = 'build';
+  } else if (era() >= 2 && !tech('craftsmanship')) {
+    title = 'Choose your direction';
+    text = 'Research Craftsmanship for Tools, or follow the other available discoveries as your stores grow.';
+    action = 'Open Research';
+    tab = 'research';
+  } else {
+    title = 'The hold is growing';
+    text = 'Build, research, and watch the tab bar for new systems as Emberhold reaches each milestone.';
+    action = 'Open Build';
+    tab = 'build';
+  }
+  return `<div class="next-step card"><div class="card-head"><span class="card-title">${title}</span><span class="card-count">Next step</span></div>` +
+    `<div class="card-desc">${text}</div><div class="card-actions"><button data-action="tab" data-tab="${tab}">${action}</button></div></div>`;
+}
+
 function resVisible(id) {
   return !!state.seen?.[id];
 }
@@ -1981,6 +2039,7 @@ function renderVillage() {
   const L = landingDef();
   let h = `<h2 class="section">Where you stand — ${L.name}</h2>` +
     `<div class="res-note">${L.text}</div>` +
+    renderNextStep() +
     `<div class="res-note">Population growth: ${fmt(popGrowthNeed())} seconds per new villager while food and housing are available. Guard healing: ${fmt(guardHealingNeed())} seconds per injury.</div>` +
     `<div class="res-note" style="margin:2px 0 6px">The land gives: ${modsHtml(L)}</div>` +
     `<div class="res-note" style="margin:2px 0 6px">${tradeAvailable() ? `Trading with ${localTribeIds().map(id => tribeDef(id).name).join(' and ')}; funds arrive at ${fmtRate(0.05 * localTribeIds().length)} before Banker work.` : `${localTribeIds().map(id => tribeDef(id).name).join(' and ') || 'No tribes'} are nearby. Research Currency to begin trading.`}</div>` +
@@ -2432,7 +2491,7 @@ function renderLog() {
 function loadLatestUpdatesTooltip() {
   const button = document.getElementById('btn-updates');
   if (!button || typeof fetch !== 'function' || typeof DOMParser !== 'function') return;
-  fetch('changelog.html?v=ancestral-shop-20260906a')
+  fetch('changelog.html?v=onboarding-1254-20260906a')
     .then(response => response.ok ? response.text() : Promise.reject(new Error('changelog unavailable')))
     .then(source => {
       const doc = new DOMParser().parseFromString(source, 'text/html');
@@ -2453,6 +2512,11 @@ function loadLatestUpdatesTooltip() {
 function render() {
   updateAchievements();
   renderHeader();
+  document.querySelectorAll('#tabs .tab').forEach(button => {
+    const unlocked = tabUnlocked(button.dataset.tab);
+    button.classList.toggle('hidden', !unlocked);
+    button.setAttribute('aria-hidden', String(!unlocked));
+  });
   document.getElementById('stores').innerHTML = renderStores();
   const panels = {
     village: renderVillage,
@@ -2471,6 +2535,7 @@ function render() {
 }
 
 function switchTab(tab) {
+  if (!tabUnlocked(tab)) return;
   activeTab = tab;
   document.querySelectorAll('#tabs .tab').forEach(b =>
     b.classList.toggle('active', b.dataset.tab === tab));
