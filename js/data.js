@@ -518,7 +518,7 @@ const TRIALS = [
     reward: 'All building costs reduced 10%, permanently, for each completion.' },
 
   { id: 'overflow', name: 'Trial of the Overflow', repeat: 3,
-    mod: 'No new storage may be built while the oath stands.',
+    mod: 'No new storage or storage bonuses may be used while the oath stands.',
     goal: 'Have every store you have discovered filled to its ceiling at the same moment.',
     reward: 'All storage ceilings +20%, permanently, for each completion.',
     req: () => bld('storehouse') > 0 },
@@ -616,7 +616,7 @@ const ANIMAL_LINEAGES = [
     desc: 'Bear clans build stout woodland and mountain homes, hauling heavy materials with ease.' },
   { id: 'deerkin', name: 'Deerkin', habitats: ['forest', 'plains'], mods: { food: 1.20, wood: 1.15, iron: 0.88 },
     desc: 'Deer orchard keepers follow the edges of woodland and meadow, tending broad green commons.' },
-  { id: 'rabbitfolk', name: 'Rabbitfolk', habitats: ['plains'], mods: { food: 1.28, goods: 1.10, coal: 0.85 },
+  { id: 'rabbitfolk', name: 'Rabbitfolk', habitats: ['plains'], growthTime: 0.5, mods: { food: 1.28, goods: 1.10, coal: 0.85 },
     desc: 'Rabbit warrens spread beneath open fields, linking productive gardens with busy cottage workshops.' },
   { id: 'bisonkin', name: 'Bisonkin', habitats: ['plains'], mods: { food: 1.15, goods: 1.25, aether: 0.88 },
     desc: 'Bison herds settle the grasslands in great communal houses supplied by mills and grazing fields.' },

@@ -206,7 +206,7 @@ you'll have them.
 |---|---|---|---|---|
 | Scarcity | ×5 | food −50% | stay fed 240 days | +10% food each |
 | Frugality | ×3 | building costs +50% | 12 constructions | −10% building costs each |
-| Overflow | ×3 | no new storage may be built | every discovered store full at once | +20% storage ceilings each |
+| Overflow | ×3 | no new storage or storage bonuses | every discovered store full at once | +20% storage ceilings each |
 | Tinkering | once | no manual Tool crafting | endure 240 days with a Workbench | unlocks Tinkerers, who steadily assemble Tools from wood and stone |
 | Silence | once | no knowledge production | research Metallurgy and produce 100 Steel | Thinkers +50% |
 | Long Night | once | winter food ×0.25 | survive a year | Everwarm (mild winters, +5% all) |

@@ -298,6 +298,13 @@ test('Aphrodisiac and Hospitals unlock, compound timers, and persist through sav
   assert.equal(run('state.pop'), 5);
 });
 
+test('Rabbitfolk population growth takes half the usual time', () => {
+  const { run } = game();
+  const humanGrowth = run('popGrowthNeed()');
+  run("state.species = 'rabbitfolk'");
+  assert.equal(run('popGrowthNeed()'), humanGrowth * 0.5);
+});
+
 test('20 animal lineages have reachable habitats and matching encounter and selection rules', () => {
   const { run } = game();
   const habitats = {
@@ -537,6 +544,15 @@ test('Overflow uses raised ceilings for progress and completion', () => {
   run(`state.res.food = capacityOf('food'); updateTrial(0)`);
   assert.equal(run('state.trial'), null);
   assert.equal(run('trialCount("overflow")'), 2);
+});
+
+test('Overflow suppresses non-trial storage bonuses while sworn', () => {
+  const { run } = game();
+  run(`state.trialDone.overflow = 1; state.upgrades.deepCellars = 3; state.techs.civics = true; state.governor = 'quartermaster';
+    state.trial = { id: 'overflow', daysActive: 0, buildings: 0 }`);
+  assert.equal(run('capacityOf("food")'), 300);
+  run('state.trial = null');
+  assert.equal(run('capacityOf("food")'), 334);
 });
 
 test('starvation trims total assignments to surviving population', () => {

@@ -432,9 +432,13 @@ function trialActive(id) { return state.trial && state.trial.id === id; }
 function capacityOf(id) {
   const s = STORAGE[id];
   if (!s) return Infinity; // knowledge
+  const overflowActive = trialActive('overflow');
+  const permanentStorage = 1 + 0.2 * trialCount('overflow');
+  const runStorage = overflowActive ? 1 : 1 + 0.15 * upg('deepCellars');
+  const governanceStorage = overflowActive ? 1 : governanceStorageMod();
   return Math.ceil((s.base + s.per * bld(s.bld)) *
-    (1 + 0.2 * trialCount('overflow') + 0.15 * upg('deepCellars')) * governanceStorageMod() *
-    (trialActive('overflow') ? trialDifficulty('overflow') : 1));
+    permanentStorage * runStorage * governanceStorage *
+    (overflowActive ? trialDifficulty('overflow') : 1));
 }
 function isFull(id) { return state.res[id] >= capacityOf(id) - 0.001; }
 
@@ -926,7 +930,9 @@ function resourceRateTooltip(resource, rate, entries) {
 }
 
 function hospitalTimeMod() { return Math.pow(0.9, bld('hospital')); }
-function popGrowthNeed() { return (20 + state.pop * 4) * 0.67 * (tech('aphrodisiac') ? 0.75 : 1) * hospitalTimeMod(); }
+function popGrowthNeed() {
+  return (20 + state.pop * 4) * 0.67 * (tech('aphrodisiac') ? 0.75 : 1) * hospitalTimeMod() * (lineageDef(state.species).growthTime || 1);
+}
 function guardHealingNeed() { return 90 * hospitalTimeMod(); }
 
 // ---------- log ----------
@@ -2392,7 +2398,7 @@ function renderLog() {
 function loadLatestUpdatesTooltip() {
   const button = document.getElementById('btn-updates');
   if (!button || typeof fetch !== 'function' || typeof DOMParser !== 'function') return;
-  fetch('changelog.html?v=local-trading-20260906c')
+  fetch('changelog.html?v=overflow-rabbitfolk-20260906a')
     .then(response => response.ok ? response.text() : Promise.reject(new Error('changelog unavailable')))
     .then(source => {
       const doc = new DOMParser().parseFromString(source, 'text/html');
