@@ -1482,6 +1482,9 @@ function importSave() {
     if (stored.res.knowledge !== s.res.knowledge || stored.trial?.id !== s.trial?.id) {
       throw new Error('The browser did not retain the imported save');
     }
+    // beforeunload saves the in-memory state during reload; replace it first
+    // so that handler cannot overwrite the imported save with the old one.
+    state = s;
     location.reload();
   } catch (e) {
     console.error('Save import failed:', e);
