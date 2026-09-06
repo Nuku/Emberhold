@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Emberhold Automation
 // @namespace    https://github.com/emberhold
-// @version      1.18.0
+// @version      1.22.0
 // @description  Configurable automation for Emberhold
 // @updateURL    https://raw.githubusercontent.com/Nuku/Emberhold-Automation/main/emberhold_automation.user.js
 // @downloadURL  https://raw.githubusercontent.com/Nuku/Emberhold-Automation/main/emberhold_automation.user.js
@@ -110,6 +110,18 @@
     'ironminer', 'copperminer', 'astronomer', 'banker', 'diplomat',
   ];
 
+  function autoMorale(state) {
+    const performer = definitions().JOBS?.performer;
+    if (!performer || !jobUnlocked(performer)) return false;
+    const performers = Number(state.jobs?.performer || 0);
+    const assigned = Object.values(state.jobs || {}).reduce((sum, n) => sum + (Number(n) || 0), 0);
+    const diplomats = Object.values(state.diplomats || {}).reduce((sum, n) => sum + (Number(n) || 0), 0);
+    const available = Math.max(0, state.pop - assigned - diplomats);
+    if ((state.morale || 0) < 100 && available > 0) return invoke('assignPerformer', 1);
+    if ((state.morale || 0) >= 100 && performers > 1) return invoke('assignPerformer', -1);
+    return false;
+  }
+
   function autoJobs(state, demand) {
     const defs = definitions().JOBS || {};
     const effectiveJobRate = api().helpers?.jobProduction;
@@ -126,24 +138,30 @@
       ['thinker', state.pop >= 8 ? 1 : 0],
     ];
     const rates = api().helpers?.production?.(1) || {};
+    const currencyTarget = Math.max(100, Math.ceil((demand.currency || 0) * 0.10));
     const capacityOf = api().helpers?.capacityOf;
     const needsWork = id => {
       const resource = defs[id]?.res;
       if (!resource) return true;
+      if (resource === 'currency') return stock('currency') < currencyTarget || (rates.currency || 0) < 0;
       const full = typeof capacityOf === 'function' && Number.isFinite(capacityOf(resource)) &&
         (state.res[resource] || 0) >= capacityOf(resource) - 0.001;
       return !full || (demand[resource] || 0) > 0 || (rates[resource] || 0) < 0;
     };
-    const minimum = id => !needsWork(id) || (effectiveJobRate && effectiveJobRate(id) <= 0)
-      ? 0 : minimums.find(item => item[0] === id)?.[1] || 0;
+    const minimum = id => id === 'forager' ? 1 :
+      (!needsWork(id) || (effectiveJobRate && effectiveJobRate(id) <= 0)
+        ? 0 : minimums.find(item => item[0] === id)?.[1] || 0);
+    const reserve = resource => {
+      if (resource === 'knowledge' || resource === 'currency') return 100;
+      const cap = typeof capacityOf === 'function' ? capacityOf(resource) : Infinity;
+      return Number.isFinite(cap) ? Math.max(10, Math.ceil(cap * 0.5)) : 10;
+    };
     const needs = [
-      ['forager', 'food', 60],
-      ['woodcutter', 'wood', (demand.wood || 0) + 40],
-      ['miner', 'stone', (demand.stone || 0) + 20],
-      ['thinker', 'knowledge', (demand.knowledge || 0) + 100],
+      ['forager', 'food', reserve('food')],
+      ['woodcutter', 'wood', reserve('wood')],
+      ['miner', 'stone', reserve('stone')],
+      ['thinker', 'knowledge', reserve('knowledge')],
     ];
-    const reserve = resource => resource === 'food' ? 60 : resource === 'wood' ? 40 :
-      resource === 'stone' ? 20 : resource === 'knowledge' ? 100 : 10;
     const specialistNeeds = assignable
       .filter(id => defs[id].res && Number(defs[id].base) > 0 &&
         !needs.some(([job]) => job === id))
@@ -158,7 +176,7 @@
     const available = Math.max(0, state.pop - Object.values(state.jobs || {})
       .reduce((sum, n) => sum + (Number(n) || 0), 0));
     const underMinimum = minimums.find(([id, minimumCount]) =>
-      minimumCount > 0 && assignable.includes(id) && needsWork(id) && count(id) < minimumCount);
+      minimumCount > 0 && assignable.includes(id) && count(id) < minimum(id));
     const productionJobs = assignable.filter(id => defs[id].res && Number(defs[id].base) > 0 &&
       (!effectiveJobRate || effectiveJobRate(id) > 0) && needsWork(id));
     const balancedJob = productionJobs.sort((a, b) => count(a) - count(b))[0];
@@ -295,6 +313,7 @@
       const state = snapshot();
       if (!state) return;
       const demand = queuedDemand();
+      if (settings.jobs && autoMorale(state)) return;
       if (settings.jobs) autoJobs(state, demand);
       if (settings.research) autoResearch(state, demand);
       if (settings.buildings) autoBuildings(state, demand);

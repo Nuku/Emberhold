@@ -1214,7 +1214,7 @@ function setOut(trialId = null) {
   addLog('The village sets out. The old Emberhold is left to the wind; a new one rises where the ground is kinder.', 'log-important');
 
   const keep = {
-    day: state.day, seen: state.seen,
+    day: state.day,
     echoes: state.echoes, upgrades: state.upgrades,
     trialDone: state.trialDone, expeditions: state.expeditions,
     landingsSeen: state.landingsSeen,
@@ -1226,7 +1226,6 @@ function setOut(trialId = null) {
   };
   state = defaultState();
   state.day = keep.day;
-  state.seen = keep.seen;
   state.echoes = keep.echoes;
   state.upgrades = keep.upgrades;
   state.trialDone = keep.trialDone;
@@ -2075,8 +2074,10 @@ function renderQueue(type) {
   if (!entries.length) return `<div class="queue-empty">${label} queue empty (${queueCapacity(type)} slot${queueCapacity(type) === 1 ? '' : 's'})</div>`;
   return entries.map((entry, index) => {
     const def = queueDef(entry);
+    const cost = queueCost(entry);
     return `<button class="queue-item" data-action="queue-cancel" data-type="${type}" data-index="${index}" title="Click to cancel">` +
-      `<span>${esc(def ? def.name : entry.id)}</span><span class="queue-time">${queueLabel(queueTime(entry))}</span></button>`;
+      `<span class="queue-name">${esc(def ? def.name : entry.id)}</span>` +
+      `<span class="queue-details"><span class="queue-needs">needs ${costHtml(cost)}</span><span class="queue-time">${queueLabel(queueTime(entry))}</span></span></button>`;
   }).join('') + `<div class="queue-capacity">${entries.length} / ${queueCapacity(type)} slots used</div>`;
 }
 

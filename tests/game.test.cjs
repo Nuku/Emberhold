@@ -25,6 +25,17 @@ function game() {
   return { run, context };
 }
 
+test('every queue item lists the resources it needs', () => {
+  const { run } = game();
+  run(`state.queues.build = [{ type: 'build', id: 'hut' }];
+    state.queues.research = [{ type: 'research', id: 'writing' }];
+    state.queues.expedition = [{ type: 'expedition', id: 'oldForest' }];`);
+  for (const type of ['build', 'research', 'expedition']) {
+    assert.match(run(`renderQueue('${type}')`), /queue-needs/);
+    assert.match(run(`renderQueue('${type}')`), /needs /);
+  }
+});
+
 test('neutral tribes do not raid, while hostile tribes still can', () => {
   const { run } = game();
   run(`ensureDiplomacyEntry('human'); let raids = 0;
@@ -797,6 +808,17 @@ test('Great Migration resets research and research-derived armor', () => {
   assert.equal(run('Object.keys(state.techs).length'), 0);
   assert.equal(run('state.armor'), 0);
   assert.equal(run('state.era'), 1);
+});
+
+test('migration does not carry undiscovered resource visibility into an early start', () => {
+  const { run } = game();
+  run(`state.upgrades.practicedMigrator = 1;
+    for (const r of RESOURCES) state.seen[r.id] = true;
+    state.migrating = true; setOut()`);
+  assert.equal(run("renderStores().includes('>Coal<')"), false);
+  assert.equal(run("renderStores().includes('>Steel<')"), false);
+  assert.ok(run("renderStores().includes('>Food<')"));
+  assert.ok(run("renderStores().includes('>Wood<')"));
 });
 
 test('tribal requests use discovered cultural preferences and renew after supplying', () => {
