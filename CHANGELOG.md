@@ -4,6 +4,7 @@ All notable changes to Emberhold are recorded here, with the newest changes firs
 
 ## 2026-09-06
 
+- Added Training Yard research and buildings; each Training Yard reduces replacement Guard recruitment time by 10%, compounding without a cap.
 - Increased Steam Plant coal consumption tenfold, from 0.08 to 0.8 Coal/s per plant.
 - Fixed Forge input costs being incorrectly scaled by expedition bonuses to Iron or Coal; expeditions can now affect Forges only through an explicit Forge modifier.
 - Shortened the time between new villagers by 33%.

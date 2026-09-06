@@ -131,8 +131,7 @@ function isMephit() { return state.species === 'mephit'; }
 function armorLevel() { return Math.max(0, Number(state.armor) || 0); }
 function tradeAvailable() { return tech('currency') && localTribe(state.tradePartner); }
 function guardCap() { return bld('barracks') * 2; }
-// Future buildings and research can multiply this rate (guards per second).
-function guardRecruitmentRate() { return 1 / 120; }
+function guardRecruitmentRate() { return 1 / (120 * Math.pow(0.9, bld('trainingYard'))); }
 function updateGuardRecruitment(dt) {
   const total = state.jobs.guard || 0;
   const cap = guardCap();

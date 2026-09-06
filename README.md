@@ -119,6 +119,8 @@ invalid imports, storage failures, and offline time accounting.
   though each one has a Food upkeep. They are separate from villagers and do
   not use worker slots or population capacity. One Guard recruits automatically
   every 120 seconds, including replacements for losses, up to Barracks capacity.
+  Training Yard research unlocks Training Yards, each reducing replacement time
+  by 10% compounding with no cap.
   Weaponry and Weapon Efficiency improve their hunting yield.
 - **Expanding the field.** One-time **Expeditions** (Old Forest, Foothills,
   Sunken Ruins, Ember Vein, Glacial Peaks) permanently add passive income and

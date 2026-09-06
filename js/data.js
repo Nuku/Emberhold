@@ -143,6 +143,11 @@ const BUILDINGS = [
     effect: () => `+2 Guard capacity (maximum ${bld('barracks') * 2 + 2})`,
     req: () => tech('guards'), desc: 'a roof, a watch bell, and somewhere to hang a spear' },
 
+  { id: 'trainingYard', name: 'Training Yard', max: Infinity, scale: 1.8,
+    cost: { wood: 220, stone: 160, tools: 20 },
+    effect: () => '−10% time to recruit replacement Guards per level (compounding)',
+    req: () => tech('trainingYard'), desc: 'drills turn recruits into a watchful line' },
+
   { id: 'hospital', name: 'Hospital', max: Infinity, scale: 1.8,
     cost: { wood: 150, stone: 100, tools: 10 },
     effect: () => '−10% Guard healing and population growth time per level (compounding)',
@@ -235,6 +240,9 @@ const TECHS = [
   { id: 'guards', name: 'Guards', cost: 100,
     desc: 'Unlocks Barracks and automatically recruited Guards, separate from the population, who hunt while keeping watch.',
     req: () => tech('stoneWorking') },
+  { id: 'trainingYard', name: 'Training Yard', cost: 250,
+    desc: 'Unlocks Training Yards. Each level reduces the time to recruit replacement Guards by 10%, compounding without a cap.',
+    req: () => tech('guards') },
   { id: 'leatherArmor', name: 'Leather Armor', cost: 180,
     desc: 'Guards gain protection against raids from hardened leather and hide.',
     req: () => tech('guards') },

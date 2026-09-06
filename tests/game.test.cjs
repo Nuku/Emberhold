@@ -454,6 +454,23 @@ test('guards recruit slowly through ticks, cap without banking recruits, and rep
   assert.equal(run('state.jobs.guard'), 2);
 });
 
+test('Training Yards compound replacement Guard recruitment time without a cap', () => {
+  const { run } = game();
+  run(`state.techs.guards = true; state.bld.barracks = 1;
+    state.res.knowledge = 1000; doResearch('trainingYard');
+    state.res.wood = 10000; state.res.stone = 10000; state.res.tools = 10000`);
+  assert.equal(run("tech('trainingYard')"), true);
+  assert.equal(run("bld('trainingYard')"), 0);
+  assert.equal(run('1 / guardRecruitmentRate()'), 120);
+  for (let level = 1; level <= 5; level++) {
+    run("doBuild('trainingYard')");
+    assert.equal(run("bld('trainingYard')"), level);
+    assert.ok(Math.abs(run('1 / guardRecruitmentRate()') - 120 * 0.9 ** level) < 1e-10);
+  }
+  run('state.jobs.guard = 1; state.guardRecruitment = 0; updateGuardRecruitment(120 * 0.9 ** 5)');
+  assert.equal(run('state.jobs.guard'), 2);
+});
+
 test('guard recruitment progress survives saves and older saves default to zero', () => {
   const { run } = game();
   run(`state.techs.guards = true; state.bld.barracks = 1;
