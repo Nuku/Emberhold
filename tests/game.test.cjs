@@ -613,6 +613,19 @@ test('Forges automatically smelt Steel, throttle on inputs, and migrate old Foun
   assert.equal(run('CRAFTS.some(c => c.id === "steel")'), false);
 });
 
+test('Forge input costs are not scaled by expedition production bonuses', () => {
+  const { run } = game();
+  run(`state.bld.forge = 1; state.techs.metallurgy = true;
+    state.expeditions.grayrocksQuarries = true; state.expeditions.ashfenFires = true;
+    state.res.iron = 100; state.res.coal = 100; state.res.steel = 0;
+    const detail = {}; production(1, detail)`);
+  assert.equal(run(`detail.iron.find(e => e.label.startsWith('Forge inputs')).amount`), -0.6);
+  assert.equal(run(`detail.coal.find(e => e.label.startsWith('Forge inputs')).amount`), -0.4);
+  run(`EXPEDITIONS.find(e => e.id === 'ashfenFires').mods.forge = 1.25;
+    const detailWithForgeBonus = {}; production(1, detailWithForgeBonus)`);
+  assert.ok(run(`detailWithForgeBonus.steel[0].factors.some(([label, factor]) => label === 'The Sleeping Fires (Forges)' && factor === 1.25)`));
+});
+
 test('factory lines unlock through research, persist in saves, and default safely', () => {
   const { run } = game();
   run(`state.bld.factory = 1; chooseFactoryRecipe('machinery')`);

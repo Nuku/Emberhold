@@ -498,6 +498,19 @@ function settlementProductionFactors(res) {
   return factors;
 }
 
+function forgeProductionFactors() {
+  const factors = [[landingDef().name, landingMod('steel')], [lineageDef(state.species).name, lineageMod('steel')]];
+  for (const e of EXPEDITIONS) {
+    if (expDone(e.id) && e.mods?.forge) factors.push([`${e.name} (Forges)`, e.mods.forge]);
+  }
+  if (tech('civics')) {
+    for (const def of [civicDef(state.policy), governorDef(state.governor), ...(state.council || []).map(councilorDef)]) {
+      if (def) factors.push([def.name, def.mods?.steel || 1]);
+    }
+  }
+  return factors;
+}
+
 function moraleCap() {
   return 100 + (tech('festivals') ? 15 : 0) + (tech('civicHarmony') ? 20 : 0);
 }
@@ -658,13 +671,23 @@ function production(dt = 0.25, breakdown = null) {
   scale('aether', [...global, ['Glacial Peaks', expDone('glacialPeaks') ? 1.10 : 1]]);
   for (const res of ['coal', 'tools', 'currency']) scale(res, global);
 
+  if (bld('steamPlant') > 0) {
+    add('power', `Steam Plants: ${bld('steamPlant')} × 1.2/s`, bld('steamPlant') * 1.2);
+    add('coal', `Steam Plant fuel: ${bld('steamPlant')} × 0.08/s`, -bld('steamPlant') * 0.08);
+  }
+  if (bld('dynamo') > 0) add('power', `Dynamos: ${bld('dynamo')} × 1.5/s`, bld('dynamo') * 1.5);
+  // The land, lineage, and civic choices shape output; population upkeep is
+  // applied afterward so food policies do not alter how much villagers eat.
+  for (const r in rates) scale(r, settlementProductionFactors(r));
+  // Reserve inputs after other consumption; bonuses affect output, not costs.
   // Forges are independent production buildings: each one smelts Steel
-  // continuously, using Iron and Coal. Output bonuses apply to Steel, while
-  // the material recipe remains fixed.
+  // continuously, using fixed amounts of Iron and Coal. Keep this after the
+  // settlement scaling pass so expedition bonuses affect supply, not recipe
+  // costs; the factory below can still account for Forge consumption.
   if (bld('forge') > 0 && dt > 0) {
     const rate = 0.04;
     const inputs = { iron: 0.6, coal: 0.4 };
-    const factors = settlementProductionFactors('steel');
+    const factors = forgeProductionFactors();
     const output = factors.reduce((value, [, factor]) => value * factor, bld('forge') * rate);
     let fraction = Math.min(1, Math.max(0, capacityOf('steel') - state.res.steel) / (output * dt));
     let limitation = fraction < 1 ? 'Steel storage space' : 'Forge utilization';
@@ -678,15 +701,6 @@ function production(dt = 0.25, breakdown = null) {
     for (const r in inputs) add(r, `Forge inputs: ${bld('forge')} × ${inputs[r]}/s`, -inputs[r] * bld('forge'), [[limitation, fraction]]);
   }
 
-  if (bld('steamPlant') > 0) {
-    add('power', `Steam Plants: ${bld('steamPlant')} × 1.2/s`, bld('steamPlant') * 1.2);
-    add('coal', `Steam Plant fuel: ${bld('steamPlant')} × 0.08/s`, -bld('steamPlant') * 0.08);
-  }
-  if (bld('dynamo') > 0) add('power', `Dynamos: ${bld('dynamo')} × 1.5/s`, bld('dynamo') * 1.5);
-  // The land, lineage, and civic choices shape output; population upkeep is
-  // applied afterward so food policies do not alter how much villagers eat.
-  for (const r in rates) scale(r, settlementProductionFactors(r));
-  // Reserve inputs after other consumption; bonuses affect output, not costs.
   if (bld('factory') > 0 && dt > 0) {
     const recipe = factoryRecipe();
     const factors = settlementProductionFactors(recipe.id);
