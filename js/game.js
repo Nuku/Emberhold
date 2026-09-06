@@ -1466,11 +1466,27 @@ function importSave() {
   const data = window.prompt('Paste your save string:');
   if (!data) return;
   try {
-    const s = normalizeSave(JSON.parse(decodeURIComponent(escape(atob(data.trim())))));
-    localStorage.setItem(SAVE_KEY, JSON.stringify(s));
+    const trimmed = data.trim();
+    let parsed;
+    try {
+      parsed = JSON.parse(trimmed);
+    } catch (_) {
+      const binary = atob(trimmed);
+      const bytes = Uint8Array.from(binary, char => char.charCodeAt(0));
+      parsed = JSON.parse(new TextDecoder().decode(bytes));
+    }
+    const s = normalizeSave(parsed);
+    const serialized = JSON.stringify(s);
+    localStorage.setItem(SAVE_KEY, serialized);
+    const stored = JSON.parse(localStorage.getItem(SAVE_KEY));
+    if (stored.res.knowledge !== s.res.knowledge || stored.trial?.id !== s.trial?.id) {
+      throw new Error('The browser did not retain the imported save');
+    }
     location.reload();
   } catch (e) {
-    addLog('That save string could not be read.', 'log-bad');
+    console.error('Save import failed:', e);
+    addLog(`Save import failed: ${e.message || 'unrecognized save format'}`, 'log-bad');
+    render();
   }
 }
 function resetGame() {
