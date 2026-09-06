@@ -738,6 +738,15 @@ const UPGRADES = [
   { id: 'researchQueue', name: 'Grand Archive', max: 1, costs: [8],
     effect: '+1 research queue slot',
     desc: 'more minds can pursue old questions at once' },
+  { id: 'farHorizons', name: 'Far Horizons', max: 1, costs: [125],
+    effect: 'lineages may settle in any habitat',
+    desc: 'the old boundaries between people and place no longer hold' },
+  { id: 'fearOfTheConqueror', name: 'Fear of the Conqueror', max: 1, costs: [300],
+    effect: 'victories erode enemy Military strength by the battle stage',
+    desc: 'every defeat teaches the conquered to fear the next standard' },
+  { id: 'practicedMigrator', name: 'Practiced Migrator', max: 1, costs: [250],
+    effect: 'start in the Age of Stone with Stone Working researched, +5 villagers, and +5 population cap',
+    desc: 'the road has become familiar enough to carry the first hard-won lessons forward' },
 ];
 
 // --- expeditions: one-time, expand the playing field permanently ---

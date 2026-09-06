@@ -36,6 +36,60 @@ test('neutral tribes do not raid, while hostile tribes still can', () => {
   assert.equal(run('raids'), 1);
 });
 
+test('Far Horizons is gated, expensive, permanent, and bypasses lineage habitat limits', () => {
+  const { run } = game();
+  run("state.migrating = true; state.pendingLanding = 'emberplain'; state.echoes = 125");
+  assert.equal(run("renderShop().includes('Far Horizons')"), false);
+  assert.equal(run("lineageSelectable('otterfolk', 'emberplain')"), false);
+
+  run("state.lineagesUnlocked.otterfolk = true");
+  assert.equal(run("renderShop().includes('Far Horizons')"), true);
+  run("migrationBuy('farHorizons')");
+  assert.equal(run("state.upgrades.farHorizons"), 1);
+  assert.equal(run("state.echoes"), 0);
+  assert.equal(run("lineageSelectable('otterfolk', 'emberplain')"), true);
+
+  run("state.migrating = false; state.migrating = true; state.echoes = 125; migrationBuy('farHorizons')");
+  assert.equal(run("state.upgrades.farHorizons"), 1);
+  assert.equal(run("state.echoes"), 125);
+});
+
+test('Fear of the Conqueror requires ten Commonality lineages and erodes victorious targets by stage', () => {
+  const { run } = game();
+  run(`state.migrating = true; state.echoes = 300; state.diplomacy.human = { conquered: true, disposition: 0, militaryStrength: 100, economicStrength: 100 };
+    state.commonalityLineages = Object.fromEntries(LINEAGES.filter(l => l.id !== 'human').slice(0, 10).map(l => [l.id, true]));`);
+  assert.equal(run("renderShop().includes('Fear of the Conqueror')"), true);
+  run("migrationBuy('fearOfTheConqueror')");
+  assert.equal(run("state.upgrades.fearOfTheConqueror"), 1);
+  assert.equal(run("state.echoes"), 0);
+
+  run(`state.tradePartner = 'clocklings'; state.tradePartners = ['clocklings'];
+    state.diplomacy.clocklings = { conquered: false, disposition: 0, militaryStrength: 100, economicStrength: 100 };
+    state.techs.guards = true; state.jobs.guard = 100; state.res.food = 1000; state.res.tools = 100;
+    Math.random = () => 0.5; doRaid('clocklings', 'raid')`);
+  assert.equal(run("state.diplomacy.clocklings.militaryStrength"), 99);
+  run("state.diplomacy.clocklings.militaryStrength = 100; state.res.food = 1000; state.res.tools = 100; doRaid('clocklings', 'siege')");
+  assert.equal(run("state.diplomacy.clocklings.militaryStrength"), 92);
+});
+
+test('Practiced Migrator requires all area expeditions and starts future settlements in Stone', () => {
+  const { run } = game();
+  run('state.migrating = true; state.echoes = 250');
+  assert.equal(run("renderShop().includes('Practiced Migrator')"), false);
+
+  run("for (const expedition of EXPEDITIONS.filter(e => e.landing)) state.expeditions[expedition.id] = true");
+  assert.equal(run("renderShop().includes('Practiced Migrator')"), true);
+  run("migrationBuy('practicedMigrator')");
+  assert.equal(run("state.upgrades.practicedMigrator"), 1);
+  assert.equal(run("state.echoes"), 0);
+
+  run("state.pendingLanding = 'greenfold'; state.pendingSpecies = 'human'; state.pendingLandings = [{ id: 'greenfold' }]; setOut()");
+  assert.equal(run('state.era'), 2);
+  assert.equal(run('state.techs.stoneWorking'), true);
+  assert.equal(run('state.pop'), 9);
+  assert.equal(run('popCap()'), 11);
+});
+
 test('multiple local tribes can be active at once', () => {
   const { run } = game();
   run(`state.techs = { currency: true, diplomacy: true };
@@ -561,7 +615,7 @@ test('Overflow suppresses non-trial storage bonuses while sworn', () => {
     state.trial = { id: 'overflow', daysActive: 0, buildings: 0 }`);
   assert.equal(run('capacityOf("food")'), 300);
   run('state.trial = null');
-  assert.equal(run('capacityOf("food")'), 334);
+  assert.equal(run('capacityOf("food")'), 481);
 });
 
 test('starvation trims total assignments to surviving population', () => {

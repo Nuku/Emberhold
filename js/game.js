@@ -132,7 +132,7 @@ function habitatAllows(def, landingId) {
   return !!def && (!def.habitats || !!landing && def.habitats.some(h => (landing.habitats || []).includes(h)));
 }
 function lineageSelectable(id, landingId = state.pendingLanding) {
-  return lineageUnlocked(id) && habitatAllows(LINEAGES.find(l => l.id === id), landingId);
+  return lineageUnlocked(id) && (upg('farHorizons') > 0 || habitatAllows(LINEAGES.find(l => l.id === id), landingId));
 }
 function localTribeIds() {
   const ids = Array.isArray(state.tradePartners)
@@ -312,6 +312,13 @@ function alliedTribes() {
 function conqueredRealm() {
   return Object.values(state.diplomacy || {}).some(entry => entry?.conquered);
 }
+function commonalityLineageCount() {
+  return Object.keys(state.commonalityLineages || {})
+    .filter(id => id !== 'human' && state.commonalityLineages[id]).length;
+}
+function fearOfTheConquerorAvailable() {
+  return conqueredRealm() && commonalityLineageCount() >= 10;
+}
 function commonalityActive() { return tech('commonality') && state.policy === 'commonality'; }
 function conqueredLineage() {
   const id = localTribeIds().find(id => state.diplomacy?.[id]?.conquered);
@@ -363,6 +370,7 @@ function expeditionCost(def) {
 function siteExpeditionsComplete() {
   return LANDINGS.every(l => EXPEDITIONS.some(e => e.landing === l.id && expDone(e.id)));
 }
+function practicedMigratorAvailable() { return siteExpeditionsComplete(); }
 
 // ---------- landings ----------
 function landingDef() { return LANDINGS.find(l => l.id === state.landing) || LANDINGS[0]; }
@@ -444,6 +452,7 @@ function isFull(id) { return state.res[id] >= capacityOf(id) - 0.001; }
 
 function popCap() {
   let cap = 6 + 2 * upg('wanderers');
+  if (upg('practicedMigrator')) cap += 5;
   cap += bld('hut') * (3 + upg('grandHut') + (perm('twinSouls') ? 2 : 0));
   cap += bld('aqueduct') * 4;
   if (trialActive('solitude')) cap = Math.min(cap, 10);
@@ -1155,6 +1164,9 @@ function chooseLanding(id) {
 function migrationBuy(id) {
   const def = UPGRADES.find(u => u.id === id);
   if (!def || !state.migrating) return;
+  if (id === 'farHorizons' && !LINEAGES.some(l => l.id !== 'human' && lineageUnlocked(l.id))) return;
+  if (id === 'fearOfTheConqueror' && !fearOfTheConquerorAvailable()) return;
+  if (id === 'practicedMigrator' && !practicedMigratorAvailable()) return;
   const lvl = upg(id);
   if (lvl >= def.max) return;
   const cost = def.costs[lvl];
@@ -1237,6 +1249,11 @@ function setOut(trialId = null) {
   for (const t in ERA_GATE) if (state.techs[t] && ERA_GATE[t] > state.era) state.era = ERA_GATE[t];
 
   state.pop = 4 + 2 * upg('wanderers');
+  if (upg('practicedMigrator')) {
+    state.era = 2;
+    state.techs.stoneWorking = true;
+    state.pop += 5;
+  }
   if (up.lorekeepers) {
     state.bld.library = 1;
     state.res.knowledge = 30;
@@ -1463,6 +1480,15 @@ function doAssign(job, delta) {
   if (delta < 0 && state.jobs[job] <= 0) return;
   state.jobs[job] += delta;
 }
+function setJob(job, amount) {
+  if (!Number.isFinite(amount) || amount < 0) return false;
+  const current = Number(state.jobs[job] || 0);
+  const target = Math.floor(amount);
+  if (target === current) return true;
+  if (target > current && target - current > unassigned()) return false;
+  doAssign(job, target - current);
+  return Number(state.jobs[job] || 0) === target;
+}
 
 function doAssignPerformer(delta) {
   if (!JOBS.performer.unlock()) return;
@@ -1584,6 +1610,12 @@ function doRaid(id, stageId = 'raid') {
   entry.disposition = Math.max(-100, entry.disposition - (succeeded ? 28 : 18));
 
   if (succeeded) {
+    if (upg('fearOfTheConqueror') > 0) {
+      const erosion = RAID_STAGES.indexOf(stage) + 1;
+      const before = militaryStrength(entry);
+      entry.militaryStrength = Math.max(1, before - erosion);
+      addLog(`The victory spreads fear through the ${tribeDef(id).name}; their Military strength falls by ${erosion}.`, 'log-good');
+    }
     if (stage.id === 'siege') entry.siegeReady = true;
     state.morale = Math.min(moraleCap(), state.morale + 3);
     const common = raidLoot(id).filter(r => capacityOf(r) === Infinity || !isFull(r));
@@ -2315,6 +2347,9 @@ function renderShop() {
     h += '<div class="res-note">Points can be added and removed only while a migration is being prepared — a fresh respec before every founding, handy for swearing trials.</div>';
   }
   for (const u of UPGRADES) {
+    if (u.id === 'farHorizons' && !LINEAGES.some(l => l.id !== 'human' && lineageUnlocked(l.id))) continue;
+    if (u.id === 'fearOfTheConqueror' && !fearOfTheConquerorAvailable()) continue;
+    if (u.id === 'practicedMigrator' && !practicedMigratorAvailable()) continue;
     const lvl = upg(u.id);
     const maxed = lvl >= u.max;
     const nextCost = maxed ? null : u.costs[lvl];
@@ -2396,7 +2431,7 @@ function renderLog() {
 function loadLatestUpdatesTooltip() {
   const button = document.getElementById('btn-updates');
   if (!button || typeof fetch !== 'function' || typeof DOMParser !== 'function') return;
-  fetch('changelog.html?v=hidden-stores-20260906a')
+  fetch('changelog.html?v=ancestral-shop-20260906a')
     .then(response => response.ok ? response.text() : Promise.reject(new Error('changelog unavailable')))
     .then(source => {
       const doc = new DOMParser().parseFromString(source, 'text/html');
@@ -2463,6 +2498,7 @@ function emitAutomationEvent(type, detail = {}) {
 
 const automationActionFns = {
   assign: doAssign,
+  setJob,
   assignDiplomat: doAssignDiplomat,
   assignExplorer: doAssignExplorer,
   assignPerformer: doAssignPerformer,
@@ -2527,6 +2563,7 @@ window.emberhold = {
     tech,
     trialActive,
     unassigned,
+    setJob,
   },
   render,
   switchTab,

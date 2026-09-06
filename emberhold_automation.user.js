@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Emberhold Automation
 // @namespace    https://github.com/emberhold
-// @version      1.12.0
+// @version      1.18.0
 // @description  Configurable automation for Emberhold
 // @updateURL    https://raw.githubusercontent.com/Nuku/Emberhold-Automation/main/emberhold_automation.user.js
 // @downloadURL  https://raw.githubusercontent.com/Nuku/Emberhold-Automation/main/emberhold_automation.user.js
@@ -125,9 +125,17 @@
       ['miner', state.pop >= 6 ? 1 : 0],
       ['thinker', state.pop >= 8 ? 1 : 0],
     ];
-    const minimum = id => effectiveJobRate && effectiveJobRate(id) <= 0
-      ? 0 : minimums.find(item => item[0] === id)?.[1] || 0;
     const rates = api().helpers?.production?.(1) || {};
+    const capacityOf = api().helpers?.capacityOf;
+    const needsWork = id => {
+      const resource = defs[id]?.res;
+      if (!resource) return true;
+      const full = typeof capacityOf === 'function' && Number.isFinite(capacityOf(resource)) &&
+        (state.res[resource] || 0) >= capacityOf(resource) - 0.001;
+      return !full || (demand[resource] || 0) > 0 || (rates[resource] || 0) < 0;
+    };
+    const minimum = id => !needsWork(id) || (effectiveJobRate && effectiveJobRate(id) <= 0)
+      ? 0 : minimums.find(item => item[0] === id)?.[1] || 0;
     const needs = [
       ['forager', 'food', 60],
       ['woodcutter', 'wood', (demand.wood || 0) + 40],
@@ -140,19 +148,37 @@
       .filter(id => defs[id].res && Number(defs[id].base) > 0 &&
         !needs.some(([job]) => job === id))
       .map(id => [id, defs[id].res, reserve(defs[id].res)]);
-    const need = [...needs, ...specialistNeeds].find(([job, resource, target]) => assignable.includes(job) &&
-      (stock(resource) < target || (resource === 'food' && (rates.food || 0) < 0)));
+    const demandNeeds = assignable
+      .filter(id => defs[id].res && Number(defs[id].base) > 0 && (demand[defs[id].res] || 0) > 0)
+      .map(id => [id, defs[id].res,
+        Math.max(reserve(defs[id].res), Math.ceil((demand[defs[id].res] || 0) * 0.10))]);
+    const need = [...demandNeeds, ...needs, ...specialistNeeds].find(([job, resource, target]) => assignable.includes(job) &&
+      (stock(resource) < target || (rates[resource] || 0) < 0));
 
     const available = Math.max(0, state.pop - Object.values(state.jobs || {})
       .reduce((sum, n) => sum + (Number(n) || 0), 0));
     const underMinimum = minimums.find(([id, minimumCount]) =>
-      minimumCount > 0 && assignable.includes(id) && count(id) < minimumCount);
+      minimumCount > 0 && assignable.includes(id) && needsWork(id) && count(id) < minimumCount);
     const productionJobs = assignable.filter(id => defs[id].res && Number(defs[id].base) > 0 &&
-      (!effectiveJobRate || effectiveJobRate(id) > 0));
+      (!effectiveJobRate || effectiveJobRate(id) > 0) && needsWork(id));
     const balancedJob = productionJobs.sort((a, b) => count(a) - count(b))[0];
     const target = underMinimum?.[0] || (need && need[0]) || balancedJob;
+    const reclaimable = Object.keys(state.jobs || {}).filter(id => {
+      const zeroed = effectiveJobRate && defs[id]?.res && Number(defs[id].base) > 0 && effectiveJobRate(id) <= 0;
+      return id !== target && count(id) > minimum(id) && (zeroed || !needsWork(id));
+    });
+    if (reclaimable.length) {
+      for (const donor of reclaimable) {
+        const amount = Math.max(0, count(donor) - minimum(donor));
+        if (api().actions?.setJob) invoke('setJob', donor, minimum(donor));
+        else for (let i = 0; i < amount; i++) invoke('assign', donor, -1);
+      }
+      return;
+    }
     if (available > 0 && target) {
-      invoke('assign', target, 1);
+      const assignments = need ? available : 1;
+      if (api().actions?.setJob) invoke('setJob', target, count(target) + assignments);
+      else for (let i = 0; i < assignments; i++) invoke('assign', target, 1);
       return;
     }
 
@@ -164,8 +190,14 @@
       .sort((a, b) => {
         const aZeroed = effectiveJobRate && defs[a]?.res && Number(defs[a].base) > 0 && effectiveJobRate(a) <= 0;
         const bZeroed = effectiveJobRate && defs[b]?.res && Number(defs[b].base) > 0 && effectiveJobRate(b) <= 0;
-        return Number(bZeroed) - Number(aZeroed) ||
-          (count(b) - minimum(b)) - (count(a) - minimum(a));
+        const surplus = id => {
+          const resource = defs[id]?.res;
+          return resource ? Math.max(0, (state.res[resource] || 0) - (demand[resource] || 0)) - reserve(resource) : 0;
+        };
+        const aDemanded = defs[a]?.res && (demand[defs[a].res] || 0) > 0;
+        const bDemanded = defs[b]?.res && (demand[defs[b].res] || 0) > 0;
+        return Number(bZeroed) - Number(aZeroed) || Number(aDemanded) - Number(bDemanded) ||
+          surplus(b) - surplus(a) || (count(b) - minimum(b)) - (count(a) - minimum(a));
       });
     const donor = donors[0];
     if (donor && target) {
