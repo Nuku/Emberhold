@@ -8,6 +8,7 @@ const OFFLINE_RATE = 1;         // offline runs at real time
 const SPY_TRAINING_TIME = 180;
 const ESPIONAGE_TIME = 20 * 60;
 const SPY_CAPTURE_CHANCE = 0.0001;
+const MAX_LOCAL_TRIBES = 3;
 
 let state = null;
 let lastStoredSave = null;
@@ -49,6 +50,7 @@ function defaultState() {
     species: 'human',
     lineagesUnlocked: { human: true },
     tradePartner: 'human',
+    tradePartners: ['human'],
     tribesSeen: { human: true },
     diplomacy: {},
     diplomats: {},
@@ -132,13 +134,21 @@ function habitatAllows(def, landingId) {
 function lineageSelectable(id, landingId = state.pendingLanding) {
   return lineageUnlocked(id) && habitatAllows(LINEAGES.find(l => l.id === id), landingId);
 }
-function localTribe(id) { return id === state.tradePartner && habitatAllows(tribeDef(id), state.landing); }
+function localTribeIds() {
+  const ids = Array.isArray(state.tradePartners)
+    ? (state.tradePartner && state.tradePartners[0] !== state.tradePartner
+      ? [state.tradePartner]
+      : state.tradePartners)
+    : [state.tradePartner];
+  return [...new Set(ids.filter(id => typeof id === 'string' && habitatAllows(tribeDef(id), state.landing)))];
+}
+function localTribe(id) { return localTribeIds().includes(id); }
 function habitatText(def) {
   return def.habitats ? `Habitat: ${LANDINGS.filter(l => habitatAllows(def, l.id)).map(l => l.name).join(', ')}.` : 'Habitat: any landing.';
 }
 function isMephit() { return state.species === 'mephit'; }
 function armorLevel() { return Math.max(0, Number(state.armor) || 0); }
-function tradeAvailable() { return tech('currency') && localTribe(state.tradePartner); }
+function tradeAvailable() { return tech('currency') && localTribeIds().length > 0; }
 function guardCap() { return bld('barracks') * 2; }
 function guardRecruitmentRate() { return 1 / (120 * Math.pow(0.9, bld('trainingYard'))); }
 function updateGuardRecruitment(dt) {
@@ -153,7 +163,9 @@ function updateGuardRecruitment(dt) {
   state.jobs.guard = total + recruits;
   state.guardRecruitment = total + recruits >= cap ? 0 : state.guardRecruitment - recruits;
 }
-function randomTownStrength() {
+function randomTownStrength(tier = 0) {
+  if (tier === 1) return 110 + Math.floor(Math.random() * 61);
+  if (tier >= 2) return 150 + Math.floor(Math.random() * 101);
   const band = Math.random();
   if (band < 0.20) return 70 + Math.floor(Math.random() * 20);
   if (band < 0.80) return 90 + Math.floor(Math.random() * 40);
@@ -174,15 +186,15 @@ function randomDiplomacyRequest(id) {
   const amount = Math.max(10, Math.round(Math.min(target, cap * 0.8) / 5) * 5);
   return { res: res.id, amount, age: era() };
 }
-function ensureDiplomacyEntry(id) {
+function ensureDiplomacyEntry(id, strengthTier = 0) {
   state.diplomacy = state.diplomacy || {};
   if (!state.diplomacy[id]) {
-    const military = randomTownStrength();
+    const military = randomTownStrength(strengthTier);
     state.diplomacy[id] = {
       disposition: Math.floor(Math.random() * 101) - 50,
       militaryStrength: military,
       militaryBaseStrength: military,
-      economicStrength: randomTownStrength(),
+      economicStrength: randomTownStrength(strengthTier),
       request: randomDiplomacyRequest(id),
     };
   } else {
@@ -292,19 +304,22 @@ function updateSpies(dt) {
 function performerCount() { return state.jobs?.performer || 0; }
 function explorerCount() { return state.jobs?.explorer || 0; }
 function alliedTribes() {
-  const entry = state.diplomacy && state.diplomacy[state.tradePartner];
-  return localTribe(state.tradePartner) && (entry?.disposition >= 80 || entry?.conquered) ? 1 : 0;
+  return localTribeIds().filter(id => {
+    const entry = state.diplomacy && state.diplomacy[id];
+    return entry?.disposition >= 80 || entry?.conquered;
+  }).length;
 }
 function conqueredRealm() {
   return Object.values(state.diplomacy || {}).some(entry => entry?.conquered);
 }
 function commonalityActive() { return tech('commonality') && state.policy === 'commonality'; }
 function conqueredLineage() {
-  const entry = state.diplomacy && state.diplomacy[state.tradePartner];
+  const id = localTribeIds().find(id => state.diplomacy?.[id]?.conquered);
+  const entry = id && state.diplomacy && state.diplomacy[id];
   if (!commonalityActive() || !entry?.conquered) return null;
   state.commonalityLineages = state.commonalityLineages || {};
-  state.commonalityLineages[state.tradePartner] = true;
-  return lineageDef(state.tradePartner);
+  state.commonalityLineages[id] = true;
+  return lineageDef(id);
 }
 function conqueredLineageMod(res) {
   const mod = conqueredLineage()?.mods?.[res] || 1;
@@ -372,14 +387,32 @@ function rollLanding(excludeId) {
   return pick;
 }
 function rollTradePartner() {
-  const nonHuman = TRIBES.filter(t => t.id !== 'human' && habitatAllows(t, state.landing));
-  const pick = Math.random() < 0.35
+  const eligible = TRIBES.filter(t => habitatAllows(t, state.landing));
+  const nonHuman = eligible.filter(t => t.id !== 'human');
+  const first = Math.random() < 0.35 && nonHuman.length
     ? nonHuman[Math.floor(Math.random() * nonHuman.length)]
     : TRIBES[0];
-  state.tradePartner = pick.id;
-  state.tribesSeen[pick.id] = true;
-  ensureDiplomacyEntry(pick.id);
-  return pick;
+  state.tradePartners = [first.id];
+  state.tradePartner = first.id;
+  state.tribesSeen[first.id] = true;
+  ensureDiplomacyEntry(first.id, 0);
+  return first;
+}
+function desiredLocalTribeCount() {
+  return 1 + (explorerCount() > 0 && (state.surveyPoints || 0) >= 1000 ? 1 : 0) + (era() >= 3 ? 1 : 0);
+}
+function discoverTradePartners() {
+  if (!Array.isArray(state.tradePartners)) state.tradePartners = [state.tradePartner];
+  const eligible = TRIBES.filter(t => habitatAllows(t, state.landing) && !state.tradePartners.includes(t.id));
+  while (state.tradePartners.length < Math.min(MAX_LOCAL_TRIBES, desiredLocalTribeCount()) && eligible.length) {
+    const tier = state.tradePartners.length;
+    const pick = eligible.splice(Math.floor(Math.random() * eligible.length), 1)[0];
+    state.tradePartners.push(pick.id);
+    state.tribesSeen[pick.id] = true;
+    ensureDiplomacyEntry(pick.id, tier);
+    addLog(`A new trading partner appears nearby: ${pick.name}. Their town is stronger and more prosperous than the last contact.`, 'log-important');
+  }
+  state.tradePartner = state.tradePartners[0];
 }
 function perm(key) {
   switch (key) {
@@ -460,6 +493,11 @@ function canAfford(cost) {
   for (const r in cost) if (state.res[r] < cost[r]) return false;
   return true;
 }
+function canBuild(id) {
+  const def = BUILDINGS.find(building => building.id === id);
+  if (!def || bld(id) >= def.max || (def.req && !def.req())) return false;
+  return !(trialActive('overflow') && Object.values(STORAGE).some(s => s.bld === id));
+}
 function payCost(cost) {
   for (const r in cost) state.res[r] -= cost[r];
 }
@@ -524,8 +562,7 @@ function queueEntry(type, id) {
   const def = queueDef({ type, id });
   if (!def || state.queues[type].length >= queueCapacity(type)) return false;
   if (type === 'build') {
-    if (bld(id) >= def.max || (def.req && !def.req())) return false;
-    if (trialActive('overflow') && Object.values(STORAGE).some(s => s.bld === id)) return false;
+    if (!canBuild(id)) return false;
   } else if (type === 'research') {
     if (tech(id) || (def.req && !def.req())) return false;
   } else {
@@ -661,7 +698,7 @@ function updateMorale(dt, foodRate) {
   if (winter) delta -= 0.006;
   if (bld('shrine') > 0) delta += state.morale < 75 ? 0.012 : 0;
   delta += performerCount() * 0.10;
-  if (state.diplomacy?.[state.tradePartner]?.conquered && !commonalityActive()) delta -= 1.0;
+  delta -= localTribeIds().filter(id => state.diplomacy?.[id]?.conquered && !commonalityActive()).length;
   const before = moraleBand(state.morale);
   state.morale = Math.max(0, Math.min(moraleCap(), state.morale + delta * dt));
   const after = moraleBand(state.morale);
@@ -675,6 +712,7 @@ function updateMorale(dt, foodRate) {
 function updateExploration(dt) {
   if (!perm('explorers')) return;
   state.surveyPoints = (state.surveyPoints || 0) + explorerCount() * 0.025 * dt;
+  discoverTradePartners();
 }
 
 function randomRange(pair) {
@@ -778,7 +816,8 @@ function production(dt = 0.25, breakdown = null) {
   if (expDone('sunkenRuins')) add('knowledge', 'Sunken Ruins passive', 0.3);
   if (expDone('emberVein')) add('coal', 'Ember Vein passive', 0.5);
   if (expDone('glacialPeaks')) add('aether', 'Glacial Peaks passive', 0.1);
-  if (tradeAvailable()) add('currency', `Trade with ${tribeDef(state.tradePartner).name}`, 0.05);
+  const localIds = localTribeIds();
+  if (tradeAvailable()) add('currency', `Trade with ${localIds.map(id => tribeDef(id).name).join(' and ')}`, 0.05 * localIds.length);
   if (era() >= 2) add('copper', 'Stone age trace deposits', 0.02);
 
   // per-resource modifiers
@@ -978,7 +1017,7 @@ function updateTrial(dt) {
 
 function updateDiplomacy(dt) {
   if (!state.diplomacy) return;
-  for (const id of [state.tradePartner]) {
+  for (const id of localTribeIds()) {
     if (!localTribe(id) || !state.diplomacy[id]) continue;
     const entry = state.diplomacy[id];
     if (entry.conquered) continue;
@@ -989,9 +1028,8 @@ function updateDiplomacy(dt) {
   state.diplomacyEventT = (state.diplomacyEventT || 0) + dt;
   if (state.diplomacyEventT < 180) return;
   state.diplomacyEventT = 0;
-  const ids = localTribe(state.tradePartner) && state.diplomacy[state.tradePartner]
-    ? [state.tradePartner] : [];
-  if (!ids.length || state.diplomacy[ids[0]].conquered) return;
+  const ids = localTribeIds().filter(id => state.diplomacy[id] && !state.diplomacy[id].conquered);
+  if (!ids.length) return;
   const id = ids[Math.floor(Math.random() * ids.length)];
   const entry = state.diplomacy[id];
   const tribe = tribeDef(id);
@@ -1132,7 +1170,9 @@ function migrationRefund(id) {
 function setOut(trialId = null) {
   if (!state.migrating && !trialId) return;
   const settings = trialId ? {
-    tradePartner: state.tradePartner, policy: state.policy,
+    tradePartner: state.tradePartner,
+    tradePartners: [...(state.tradePartners || [state.tradePartner])],
+    policy: state.policy,
     governor: state.governor, council: [...state.council],
   } : null;
   const landing = LANDINGS.find(l => l.id === (trialId ? state.landing : state.pendingLanding)) ||
@@ -1216,6 +1256,7 @@ function setOut(trialId = null) {
   if (!trialId) {
     const tribe = rollTradePartner();
     addLog(`${tribe.name} are encountered nearby. ${tribe.text} Trade will bring funds once Currency is researched.`, 'log-important');
+    discoverTradePartners();
   }
   if (newlyUnlocked.length) {
     addLog(`${newlyUnlocked.join(' and ')} lineage${newlyUnlocked.length === 1 ? '' : 's'} may now be chosen at future migrations.`, 'log-good');
@@ -1312,10 +1353,10 @@ function tick(dt) {
 function doBuild(id) {
   const def = BUILDINGS.find(b => b.id === id);
   if (!def) return;
-  if (bld(id) >= def.max) return;
-  if (def.req && !def.req()) return;
-  if (trialActive('overflow') && Object.values(STORAGE).some(s => s.bld === id)) {
+  if (!canBuild(id)) {
+    if (trialActive('overflow') && Object.values(STORAGE).some(s => s.bld === id)) {
     addLog('The oath of the Overflow forbids new storage.', 'log-bad');
+    }
     return;
   }
   const cost = buildingCost(def);
@@ -1363,6 +1404,7 @@ function doResearch(id) {
   if (ERA_GATE[id] && ERA_GATE[id] > state.era) {
     state.era = ERA_GATE[id];
     addLog(`The village enters the ${ERAS[state.era - 1].name}.`, 'log-important');
+    discoverTradePartners();
   }
 }
 
@@ -1432,6 +1474,7 @@ function doAssignExplorer(delta) {
   if (delta < 0 && explorerCount() <= 0) return;
   state.jobs.explorer += delta;
   if (state.jobs.explorer <= 0) delete state.jobs.explorer;
+  discoverTradePartners();
 }
 
 function doAssignDiplomat(id, delta) {
@@ -1614,6 +1657,8 @@ function normalizeSave(s) {
   const object = value => value !== null && typeof value === 'object' && !Array.isArray(value);
   if (!object(s) || s.v !== 1 || !object(s.res) || !object(s.jobs) || !object(s.techs))
     throw new Error('Invalid save');
+  const savedTradePartners = Array.isArray(s.tradePartners);
+  const legacyTradePartner = s.tradePartner;
   // Reject broken shapes and non-finite numbers before replacing any stored game.
   function validate(value) {
     if (typeof value === 'number' && !Number.isFinite(value)) throw new Error('Invalid number');
@@ -1636,6 +1681,10 @@ function normalizeSave(s) {
     for (const n of Object.values(s[key]))
       if (typeof n !== 'number' || n < 0) throw new Error(`Invalid ${key}`);
   }
+  if (!savedTradePartners) s.tradePartners = [legacyTradePartner || 'human'];
+  s.tradePartners = [...new Set(s.tradePartners.filter(id => typeof id === 'string'))];
+  if (!s.tradePartners.length) s.tradePartners = [s.tradePartner || 'human'];
+  s.tradePartner = s.tradePartners[0];
   for (const n of Object.values(s.spies))
     if (typeof n !== 'number' || n < 0) throw new Error('Invalid spies');
   if (s.spyTraining !== null && (!object(s.spyTraining) || typeof s.spyTraining.target !== 'string' ||
@@ -1899,7 +1948,7 @@ function renderVillage() {
     `<div class="res-note">${L.text}</div>` +
     `<div class="res-note">Population growth: ${fmt(popGrowthNeed())} seconds per new villager while food and housing are available. Guard healing: ${fmt(guardHealingNeed())} seconds per injury.</div>` +
     `<div class="res-note" style="margin:2px 0 6px">The land gives: ${modsHtml(L)}</div>` +
-    `<div class="res-note" style="margin:2px 0 6px">${tradeAvailable() ? `Trading with the ${tribeDef(state.tradePartner).name}; funds arrive at ${fmtRate(0.05)} before Banker work.` : `The ${tribeDef(state.tradePartner).name} are nearby. Research Currency to begin trading.`}</div>` +
+    `<div class="res-note" style="margin:2px 0 6px">${tradeAvailable() ? `Trading with ${localTribeIds().map(id => tribeDef(id).name).join(' and ')}; funds arrive at ${fmtRate(0.05 * localTribeIds().length)} before Banker work.` : `${localTribeIds().map(id => tribeDef(id).name).join(' and ') || 'No tribes'} are nearby. Research Currency to begin trading.`}</div>` +
     `<div class="res-note" style="margin:2px 0 6px">Guard armor: level ${fmt(armorLevel())} — each level reduces death odds by 8% (minimum 15%).</div>` +
     `<div class="res-note" style="margin:2px 0 6px">Morale rises when stores are secure and falls when food runs short or winter bites. The Shrine steadies the people. ${moraleLabel()} morale changes production by ${Math.round((0.70 + state.morale * 0.0042857 - 1) * 100)}%; current ceiling: ${moraleCap()}.</div>`;
 
@@ -2050,7 +2099,7 @@ function renderResearch() {
 
 function renderDiplomacy() {
   let h = '<h2 class="section">Diplomacy — neighbors and foreign courts</h2>';
-  h += '<div class="res-note">Only the current local contact can trade, receive diplomats, or raid. Departed tribes remain in the chronicle, and their alliances still unlock lineages for future migrations.</div>';
+  h += '<div class="res-note">Local contacts can trade, receive diplomats, or be raided at the same time. Departed tribes remain in the chronicle, and their alliances still unlock lineages for future migrations.</div>';
   if (!tech('currency')) {
     h += '<div class="card"><div class="card-desc">The tribes will speak, but trade requires Currency. Research it to honor their requests with goods.</div></div>';
   }
@@ -2343,7 +2392,7 @@ function renderLog() {
 function loadLatestUpdatesTooltip() {
   const button = document.getElementById('btn-updates');
   if (!button || typeof fetch !== 'function' || typeof DOMParser !== 'function') return;
-  fetch('changelog.html?v=spies-espionage-20260906b')
+  fetch('changelog.html?v=local-trading-20260906c')
     .then(response => response.ok ? response.text() : Promise.reject(new Error('changelog unavailable')))
     .then(source => {
       const doc = new DOMParser().parseFromString(source, 'text/html');
@@ -2461,6 +2510,7 @@ window.emberhold = {
   helpers: {
     bld,
     buildingCost,
+    canBuild,
     canAfford,
     capacityOf,
     expeditionCost,
@@ -2617,7 +2667,11 @@ function boot() {
   applySettings();
   state.tribesSeen = state.tribesSeen || { human: true };
   state.species = state.species || 'human';
-  ensureDiplomacyEntry(state.tradePartner || 'human');
+  state.tradePartners = Array.isArray(state.tradePartners) && state.tradePartners.length
+    ? state.tradePartners : [state.tradePartner || 'human'];
+  state.tradePartner = state.tradePartners[0];
+  for (const id of state.tradePartners) ensureDiplomacyEntry(id);
+  discoverTradePartners();
   if (loaded) {
     reconcileWorkers();
     offlineProgress();

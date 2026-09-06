@@ -55,8 +55,11 @@ invalid imports, storage failures, and offline time accounting.
   amounts during the Age of Stone, then grows richer through prospecting,
   metallurgy, and electrical engineering.
 - **Neighbors and trade.** Humans are Emberhold's default tribe. After a
-  migration, one of 29 nonhuman tribes may appear nearby, subject to habitat. Currency makes
-  trade possible, while Banking unlocks Bankers who increase incoming funds.
+  migration, one tribe appears nearby, subject to habitat. An Explorer discovers
+  a second trading partner at 1,000 Survey points, and the Age of Iron brings a
+  third; later contacts tend to have stronger militaries and economies. Currency
+  makes trade with each local contact possible, while Banking unlocks Bankers who
+  increase incoming funds.
   Steel-age buildings and later require Currency as well as materials.
 - **Lineages.** Emberborn are always available and produce Industrial Goods more
   efficiently. Stonekin, Marshfolk, Skyborn, and Mephit lineages are earned by

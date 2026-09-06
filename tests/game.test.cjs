@@ -36,6 +36,32 @@ test('neutral tribes do not raid, while hostile tribes still can', () => {
   assert.equal(run('raids'), 1);
 });
 
+test('multiple local tribes can be active at once', () => {
+  const { run } = game();
+  run(`state.techs = { currency: true, diplomacy: true };
+    state.tradePartners = ['human', 'clocklings']; state.tradePartner = 'human';
+    ensureDiplomacyEntry('human'); ensureDiplomacyEntry('clocklings');
+    state.diplomacy.human.disposition = 80; state.diplomacy.clocklings.disposition = 80;
+    state.diplomats.human = 1; state.diplomats.clocklings = 1; updateDiplomacy(60)`);
+  assert.equal(run('localTribeIds().length'), 2);
+  assert.equal(run('alliedTribes()'), 2);
+  assert.equal(run('state.diplomacy.human.disposition'), 83);
+  assert.equal(run('state.diplomacy.clocklings.disposition'), 83);
+});
+
+test('Survey and the Iron Age unlock stronger additional contacts', () => {
+  const { run } = game();
+  run(`Math.random = () => 0.999; state.surveyPoints = 1000; state.jobs.explorer = 1;
+    discoverTradePartners()`);
+  assert.equal(run('state.tradePartners.length'), 2);
+  assert.ok(run('state.diplomacy[state.tradePartners[1]].militaryStrength') >= 110);
+  assert.ok(run('state.diplomacy[state.tradePartners[1]].economicStrength') >= 110);
+  run('state.era = 3; discoverTradePartners()');
+  assert.equal(run('state.tradePartners.length'), 3);
+  assert.ok(run('state.diplomacy[state.tradePartners[2]].militaryStrength') >= 150);
+  assert.ok(run('state.diplomacy[state.tradePartners[2]].economicStrength') >= 150);
+});
+
 test('incoming raids are less destructive and staffed raids are reliable', () => {
   const { run } = game();
   run(`state.techs.guards = true; state.jobs.guard = 4; state.res.food = 500;
