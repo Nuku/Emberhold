@@ -8,6 +8,9 @@ All notable changes to Emberhold are recorded here, with the newest changes firs
 - Added persistent Settings controls for autosave, reduced motion, compact stores, and chronicle tools.
 - Added achievement progress tracking and a Completion bonus of +0.1% to all production per completed achievement. The bonus stacks additively and survives migration and reloads.
 - Added a quick achievement for gaining access to each lineage, plus Many Peoples for half of all lineages and A World of Kin for every lineage.
+- Changed the Trial of Silence to require producing 100 Steel after researching Metallurgy, with enough knowledge banked to complete the research before knowledge production stops.
+- Improved automation job selection to avoid zero-output jobs during trials, prioritize unmet resource targets, and rebalance surplus workers more reliably.
+- Exposed effective per-worker production through the controller API for automation planning.
 - Added independent one-slot queues for building and research, with automatic completion when resources become available, cancellation by clicking, and estimated completion times.
 - Added Echo upgrades for extra construction and research queue slots, plus one-time Expansion and Scholarship trials that each unlock another slot.
 - Added an independent one-slot expedition queue with automatic launch when supplies arrive, cancellation, and completion estimates.

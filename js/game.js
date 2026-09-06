@@ -685,6 +685,22 @@ function production(dt = 0.25, breakdown = null) {
   return rates;
 }
 
+// Return the current effective output of one worker in a job.  This uses the
+// same production pipeline as the UI, including global, settlement, and
+// resource-specific multipliers, so automation can avoid assigning workers to
+// jobs that are currently producing nothing (for example during Silence).
+function jobProduction(jobId) {
+  const job = JOBS[jobId];
+  if (!job || !job.res || !Number(job.base) || job.targeted) return 0;
+  const previous = Number(state.jobs[jobId] || 0);
+  state.jobs[jobId] = previous + 1;
+  const breakdown = {};
+  production(0, breakdown);
+  state.jobs[jobId] = previous;
+  const entry = (breakdown[job.res] || []).find(item => item.label.startsWith(`${job.name}:`));
+  return entry ? entry.amount / (previous + 1) : 0;
+}
+
 function resourceRateTooltip(resource, rate, entries) {
   const number = value => Number(value.toFixed(4)).toString();
   const signed = value => `${value > 0 ? '+' : ''}${number(value)}/s`;
@@ -758,7 +774,7 @@ function updateTrial(dt) {
       if ((tr.researches || 0) >= 5) { endTrial(true); return; }
       break;
     case 'silence':
-      if (tech('metallurgy')) { endTrial(true); return; }
+      if ((tr.steelProduced || 0) >= 100) { endTrial(true); return; }
       break;
     case 'longnight':
       if (tr.daysActive >= DAYS_PER_YEAR) { endTrial(true); return; }
@@ -869,7 +885,7 @@ function trialProgressText() {
     case 'frugality': return `${tr.buildings} / 12 buildings raised`;
     case 'expansion': return `${tr.buildings} / 8 buildings raised`;
     case 'scholarship': return `${tr.researches || 0} / 5 research projects completed`;
-    case 'silence': return 'Metallurgy must be researched in silence';
+    case 'silence': return `${fmt(tr.steelProduced || 0)} / 100 Steel produced after Metallurgy`;
     case 'solitude': return `knowledge stockpiled: ${fmt(state.res.knowledge)} / 800`;
     case 'overflow': {
       let worst = 1;
@@ -991,12 +1007,19 @@ function setOut(trialId = null) {
   state.landing = landing.id;
   if (settings) Object.assign(state, settings);
   if (trialId) state.trial = { id: trialId, startDay: state.day, daysActive: 0, buildings: 0 };
+  if (trialId === 'silence') state.trial.steelProduced = 0;
   for (const t in ERA_GATE) if (state.techs[t] && ERA_GATE[t] > state.era) state.era = ERA_GATE[t];
 
   state.pop = 4 + 2 * upg('wanderers');
   if (up.lorekeepers) {
     state.bld.library = 1;
     state.res.knowledge = 30;
+    state.seen.knowledge = true;
+  }
+  if (trialId === 'silence') {
+    // Silence requires the full prerequisite chain plus Metallurgy, but
+    // knowledge production is disabled for the entire trial.
+    state.res.knowledge = 1500;
     state.seen.knowledge = true;
   }
   if (up.caravans) {
@@ -1035,6 +1058,7 @@ function tick(dt) {
   updateAchievements();
 
   const rates = production(dt);
+  const steelBefore = state.res.steel;
   for (const r in rates) {
     if (rates[r] > 0) {
       const cap = capacityOf(r);
@@ -1045,6 +1069,10 @@ function tick(dt) {
       state.res[r] = Math.max(0, state.res[r] + rates[r] * dt);
       state.seen[r] = true;
     }
+  }
+  if (trialActive('silence')) {
+    state.trial.steelProduced = (state.trial.steelProduced || 0) +
+      Math.max(0, state.res.steel - steelBefore);
   }
 
   updateMorale(dt, rates.food);
@@ -1134,6 +1162,9 @@ function doCraft(id) {
   for (const r in def.give) {
     state.res[r] = Math.min(capacityOf(r), state.res[r] + def.give[r] * lineageMod(r));
     state.seen[r] = true;
+  }
+  if (id === 'steel' && trialActive('silence')) {
+    state.trial.steelProduced = (state.trial.steelProduced || 0) + def.give.steel * lineageMod('steel');
   }
 }
 
@@ -2121,6 +2152,7 @@ window.emberhold = {
     landingDef,
     popCap,
     production,
+    jobProduction,
     queueDemand,
     tech,
     trialActive,

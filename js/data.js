@@ -520,7 +520,7 @@ const TRIALS = [
 
   { id: 'silence', name: 'Trial of Silence', repeat: 0,
     mod: 'Knowledge production is stopped entirely.',
-    goal: 'Research Metallurgy, spending only what was hoarded before the silence.',
+    goal: 'Produce 100 Steel after researching Metallurgy, spending only what was hoarded before the silence.',
     reward: 'Oral Tradition: Thinkers produce +50% knowledge, permanently.',
     req: () => era() >= 2 },
 

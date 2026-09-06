@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Emberhold Automation
 // @namespace    https://github.com/emberhold
-// @version      1.5.0
+// @version      1.8.0
 // @description  Configurable automation for Emberhold
 // @updateURL    https://raw.githubusercontent.com/Nuku/Emberhold-Automation/main/emberhold_automation.user.js
 // @downloadURL  https://raw.githubusercontent.com/Nuku/Emberhold-Automation/main/emberhold_automation.user.js
@@ -112,7 +112,9 @@
 
   function autoJobs(state, demand) {
     const defs = definitions().JOBS || {};
-    const assignable = JOB_ORDER.filter(id => defs[id] && id !== 'guard' && jobUnlocked(defs[id]));
+    const effectiveJobRate = api().helpers?.jobProduction;
+    const assignable = JOB_ORDER.filter(id => defs[id] && id !== 'guard' && jobUnlocked(defs[id]) &&
+      (!effectiveJobRate || effectiveJobRate(id) > 0));
     if (!assignable.length) return;
 
     const count = id => Number(state.jobs?.[id] || 0);
@@ -123,31 +125,42 @@
       ['miner', state.pop >= 6 ? 1 : 0],
       ['thinker', state.pop >= 8 ? 1 : 0],
     ];
+    const minimum = id => minimums.find(item => item[0] === id)?.[1] || 0;
+    const rates = api().helpers?.production?.(1) || {};
+    const needs = [
+      ['forager', 'food', 60],
+      ['woodcutter', 'wood', (demand.wood || 0) + 40],
+      ['miner', 'stone', (demand.stone || 0) + 20],
+      ['thinker', 'knowledge', (demand.knowledge || 0) + 100],
+    ];
+    const need = needs.find(([job, resource, target]) => assignable.includes(job) &&
+      (stock(resource) < target || (resource === 'food' && (rates.food || 0) < 0)));
 
     const available = Math.max(0, state.pop - Object.values(state.jobs || {})
       .reduce((sum, n) => sum + (Number(n) || 0), 0));
-    if (available > 0) {
-      const underMinimum = minimums.find(([id, minimum]) =>
-        minimum > 0 && assignable.includes(id) && count(id) < minimum);
-      const priority = underMinimum ? [underMinimum[0]] :
-        stock('food') < 60 ? ['forager'] :
-        stock('wood') < (demand.wood || 0) + 40 ? ['woodcutter'] :
-        stock('stone') < (demand.stone || 0) + 20 ? ['miner'] :
-        stock('knowledge') < (demand.knowledge || 0) + 100 ? ['thinker'] :
-          ['forager', 'woodcutter', 'miner'];
-      const target = priority.find(id => assignable.includes(id)) || assignable[0];
+    const underMinimum = minimums.find(([id, minimumCount]) =>
+      minimumCount > 0 && assignable.includes(id) && count(id) < minimumCount);
+    const productionJobs = assignable.filter(id => defs[id].res && Number(defs[id].base) > 0 &&
+      (!effectiveJobRate || effectiveJobRate(id) > 0));
+    const balancedJob = productionJobs.sort((a, b) => count(a) - count(b))[0];
+    const target = underMinimum?.[0] || (need && need[0]) || balancedJob;
+    if (available > 0 && target) {
       invoke('assign', target, 1);
       return;
     }
 
-    // Reallocate one worker when a store is in danger. Do this before the
-    // store reaches zero, and never take the last worker from a minimum job.
-    const foodDanger = stock('food') < 60;
-    const donor = Object.keys(state.jobs || {}).find(id =>
-      id !== 'forager' && count(id) > (minimums.find(m => m[0] === id)?.[1] || 0));
-    if (foodDanger && donor) {
+    // Reallocate one worker when a target is unmet, or release surplus workers
+    // when all stores have enough coverage. Never take a minimum job below its
+    // floor, and prefer removing the largest surplus first.
+    const donors = Object.keys(state.jobs || {})
+      .filter(id => id !== target && count(id) > minimum(id))
+      .sort((a, b) => (count(b) - minimum(b)) - (count(a) - minimum(a)));
+    const donor = donors[0];
+    if (donor && target) {
       invoke('assign', donor, -1);
-      invoke('assign', 'forager', 1);
+      invoke('assign', target, 1);
+    } else if (donor && !need) {
+      invoke('assign', donor, -1);
     }
   }
 

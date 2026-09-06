@@ -338,6 +338,14 @@ test('resource breakdown explains stopped jobs, factory shortages, full stores a
   assert.ok(run(`renderStores().includes('>0/s</span>')`));
 });
 
+test('job production exposes zeroed multipliers to automation', () => {
+  const { run } = game();
+  run(`state.bld.library = 1; state.jobs.thinker = 1`);
+  assert.ok(run("jobProduction('thinker')") > 0);
+  run("state.trial = { id: 'silence' }");
+  assert.equal(run("jobProduction('thinker')"), 0);
+});
+
 test('repeatable trials grow harder after rewards and retain difficulty on failure and load', () => {
   const { run } = game();
   for (const id of ['scarcity', 'frugality', 'overflow']) {

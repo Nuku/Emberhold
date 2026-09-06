@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Emberhold — a text incremental</title>
-<link rel="stylesheet" href="style.css?v=settings-stats-20260905">
+<link rel="stylesheet" href="style.css?v=silence-automation-20260905">
 </head>
 <body>
 <div id="app">
@@ -21,7 +21,7 @@
       <div id="echo-line" class="hidden"></div>
     </div>
     <div id="controls">
-      <button id="btn-updates" class="has-tooltip" data-tooltip="Latest updates (2026-09-05):&#10;Added independent one-slot queues for building and research, with automatic completion when resources become available, cancellation by clicking, and estimated completion times.&#10;Added Echo upgrades for extra construction and research queue slots, plus one-time Expansion and Scholarship trials that each unlock another slot.&#10;Added an independent one-slot expedition queue with automatic launch when supplies arrive, cancellation, and completion estimates.&#10;Scaled resource rewards and losses from random happenings with the affected resource's storage capacity.&#10;Added a stable window.emberhold controller API for state inspection, engine actions, planning helpers, and automation events.&#10;Added the configurable emberhold_automation.user.js companion userscript with automatic jobs, research, construction, crafting, diplomacy, and expeditions.&#10;Made automation reserve resources required by every queued construction and research item before spending or reallocating them.&#10;Improved save export reliability by copying directly to the clipboard and downloading a plain-text backup, with a prompt fallback when clipboard access is unavailable.&#10;Kept departed tribes as historical contacts after migration; only the current local tribe can trade, receive diplomats, raid, or provide active-ally income.&#10;Added hold-to-repeat controls for repeatable actions.&#10;Improved offline-progress accounting and raid-defense behavior." aria-label="Open the Emberhold changelog">Updates</button>
+      <button id="btn-updates" class="has-tooltip" data-tooltip="Latest updates (2026-09-05):&#10;Changed the Trial of Silence to require producing 100 Steel after researching Metallurgy, with enough knowledge banked to complete the research before knowledge production stops.&#10;Improved automation job selection to avoid zero-output jobs during trials, prioritize unmet resource targets, and rebalance surplus workers more reliably.&#10;Exposed effective per-worker production through the controller API for automation planning.&#10;Added independent one-slot queues for building and research, with automatic completion when resources become available, cancellation by clicking, and estimated completion times.&#10;Added Echo upgrades for extra construction and research queue slots, plus one-time Expansion and Scholarship trials that each unlock another slot.&#10;Added an independent one-slot expedition queue with automatic launch when supplies arrive, cancellation, and completion estimates.&#10;Scaled resource rewards and losses from random happenings with the affected resource's storage capacity.&#10;Added a stable window.emberhold controller API for state inspection, engine actions, planning helpers, and automation events.&#10;Added the configurable emberhold_automation.user.js companion userscript with automatic jobs, research, construction, crafting, diplomacy, and expeditions.&#10;Made automation reserve resources required by every queued construction and research item before spending or reallocating them.&#10;Improved save export reliability by copying directly to the clipboard and downloading a plain-text backup, with a prompt fallback when clipboard access is unavailable.&#10;Kept departed tribes as historical contacts after migration; only the current local tribe can trade, receive diplomats, raid, or provide active-ally income.&#10;Added hold-to-repeat controls for repeatable actions.&#10;Improved offline-progress accounting and raid-defense behavior." aria-label="Open the Emberhold changelog">Updates</button>
       <button id="btn-save">Save</button>
       <button id="btn-export">Export</button>
       <button id="btn-import">Import</button>
@@ -68,7 +68,7 @@
   <footer id="banner" class="hidden"></footer>
 </div>
 
-<script src="js/data.js?v=site-expeditions-20260905"></script>
-<script src="js/game.js?v=automation-api-20260905"></script>
+<script src="js/data.js?v=silence-automation-20260905"></script>
+<script src="js/game.js?v=silence-automation-20260905"></script>
 </body>
 </html>
