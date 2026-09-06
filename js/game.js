@@ -5,6 +5,9 @@
 
 const OFFLINE_CAP = 24 * 3600;  // seconds of offline simulation allowed
 const OFFLINE_RATE = 1;         // offline runs at real time
+const SPY_TRAINING_TIME = 180;
+const ESPIONAGE_TIME = 20 * 60;
+const SPY_CAPTURE_CHANCE = 0.0001;
 
 let state = null;
 let lastStoredSave = null;
@@ -49,6 +52,8 @@ function defaultState() {
     tribesSeen: { human: true },
     diplomacy: {},
     diplomats: {},
+    spies: {},
+    spyTraining: null,
     diplomacyEventT: 0,
     randomEventT: 0,
     randomEventNext: 60,
@@ -148,6 +153,15 @@ function updateGuardRecruitment(dt) {
   state.jobs.guard = total + recruits;
   state.guardRecruitment = total + recruits >= cap ? 0 : state.guardRecruitment - recruits;
 }
+function randomTownStrength() {
+  const band = Math.random();
+  if (band < 0.20) return 70 + Math.floor(Math.random() * 20);
+  if (band < 0.80) return 90 + Math.floor(Math.random() * 40);
+  return 130 + Math.floor(Math.random() * 91);
+}
+function militaryStrength(entry) { return Math.max(1, Number(entry?.militaryStrength) || 100); }
+function militaryStrengthFloor() { return 60; }
+function economicStrength(entry) { return Math.max(1, Number(entry?.economicStrength) || 100); }
 function randomDiplomacyRequest(id) {
   const available = RESOURCES.filter(r => r.id !== 'knowledge' && r.id !== 'currency' && r.id !== 'machinery' && r.id !== 'aether' && state.seen[r.id]);
   const preferred = available.filter(r => (tribeDef(id).requests || []).includes(r.id));
@@ -163,12 +177,20 @@ function randomDiplomacyRequest(id) {
 function ensureDiplomacyEntry(id) {
   state.diplomacy = state.diplomacy || {};
   if (!state.diplomacy[id]) {
+    const military = randomTownStrength();
     state.diplomacy[id] = {
       disposition: Math.floor(Math.random() * 101) - 50,
+      militaryStrength: military,
+      militaryBaseStrength: military,
+      economicStrength: randomTownStrength(),
       request: randomDiplomacyRequest(id),
     };
-  } else if (!state.diplomacy[id].request || state.diplomacy[id].request.age === undefined) {
-    state.diplomacy[id].request = randomDiplomacyRequest(id);
+  } else {
+    const entry = state.diplomacy[id];
+    if (!Number.isFinite(entry.militaryStrength)) entry.militaryStrength = 100;
+    if (!Number.isFinite(entry.militaryBaseStrength)) entry.militaryBaseStrength = entry.militaryStrength;
+    if (!Number.isFinite(entry.economicStrength)) entry.economicStrength = 100;
+    if (!entry.request || entry.request.age === undefined) entry.request = randomDiplomacyRequest(id);
   }
   return state.diplomacy[id];
 }
@@ -185,6 +207,88 @@ function diplomacyRequestText(tribe, entry) {
 }
 function diplomatCount(id) { return (state.diplomats && state.diplomats[id]) || 0; }
 function totalDiplomats() { return Object.values(state.diplomats || {}).reduce((sum, n) => sum + n, 0); }
+function spyCount(id) { return (state.spies && state.spies[id]) || 0; }
+function spyTrainingCost(id) {
+  const entry = state.diplomacy && state.diplomacy[id];
+  const activeScale = 1 + 0.5 * spyCount(id);
+  const economicScale = economicStrength(entry) / 100;
+  return {
+    currency: Math.ceil(100 * economicScale * activeScale),
+    tools: Math.max(1, Math.ceil(5 * economicScale * activeScale)),
+  };
+}
+function updateSpyIntel(id) {
+  const entry = state.diplomacy && state.diplomacy[id];
+  if (!entry) return;
+  const count = spyCount(id);
+  if (count >= 1) entry.militaryKnown = true;
+  if (count >= 2) entry.economicKnown = true;
+}
+function hireSpy(id) {
+  const entry = state.diplomacy && state.diplomacy[id];
+  const cost = spyTrainingCost(id);
+  if (!tech('spies') || !entry || entry.conquered || !localTribe(id) || state.spyTraining || !canAfford(cost)) return;
+  payCost(cost);
+  state.spyTraining = { target: id, remaining: SPY_TRAINING_TIME };
+  addLog(`A spy begins training for an assignment in the ${tribeDef(id).name}.`, 'log-important');
+}
+function beginEspionage(id) {
+  const entry = state.diplomacy && state.diplomacy[id];
+  if (!tech('espionage') || !entry || entry.conquered || !localTribe(id) || spyCount(id) < 1 || entry.espionageT > 0 || militaryStrength(entry) <= militaryStrengthFloor(entry)) return;
+  entry.espionageT = ESPIONAGE_TIME;
+  addLog(`A spy begins an espionage attempt against the ${tribeDef(id).name}'s military.`, 'log-important');
+}
+function spyKilled(id) {
+  const entry = state.diplomacy && state.diplomacy[id];
+  if (!entry || Math.random() >= 0.5) return;
+  const loss = 3 + Math.floor(Math.random() * 3);
+  entry.disposition = Math.max(-100, entry.disposition - loss);
+  addLog(`The captured spy betrays Emberhold's involvement in the ${tribeDef(id).name}; relations fall by ${loss}.`, 'log-bad');
+}
+function resolveEspionage(id) {
+  const entry = state.diplomacy && state.diplomacy[id];
+  if (!entry || spyCount(id) < 1) return;
+  if (Math.random() < 0.60) {
+    const before = militaryStrength(entry);
+    entry.militaryStrength = Math.max(militaryStrengthFloor(entry), Math.floor(before * 0.90));
+    addLog(`Espionage succeeds in the ${tribeDef(id).name}. Their Military strength falls from ${Math.round(before)} to ${entry.militaryStrength}.`, 'log-good');
+  } else if (Math.random() < 0.10) {
+    state.spies[id] = Math.max(0, spyCount(id) - 1);
+    addLog(`Espionage fails in the ${tribeDef(id).name}; a spy is caught and killed.`, 'log-bad');
+    spyKilled(id);
+  } else {
+    addLog(`Espionage fails in the ${tribeDef(id).name}, but the spy slips away.`, 'log-bad');
+  }
+  entry.espionageT = 0;
+}
+function updateSpies(dt) {
+  if (!tech('spies')) return;
+  if (state.spyTraining) {
+    state.spyTraining.remaining -= dt;
+    if (state.spyTraining.remaining <= 0) {
+      const id = state.spyTraining.target;
+      state.spies[id] = spyCount(id) + 1;
+      updateSpyIntel(id);
+      addLog(`A trained spy reaches the ${tribeDef(id).name}.`, 'log-good');
+      state.spyTraining = null;
+    }
+  }
+  for (const id of Object.keys(state.spies || {})) {
+    if (!localTribe(id) || spyCount(id) < 1) continue;
+    const entry = state.diplomacy[id];
+    const captureChance = 1 - Math.pow(1 - SPY_CAPTURE_CHANCE, dt);
+    if (Math.random() < captureChance) {
+      state.spies[id] = Math.max(0, spyCount(id) - 1);
+      addLog(`A spy in the ${tribeDef(id).name} is caught and killed.`, 'log-bad');
+      spyKilled(id);
+      if (entry.espionageT > 0 && spyCount(id) < 1) entry.espionageT = 0;
+    }
+    if (entry.espionageT > 0) {
+      entry.espionageT -= dt;
+      if (entry.espionageT <= 0) resolveEspionage(id);
+    }
+  }
+}
 function performerCount() { return state.jobs?.performer || 0; }
 function explorerCount() { return state.jobs?.explorer || 0; }
 function alliedTribes() {
@@ -913,7 +1017,7 @@ function resolveTribeRaid(id) {
   // Incoming raids should create pressure without deleting a settlement's
   // entire military investment.  Hostility still matters, but the old power
   // curve made a merely adequate garrison pay an outsized price on a loss.
-  const raidPower = (2.5 + (50 - entry.disposition) / 10 + Math.random() * 4) * 0.8;
+  const raidPower = (militaryStrength(entry) / 20 + (50 - entry.disposition) / 20 + Math.random() * 4) * 0.8;
   if (defense >= raidPower) {
     entry.disposition = Math.max(-100, entry.disposition - 2);
     if (isMephit()) state.diplomacyEventT = -120;
@@ -1180,6 +1284,7 @@ function tick(dt) {
 
   updateGuardRecruitment(dt);
   updateTrial(dt);
+  updateSpies(dt);
   updateDiplomacy(dt);
   updateRandomEvents(dt);
   updateExploration(dt);
@@ -1405,7 +1510,7 @@ function doRaid(id, stageId = 'raid') {
   const totalGuards = state.jobs.guard || 0;
   const wounded = Math.max(0, totalGuards - able);
   const force = able + wounded * 0.5 + (tech('weaponry') ? (able * 0.9 + wounded * 0.45) : 0);
-  const difficulty = (5 + Math.max(0, entry.disposition) / 10) * stage.difficulty * (targetIsMephit ? 1.35 : 1);
+  const difficulty = (militaryStrength(entry) / 20 + Math.max(0, entry.disposition) / 10) * stage.difficulty * (targetIsMephit ? 1.35 : 1);
   // A properly staffed raid should be a dependable active choice, not a coin
   // flip.  It still needs enough Guards to overcome stronger neighbors.
   const chance = Math.min(0.9, Math.max(0.35, 0.4 + force * governanceDefenseMod() / (force * governanceDefenseMod() + difficulty) * 0.55));
@@ -1439,7 +1544,7 @@ function doRaid(id, stageId = 'raid') {
       if (!pool.length) return;
       const pick = pool.splice(Math.floor(Math.random() * pool.length), 1)[0];
       const base = pick === 'knowledge' ? 35 : pick === 'currency' ? 12 : 20;
-      const amount = Math.max(1, Math.round(base * stage.loot));
+      const amount = Math.max(1, Math.round(base * stage.loot * economicStrength(entry) / 100));
       const gained = Math.min(capacityOf(pick) - state.res[pick], amount);
       if (gained > 0) {
         state.res[pick] += gained;
@@ -1531,6 +1636,11 @@ function normalizeSave(s) {
     for (const n of Object.values(s[key]))
       if (typeof n !== 'number' || n < 0) throw new Error(`Invalid ${key}`);
   }
+  for (const n of Object.values(s.spies))
+    if (typeof n !== 'number' || n < 0) throw new Error('Invalid spies');
+  if (s.spyTraining !== null && (!object(s.spyTraining) || typeof s.spyTraining.target !== 'string' ||
+      typeof s.spyTraining.remaining !== 'number' || s.spyTraining.remaining < 0))
+    throw new Error('Invalid spy training');
   for (const type of ['build', 'research', 'expedition']) {
     if (!Array.isArray(s.queues[type])) {
       if (s.queues[type] === undefined || s.queues[type] === null) s.queues[type] = [];
@@ -1550,6 +1660,13 @@ function normalizeSave(s) {
   }
   for (const entry of Object.values(s.diplomacy)) {
     if (!object(entry) || typeof entry.disposition !== 'number') throw new Error('Invalid diplomacy');
+    if (entry.militaryStrength === undefined) entry.militaryStrength = 100;
+    if (entry.militaryBaseStrength === undefined) entry.militaryBaseStrength = entry.militaryStrength;
+    if (entry.economicStrength === undefined) entry.economicStrength = 100;
+    if (typeof entry.militaryStrength !== 'number' || entry.militaryStrength < 1 ||
+        typeof entry.militaryBaseStrength !== 'number' || entry.militaryBaseStrength < 1 ||
+        typeof entry.economicStrength !== 'number' || entry.economicStrength < 1)
+      throw new Error('Invalid town strength');
   }
   if (s.trial !== null && (!object(s.trial) || !TRIALS.some(t => t.id === s.trial.id)))
     throw new Error('Invalid trial');
@@ -1948,12 +2065,25 @@ function renderDiplomacy() {
       `<span class="card-count">disposition ${Math.round(entry.disposition)} / 100</span></div>` +
       `<div class="card-desc">${tribe.text}</div>` +
       `<div class="res-note">${habitatText(tribe)}</div>` +
+      `<div class="res-note">Military strength: ${entry.militaryKnown ? Math.round(militaryStrength(entry)) : 'unknown'} · Economic strength: ${entry.economicKnown ? Math.round(economicStrength(entry)) : 'unknown'}</div>` +
       `<div class="trial-reward">${lineageDef(id).name} lineage: ${lineageDef(id).effect}. ${lineageUnlocked(id) ? 'Unlocked for future migrations.' : 'Migrate with disposition 80+ to unlock for future migrations.'}</div>` +
       (local && (entry.disposition >= 80 || entry.conquered) ? `<div class="trial-reward">Active ally: +${Math.round(alliedIncomeBonus() * 1000) / 10}% to all village incomes.</div>` : '') +
       (local && entry.disposition < 0 ? `<div class="trial-mod">Relations are strained: the ${tribe.name} may raid the village.</div>` : '') +
       (local ? `<div class="trial-goal">${diplomacyRequestText(tribe, entry)}</div>` : '<div class="res-note">Only a few nice letters can reach them for now.</div>') +
       (local ? `<div class="card-cost">offer: ${costHtml(requestCost)} — +15 relations</div>` : '') +
       (local ? `<div class="card-actions"><button data-action="diplomacy-supply" data-tribe="${id}" ${canSupply ? '' : 'disabled'}>Supply the request</button></div>` : '');
+    if (local && tech('spies')) {
+      const spyTraining = state.spyTraining?.target === id;
+      const spyCost = spyTrainingCost(id);
+      const canHire = !state.spyTraining && canAfford(spyCost);
+      h += `<div class="res-note">Spies stationed: ${spyCount(id)} — one reveals Military strength; two reveal Economic strength.</div>` +
+        (spyTraining ? `<div class="trial-mod">Spy training: ${Math.ceil(state.spyTraining.remaining)}s remaining.</div>` : `<div class="card-actions"><button data-action="spy-hire" data-tribe="${id}" ${canHire ? '' : 'disabled'}>Hire and train a spy (${costHtml(spyCost)})</button></div>`);
+      if (tech('espionage') && spyCount(id) > 0 && (entry.espionageT > 0 || militaryStrength(entry) > militaryStrengthFloor(entry))) {
+        h += entry.espionageT > 0
+          ? `<div class="trial-mod">Espionage attempt in progress: ${Math.ceil(entry.espionageT / 60)} minutes remaining.</div>`
+          : `<div class="card-actions"><button data-action="espionage" data-tribe="${id}">Attack Military strength (20 minutes)</button></div>`;
+      }
+    }
     if (local && tech('guards')) {
       if (entry.conquered) {
         h += '<div class="trial-reward">Conquered realm: +5% to all village incomes. This realm no longer produces diplomatic events.</div>';
@@ -2302,6 +2432,8 @@ const automationActionFns = {
   trialStart: startTrial,
   supplyDiplomacyRequest,
   governor: appointGovernor,
+  spyHire: hireSpy,
+  espionage: beginEspionage,
 };
 
 function runAutomationAction(name, ...args) {
@@ -2370,6 +2502,8 @@ function runAction(btn) {
     case 'research': attemptResearch(btn.dataset.id); render(); break;
     case 'queue-cancel': cancelQueue(btn.dataset.type, +btn.dataset.index); render(); break;
     case 'diplomacy-supply': supplyDiplomacyRequest(btn.dataset.tribe); render(); break;
+    case 'spy-hire': hireSpy(btn.dataset.tribe); render(); break;
+    case 'espionage': beginEspionage(btn.dataset.tribe); render(); break;
     case 'raid': doRaid(btn.dataset.tribe, btn.dataset.stage); render(); break;
     case 'conquer': conquerTown(btn.dataset.tribe); render(); break;
     case 'diplomat-inc': doAssignDiplomat(btn.dataset.tribe, +1); render(); break;

@@ -5,6 +5,11 @@ All notable changes to Emberhold are recorded here, with the newest changes firs
 ## 2026-09-06
 
 - Added eight attack stages from Raids through Sieges, with escalating costs and difficulty, additional loot rolls, and uncommon loot in the final three stages; Tools, Steel, and Currency appear when unlocked.
+- Added persistent Military and Economic strength rolls to encountered towns; Military scales attack difficulty, while Economic scales successful loot quantities.
+- Added late-Iron Spies research and later Espionage research: target-specific spy training reveals Military strength with one spy and Economic strength with two, while Espionage enables 20-minute attempts to weaken military power.
+- Spy training costs now scale with the target town's Economic strength and the number of active spies there; captured spies reduce the surcharge.
+- Espionage now bottoms out at Military strength 60 on the town scale and stops being offered once that floor is reached.
+- A spy killed in the field now has a 50% chance to betray Emberhold, with the betrayal noted and relations falling by 3–5.
 - Tuned combat so incoming raids are less destructive and staffed outgoing attacks are more reliable.
 - Added post-Siege conquest: commit 15 healthy Guards to take a neighboring town, gaining the ally income bonus while applying a steady −1.0 morale pressure and suppressing that realm's diplomatic events.
 - Added Commonality research and government. It removes conquered-realm morale pressure, raises the ally bonus from +5% to +7.5%, and quietly records the lineages with which Commonality has been achieved.

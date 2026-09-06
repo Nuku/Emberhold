@@ -65,6 +65,52 @@ test('attack stages scale difficulty and unlock uncommon loot rolls', () => {
   assert.ok(run("raidStage('siege').rolls > raidStage('raid').rolls"));
 });
 
+test('encountered towns receive separate military and economic strengths', () => {
+  const { run } = game();
+  run(`Math.random = () => 0; ensureDiplomacyEntry('human')`);
+  assert.equal(run('state.diplomacy.human.militaryStrength'), 70);
+  assert.equal(run('state.diplomacy.human.economicStrength'), 70);
+  run(`state.diplomacy = {}; Math.random = () => 0.999; ensureDiplomacyEntry('clocklings')`);
+  assert.equal(run('state.diplomacy.clocklings.militaryStrength'), 220);
+  assert.equal(run('state.diplomacy.clocklings.economicStrength'), 220);
+  assert.ok(run('militaryStrength(state.diplomacy.clocklings) > militaryStrength(state.diplomacy.human)'));
+});
+
+test('spies reveal town strengths and espionage can weaken the military', () => {
+  const { run } = game();
+  run(`state.techs = { spies: true }; state.tradePartner = 'human';
+    state.res.currency = 300; state.res.tools = 20; ensureDiplomacyEntry('human');
+    state.diplomacy.human.militaryStrength = 100; state.diplomacy.human.economicStrength = 120;
+    Math.random = () => 0.5; hireSpy('human')`);
+  assert.deepEqual(JSON.parse(run('JSON.stringify(spyTrainingCost("human"))')), { currency: 120, tools: 6 });
+  assert.equal(run('state.res.currency'), 180);
+  assert.equal(run('state.res.tools'), 14);
+  run('updateSpies(180)');
+  assert.equal(run('spyCount("human")'), 1);
+  assert.equal(run('state.diplomacy.human.militaryKnown'), true);
+  assert.equal(run('state.diplomacy.human.economicKnown'), undefined);
+
+  assert.deepEqual(JSON.parse(run('JSON.stringify(spyTrainingCost("human"))')), { currency: 180, tools: 9 });
+  run(`state.res.currency = 200; state.res.tools = 10; hireSpy('human'); updateSpies(180);
+    state.techs.espionage = true; beginEspionage('human'); updateSpies(1200)`);
+  assert.equal(run('spyCount("human")'), 2);
+  assert.equal(run('state.diplomacy.human.economicKnown'), true);
+  assert.equal(run('state.diplomacy.human.militaryStrength'), 90);
+
+  run(`state.diplomacy.human.militaryStrength = 61; beginEspionage('human'); updateSpies(1200)`);
+  assert.equal(run('state.diplomacy.human.militaryStrength'), 60);
+  run("beginEspionage('human')");
+  assert.equal(run('state.diplomacy.human.espionageT || 0'), 0);
+});
+
+test('a killed spy can betray the operation and damage relations', () => {
+  const { run } = game();
+  run(`ensureDiplomacyEntry('human'); state.diplomacy.human.disposition = 10;
+    Math.random = () => 0; spyKilled('human')`);
+  assert.equal(run('state.diplomacy.human.disposition'), 7);
+  assert.match(run('state.log[0].t'), /betrays Emberhold/);
+});
+
 test('successful sieges unlock conquest and conquered realms become allies', () => {
   const { run } = game();
   run(`state.techs.guards = true; state.jobs.guard = 20; ensureDiplomacyEntry('human');
