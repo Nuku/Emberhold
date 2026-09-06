@@ -6,7 +6,7 @@ All notable changes to Emberhold are recorded here, with the newest changes firs
 
 - Increased Steam Plant coal consumption tenfold, from 0.08 to 0.8 Coal/s per plant.
 - Fixed Forge input costs being incorrectly scaled by expedition bonuses to Iron or Coal; expeditions can now affect Forges only through an explicit Forge modifier.
-- Increased population growth speed by 33%.
+- Shortened the time between new villagers by 33%.
 
 ## 2026-09-05
 
