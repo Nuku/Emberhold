@@ -1898,9 +1898,7 @@ function esc(s) { return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;');
 function attrText(s) { return esc(s).replace(/"/g, '&quot;'); }
 
 function resVisible(id) {
-  if (state.seen[id]) return true;
-  // resources whose job exists are shown dimmed as teasers? No — hidden until seen.
-  return false;
+  return !!state.seen?.[id];
 }
 
 function renderHeader() {
@@ -2398,7 +2396,7 @@ function renderLog() {
 function loadLatestUpdatesTooltip() {
   const button = document.getElementById('btn-updates');
   if (!button || typeof fetch !== 'function' || typeof DOMParser !== 'function') return;
-  fetch('changelog.html?v=overflow-rabbitfolk-20260906a')
+  fetch('changelog.html?v=hidden-stores-20260906a')
     .then(response => response.ok ? response.text() : Promise.reject(new Error('changelog unavailable')))
     .then(source => {
       const doc = new DOMParser().parseFromString(source, 'text/html');

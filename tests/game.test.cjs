@@ -504,6 +504,15 @@ test('resource breakdown explains stopped jobs, factory shortages, full stores a
   assert.ok(run(`renderStores().includes('>0/s</span>')`));
 });
 
+test('stores hide resources until they are discovered', () => {
+  const { run } = game();
+  run(`state.seen = { food: true, wood: true }; state.res.food = 10; state.res.coal = 10`);
+  assert.ok(run("renderStores().includes('>Food<')"));
+  assert.equal(run("renderStores().includes('>Coal<')"), false);
+  run("state.seen.coal = true");
+  assert.ok(run("renderStores().includes('>Coal<')"));
+});
+
 test('job production exposes zeroed multipliers to automation', () => {
   const { run } = game();
   run(`state.bld.library = 1; state.jobs.thinker = 1`);

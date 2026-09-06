@@ -4,6 +4,7 @@ All notable changes to Emberhold are recorded here, with the newest changes firs
 
 ## 2026-09-06
 
+- Hidden undiscovered resources from the Stores panel to keep progression information clear and prevent confusion during the Trial of Overflow.
 - Added multiple simultaneous local trading partners: Explorers reveal a second contact at 1,000 Survey, and the Age of Iron reveals a third; each contributes trade, diplomacy, and alliance benefits, while later contacts bring stronger military and economic strengths.
 - Updated the automation userscript to prioritize Training Yards and Hospitals, and to respect the game's build-availability helper when choosing construction targets.
 - Added eight attack stages from Raids through Sieges, with escalating costs and difficulty, additional loot rolls, and uncommon loot in the final three stages; Tools, Steel, and Currency appear when unlocked.
