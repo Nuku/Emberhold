@@ -7,6 +7,7 @@ const vm = require('node:vm');
 function game() {
   const storage = new Map();
   const context = vm.createContext({
+    TextDecoder,
     document: { addEventListener() {} },
     localStorage: {
       getItem: key => storage.get(key) || null,
@@ -464,6 +465,7 @@ test('guard recruitment progress survives saves and older saves default to zero'
 
 test('malformed saves are rejected before storage is touched', () => {
   const { run, context } = game();
+  run('render = () => {}');
   run('saveGame(true)');
   const before = run('localStorage.getItem(SAVE_KEY)');
   for (const mutation of ['s.res = null', 's.jobs = []', 's.pop = -1', 's.res.food = "bad"', 's.log = [null]', 's.diplomacy.human = null', 's.trial = { id: "missing" }']) {
@@ -472,6 +474,25 @@ test('malformed saves are rejected before storage is touched', () => {
     run('importSave()');
     assert.equal(run('localStorage.getItem(SAVE_KEY)'), before, mutation);
   }
+});
+
+test('import replaces live state, persists through unload, and resists stale tab saves', () => {
+  const { run, context } = game();
+  run('render = () => {}; state.res.knowledge = 30; saveGame(true)');
+  const rescue = run('JSON.stringify({ ...defaultState(), res: { ...state.res, knowledge: 1500 }, pop: 19, trial: { id: "silence", steelProduced: 0 } })');
+  context.window.prompt = () => Buffer.from(rescue).toString('base64');
+  context.location.reload = () => { throw new Error('Import should not reload'); };
+  run('importSave()');
+  assert.equal(run('state.res.knowledge'), 1500);
+  assert.equal(run('state.pop'), 19);
+  assert.match(run('state.log[0].t'), /Save imported successfully/);
+  run('saveGame(true); state = loadGame()');
+  assert.equal(run('state.res.knowledge'), 1500);
+  const imported = run('localStorage.getItem(SAVE_KEY)');
+  run('state.res.knowledge = 30; lastStoredSave = "outdated tab"');
+  assert.equal(run('saveGame(true)'), false);
+  assert.equal(run('localStorage.getItem(SAVE_KEY)'), imported);
+  assert.equal(run('saveConflict'), true);
 });
 
 test('save failure is visible and does not change the last save timestamp', () => {

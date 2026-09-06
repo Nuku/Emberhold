@@ -7,6 +7,8 @@ const OFFLINE_CAP = 24 * 3600;  // seconds of offline simulation allowed
 const OFFLINE_RATE = 1;         // offline runs at real time
 
 let state = null;
+let lastStoredSave = null;
+let saveConflict = false;
 let activeTab = 'village';
 let buildFilter = 'incomplete';
 let tooltipHover = false;
@@ -1054,6 +1056,7 @@ function chooseLineage(id) {
 
 // ---------- core tick ----------
 function tick(dt) {
+  if (saveConflict) return;
   state.day += dt * DAY_RATE;
   updateAchievements();
 
@@ -1358,10 +1361,21 @@ function supplyDiplomacyRequest(id) {
 }
 
 // ---------- save / load ----------
+function checkSaveConflict() {
+  if (localStorage.getItem(SAVE_KEY) === lastStoredSave) return false;
+  if (!saveConflict) {
+    saveConflict = true;
+    addLog('Paused: another Emberhold tab changed the saved game. Reload this tab to continue with that save. This tab will not overwrite it.', 'log-bad');
+  }
+  return true;
+}
 function saveGame(silent) {
   try {
+    if (saveConflict || checkSaveConflict()) return false;
     const savedAt = Date.now();
-    localStorage.setItem(SAVE_KEY, JSON.stringify({ ...state, savedAt }));
+    const serialized = JSON.stringify({ ...state, savedAt });
+    localStorage.setItem(SAVE_KEY, serialized);
+    lastStoredSave = serialized;
     state.savedAt = savedAt;
     if (!silent) addLog('Chronicle saved.');
     return true;
@@ -1425,6 +1439,7 @@ function normalizeSave(s) {
 function loadGame() {
   try {
     const raw = localStorage.getItem(SAVE_KEY);
+    lastStoredSave = raw;
     if (!raw) return null;
     return normalizeSave(JSON.parse(raw));
   } catch (e) { return null; }
@@ -1476,16 +1491,21 @@ function importSave() {
       parsed = JSON.parse(new TextDecoder().decode(bytes));
     }
     const s = normalizeSave(parsed);
+    s.savedAt = Date.now();
     const serialized = JSON.stringify(s);
     localStorage.setItem(SAVE_KEY, serialized);
     const stored = JSON.parse(localStorage.getItem(SAVE_KEY));
     if (stored.res.knowledge !== s.res.knowledge || stored.trial?.id !== s.trial?.id) {
       throw new Error('The browser did not retain the imported save');
     }
-    // beforeunload saves the in-memory state during reload; replace it first
-    // so that handler cannot overwrite the imported save with the old one.
+    lastStoredSave = serialized;
+    saveConflict = false;
     state = s;
-    location.reload();
+    reconcileWorkers();
+    applySettings();
+    addLog(`Save imported successfully: ${fmt(state.res.knowledge)} Knowledge, ${state.pop} villagers.`, 'log-good');
+    saveGame(true);
+    render();
   } catch (e) {
     console.error('Save import failed:', e);
     addLog(`Save import failed: ${e.message || 'unrecognized save format'}`, 'log-bad');
@@ -2352,6 +2372,11 @@ function boot() {
   setInterval(() => { if (!tooltipHover && !pointerDown && !document.activeElement?.closest('.has-tooltip')) render(); }, 500);
   setInterval(() => { if (state.settings.autosave) saveGame(true); }, 15000);
   window.addEventListener('beforeunload', () => saveGame(true));
+  window.addEventListener('storage', event => {
+    if (event.key === SAVE_KEY || event.key === null) {
+      if (checkSaveConflict()) render();
+    }
+  });
   render();
 }
 
