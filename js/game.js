@@ -60,11 +60,15 @@ function defaultState() {
     council: [],
     guardInjuries: 0,
     guardRecruitment: 0,
+    migrationGuardDeaths: 0,
+    migrationRaids: 0,
+    migrationChallengePending: false,
     armor: 0,
     migrating: false,
     pendingEchoes: 0,
     won: false,
     achievements: {},
+    commonalityLineages: {},
     settings: { autosave: true, reducedMotion: false, compactStores: false },
     log: [],
   };
@@ -185,8 +189,24 @@ function performerCount() { return state.jobs?.performer || 0; }
 function explorerCount() { return state.jobs?.explorer || 0; }
 function alliedTribes() {
   const entry = state.diplomacy && state.diplomacy[state.tradePartner];
-  return localTribe(state.tradePartner) && entry?.disposition >= 80 ? 1 : 0;
+  return localTribe(state.tradePartner) && (entry?.disposition >= 80 || entry?.conquered) ? 1 : 0;
 }
+function conqueredRealm() {
+  return Object.values(state.diplomacy || {}).some(entry => entry?.conquered);
+}
+function commonalityActive() { return tech('commonality') && state.policy === 'commonality'; }
+function conqueredLineage() {
+  const entry = state.diplomacy && state.diplomacy[state.tradePartner];
+  if (!commonalityActive() || !entry?.conquered) return null;
+  state.commonalityLineages = state.commonalityLineages || {};
+  state.commonalityLineages[state.tradePartner] = true;
+  return lineageDef(state.tradePartner);
+}
+function conqueredLineageMod(res) {
+  const mod = conqueredLineage()?.mods?.[res] || 1;
+  return mod > 1 ? 1 + (mod - 1) * 0.5 : 1;
+}
+function alliedIncomeBonus() { return commonalityActive() ? 0.075 : 0.05; }
 function ableGuards() { return Math.max(0, (state.jobs.guard || 0) - (state.guardInjuries || 0)); }
 function trialMax(def) {
   return def.repeat > 0 ? def.repeat + (upg('oathkeepers') ? 1 : 0) : 0;
@@ -473,7 +493,7 @@ function globalProductionFactors() {
     ['Morale', 0.70 + Math.max(0, Math.min(100, Number(state.morale) || 0)) * 0.0042857],
     [`Shrines (${bld('shrine')} × 5%) + factories (${bld('factory')} × 10%)`, 1 + 0.05 * bld('shrine') + 0.10 * bld('factory')],
     ['Dynamos', 1 + 0.15 * bld('dynamo')],
-    ['Allied tribes', 1 + 0.05 * alliedTribes()],
+    ['Allied tribes', 1 + alliedIncomeBonus() * alliedTribes()],
     ['Stored machinery', 1 + 0.002 * state.res.machinery],
     ['Glacial Peaks', expDone('glacialPeaks') ? 1.10 : 1],
     ['All six sites explored', siteExpeditionsComplete() ? 1.05 : 1],
@@ -485,7 +505,9 @@ function globalProductionFactors() {
 }
 
 function settlementProductionFactors(res) {
-  const factors = [[landingDef().name, landingMod(res)], [lineageDef(state.species).name, lineageMod(res)]];
+  const factors = [[landingDef().name, landingMod(res)], [lineageDef(state.species).name, baseLineageMod(res)]];
+  const conquered = conqueredLineage();
+  if (conquered && conqueredLineageMod(res) > 1) factors.push([`${conquered.name} (Commonality)`, conqueredLineageMod(res)]);
   for (const e of EXPEDITIONS) {
     if (expDone(e.id) && e.mods?.[res]) factors.push([e.name, e.mods[res]]);
   }
@@ -498,7 +520,9 @@ function settlementProductionFactors(res) {
 }
 
 function forgeProductionFactors() {
-  const factors = [[landingDef().name, landingMod('steel')], [lineageDef(state.species).name, lineageMod('steel')]];
+  const factors = [[landingDef().name, landingMod('steel')], [lineageDef(state.species).name, baseLineageMod('steel')]];
+  const conquered = conqueredLineage();
+  if (conquered && conqueredLineageMod('steel') > 1) factors.push([`${conquered.name} (Commonality)`, conqueredLineageMod('steel')]);
   for (const e of EXPEDITIONS) {
     if (expDone(e.id) && e.mods?.forge) factors.push([`${e.name} (Forges)`, e.mods.forge]);
   }
@@ -533,6 +557,7 @@ function updateMorale(dt, foodRate) {
   if (winter) delta -= 0.006;
   if (bld('shrine') > 0) delta += state.morale < 75 ? 0.012 : 0;
   delta += performerCount() * 0.10;
+  if (state.diplomacy?.[state.tradePartner]?.conquered && !commonalityActive()) delta -= 1.0;
   const before = moraleBand(state.morale);
   state.morale = Math.max(0, Math.min(moraleCap(), state.morale + delta * dt));
   const after = moraleBand(state.morale);
@@ -590,9 +615,12 @@ function updateRandomEvents(dt) {
   addLog(`${prefix}${event.text}${changes.length ? ` ${changes.join('; ')}.` : ''}`, impact);
 }
 
-function lineageMod(res) {
+function baseLineageMod(res) {
   const lineage = lineageDef(state.species);
   return (lineage.mods[res] === undefined ? 1 : lineage.mods[res]) * (lineage.all || 1);
+}
+function lineageMod(res) {
+  return baseLineageMod(res) * conqueredLineageMod(res);
 }
 
 function factoryRecipe() {
@@ -849,6 +877,7 @@ function updateDiplomacy(dt) {
   for (const id of [state.tradePartner]) {
     if (!localTribe(id) || !state.diplomacy[id]) continue;
     const entry = state.diplomacy[id];
+    if (entry.conquered) continue;
     const nudged = diplomatCount(id) * 0.05 * dt;
     if (nudged) entry.disposition = Math.min(100, entry.disposition + nudged);
   }
@@ -858,7 +887,7 @@ function updateDiplomacy(dt) {
   state.diplomacyEventT = 0;
   const ids = localTribe(state.tradePartner) && state.diplomacy[state.tradePartner]
     ? [state.tradePartner] : [];
-  if (!ids.length) return;
+  if (!ids.length || state.diplomacy[ids[0]].conquered) return;
   const id = ids[Math.floor(Math.random() * ids.length)];
   const entry = state.diplomacy[id];
   const tribe = tribeDef(id);
@@ -881,7 +910,10 @@ function resolveTribeRaid(id) {
   // Armor keeps a bad fight from becoming fatal; it does not make the
   // settlement more likely to win the engagement.
   const defense = (able + wounded * 0.5 + armed * 0.9) * governanceDefenseMod() * (isMephit() ? 1.35 : 1);
-  const raidPower = 3 + (50 - entry.disposition) / 8 + Math.random() * 5;
+  // Incoming raids should create pressure without deleting a settlement's
+  // entire military investment.  Hostility still matters, but the old power
+  // curve made a merely adequate garrison pay an outsized price on a loss.
+  const raidPower = (2.5 + (50 - entry.disposition) / 10 + Math.random() * 4) * 0.8;
   if (defense >= raidPower) {
     entry.disposition = Math.max(-100, entry.disposition - 2);
     if (isMephit()) state.diplomacyEventT = -120;
@@ -893,16 +925,17 @@ function resolveTribeRaid(id) {
   // their own defenders should benefit from the lineage rather than suffer it.
   const harm = 1;
   const deathMult = Math.max(0.15, 1 - armorLevel() * 0.08);
-  const deaths = Math.min(able, Math.floor(margin / 5 * deathMult));
-  const injuries = Math.min(Math.max(0, able - deaths), Math.max(1, Math.ceil(margin / 3 * harm)));
+  const deaths = Math.min(able, Math.floor(margin / 7 * deathMult));
+  const injuries = Math.min(Math.max(0, able - deaths), Math.max(1, Math.ceil(margin / 4 * harm)));
   state.jobs.guard = Math.max(0, (state.jobs.guard || 0) - deaths);
+  state.migrationGuardDeaths = (state.migrationGuardDeaths || 0) + deaths;
   state.guardInjuries = Math.min(ableGuards(), (state.guardInjuries || 0) + injuries);
   const lootPool = ['food', 'wood', 'stone', 'tools', 'copper', 'iron', 'coal', 'steel', 'currency']
     .filter(r => (state.res[r] || 0) > 0);
   const loot = [];
   for (let i = 0; i < Math.min(2, lootPool.length); i++) {
     const pick = lootPool.splice(Math.floor(Math.random() * lootPool.length), 1)[0];
-    const amount = Math.min(state.res[pick], Math.max(5, Math.floor(state.res[pick] * (0.08 + margin * 0.015))));
+    const amount = Math.min(state.res[pick], Math.max(5, Math.floor(state.res[pick] * (0.05 + margin * 0.01))));
     state.res[pick] -= amount;
     loot.push(`${fmt(amount)} ${RESOURCES.find(r => r.id === pick).name}`);
   }
@@ -1003,11 +1036,15 @@ function setOut(trialId = null) {
   const up = { ...state.upgrades };
   const candidate = state.pendingSpecies || state.species;
   if (!trialId && !lineageSelectable(candidate, landing.id)) return;
+  if (!trialId) {
+    state.migrationChallengePending = true;
+    updateAchievements();
+  }
   const newSpecies = trialId ? state.species : candidate;
   const unlockedLineages = { ...(state.lineagesUnlocked || { human: true }) };
   const newlyUnlocked = [];
   for (const id in (trialId ? {} : state.diplomacy) || {}) {
-    if (state.diplomacy[id].disposition >= 80 && LINEAGES.some(l => l.id === id)) {
+    if ((state.diplomacy[id].disposition >= 80 || state.diplomacy[id].conquered) && LINEAGES.some(l => l.id === id)) {
       if (!unlockedLineages[id]) newlyUnlocked.push(lineageDef(id).name);
       unlockedLineages[id] = true;
     }
@@ -1021,6 +1058,8 @@ function setOut(trialId = null) {
     landingsSeen: state.landingsSeen,
     species: state.species, tribesSeen: state.tribesSeen,
     diplomacy: state.diplomacy,
+    achievements: state.achievements,
+    commonalityLineages: state.commonalityLineages,
     won: state.won, savedAt: state.savedAt, log: state.log,
   };
   state = defaultState();
@@ -1036,6 +1075,8 @@ function setOut(trialId = null) {
   state.lineagesUnlocked = unlockedLineages;
   state.tribesSeen = keep.tribesSeen;
   state.diplomacy = keep.diplomacy;
+  state.achievements = keep.achievements;
+  state.commonalityLineages = keep.commonalityLineages;
   state.won = keep.won;
   state.savedAt = keep.savedAt;
   state.log = keep.log;
@@ -1221,10 +1262,15 @@ function doResearch(id) {
 }
 
 function choosePolicy(id) {
-  if (!tech('civics') || !CIVICS.some(c => c.id === id)) return;
+  const def = CIVICS.find(c => c.id === id);
+  if (!tech('civics') || !def || (def.req && !def.req())) return;
   if (state.policy === id) return;
   state.policy = id;
-  addLog(`The Civic Hall adopts ${civicDef(id).name}. ${civicDef(id).desc}`, 'log-important');
+  if (id === 'commonality' && state.diplomacy?.[state.tradePartner]?.conquered) {
+    state.commonalityLineages = state.commonalityLineages || {};
+    state.commonalityLineages[state.tradePartner] = true;
+  }
+  addLog(`The Civic Hall adopts ${def.name}. ${def.desc}`, 'log-important');
 }
 function appointGovernor(id) {
   if (!tech('council') || !governorDef(id) || state.governor === id) return;
@@ -1301,7 +1347,21 @@ function raidLoot(id) {
     skyborn: ['knowledge', 'aether', 'currency'],
     mephit: ['coal', 'tools', 'steel'],
   };
-  return tribeDef(id).loot || pools[id] || ['food', 'wood'];
+  const loot = [...(tribeDef(id).loot || pools[id] || ['food', 'wood'])];
+  if (tech('currency') && !loot.includes('currency')) loot.push('currency');
+  return loot;
+}
+
+function raidStage(id = 'raid') {
+  return RAID_STAGES.find(stage => stage.id === id) || RAID_STAGES[0];
+}
+
+function raidUncommonLoot() {
+  return [
+    tech('currency') ? 'currency' : null,
+    tech('craftsmanship') ? 'tools' : null,
+    tech('metallurgy') ? 'steel' : null,
+  ].filter(Boolean);
 }
 
 function applyRaidCasualties(deaths, injuries) {
@@ -1326,24 +1386,29 @@ function applyRaidCasualties(deaths, injuries) {
 
   state.jobs.guard = Math.max(0, total - actualDeaths);
   state.guardInjuries = Math.min(state.jobs.guard, wounded + healthyInjuries);
+  state.migrationGuardDeaths = (state.migrationGuardDeaths || 0) + actualDeaths;
   return { deaths: actualDeaths, injuries: healthyInjuries };
 }
 
-function doRaid(id) {
+function doRaid(id, stageId = 'raid') {
   const entry = state.diplomacy && state.diplomacy[id];
-  if (!entry || !localTribe(id) || !tech('guards')) return;
+  if (!entry || entry.conquered || !localTribe(id) || !tech('guards')) return;
+  const stage = raidStage(stageId);
   const able = ableGuards();
-  const cost = { food: 30, tools: 2 };
+  const cost = stage.cost;
   if (able < 1 || !canAfford(cost)) return;
   payCost(cost);
+  state.migrationRaids = (state.migrationRaids || 0) + 1;
 
   const targetIsMephit = id === 'mephit';
   // Weapons improve the attack; armor only protects troops who come home.
   const totalGuards = state.jobs.guard || 0;
   const wounded = Math.max(0, totalGuards - able);
   const force = able + wounded * 0.5 + (tech('weaponry') ? (able * 0.9 + wounded * 0.45) : 0);
-  const difficulty = (5 + Math.max(0, entry.disposition) / 10) * (targetIsMephit ? 1.35 : 1);
-  const chance = Math.min(0.9, Math.max(0.15, 0.25 + force * governanceDefenseMod() / (force * governanceDefenseMod() + difficulty) * 0.65));
+  const difficulty = (5 + Math.max(0, entry.disposition) / 10) * stage.difficulty * (targetIsMephit ? 1.35 : 1);
+  // A properly staffed raid should be a dependable active choice, not a coin
+  // flip.  It still needs enough Guards to overcome stronger neighbors.
+  const chance = Math.min(0.9, Math.max(0.35, 0.4 + force * governanceDefenseMod() / (force * governanceDefenseMod() + difficulty) * 0.55));
   const succeeded = Math.random() < chance;
   const injuryMult = targetIsMephit ? 1.75 : 1;
   const deathMult = Math.max(0.15, 1 - armorLevel() * 0.08);
@@ -1365,19 +1430,30 @@ function doRaid(id) {
   entry.disposition = Math.max(-100, entry.disposition - (succeeded ? 28 : 18));
 
   if (succeeded) {
+    if (stage.id === 'siege') entry.siegeReady = true;
     state.morale = Math.min(moraleCap(), state.morale + 3);
-    const pool = raidLoot(id).filter(r => capacityOf(r) === Infinity || !isFull(r));
-    const loot = pool[Math.floor(Math.random() * pool.length)];
-    const amount = loot === 'knowledge' ? 35 : loot === 'currency' ? 12 : 20;
-    if (loot) {
-      state.res[loot] = Math.min(capacityOf(loot), state.res[loot] + amount);
-      state.seen[loot] = true;
-    }
-    const lootText = loot ? `${amount} ${RESOURCES.find(r => r.id === loot).name}` : 'nothing (the stores were full)';
-    addLog(`The raid on the ${tribeDef(id).name} succeeds${targetIsMephit ? ', though the fumes leave everyone coughing' : ''}. Emberhold seizes ${lootText}; ${actualDeaths} Guard${actualDeaths === 1 ? '' : 's'} lost and ${actualInjuries} injured.`, 'log-good');
+    const common = raidLoot(id).filter(r => capacityOf(r) === Infinity || !isFull(r));
+    const uncommon = raidUncommonLoot().filter(r => capacityOf(r) === Infinity || !isFull(r));
+    const loot = [];
+    const addLoot = pool => {
+      if (!pool.length) return;
+      const pick = pool.splice(Math.floor(Math.random() * pool.length), 1)[0];
+      const base = pick === 'knowledge' ? 35 : pick === 'currency' ? 12 : 20;
+      const amount = Math.max(1, Math.round(base * stage.loot));
+      const gained = Math.min(capacityOf(pick) - state.res[pick], amount);
+      if (gained > 0) {
+        state.res[pick] += gained;
+        state.seen[pick] = true;
+        loot.push(`${gained} ${RESOURCES.find(r => r.id === pick).name}`);
+      }
+    };
+    for (let i = 0; i < stage.rolls; i++) addLoot(common);
+    for (let i = 0; i < (stage.uncommon || 0); i++) addLoot(uncommon);
+    const lootText = loot.length ? loot.join(', ') : 'nothing (the stores were full)';
+    addLog(`The ${stage.name.toLowerCase()} on the ${tribeDef(id).name} succeeds${targetIsMephit ? ', though the fumes leave everyone coughing' : ''}. Emberhold seizes ${lootText}; ${actualDeaths} Guard${actualDeaths === 1 ? '' : 's'} lost and ${actualInjuries} injured.`, 'log-good');
   } else {
     state.morale = Math.max(0, state.morale - 5);
-    addLog(`The raid on the ${tribeDef(id).name} fails${targetIsMephit ? ' — the smell alone breaks the charge' : ''}. ${actualDeaths} Guard${actualDeaths === 1 ? '' : 's'} lost and ${actualInjuries} injured.`, 'log-bad');
+    addLog(`The ${stage.name.toLowerCase()} on the ${tribeDef(id).name} fails${targetIsMephit ? ' — the smell alone breaks the charge' : ''}. ${actualDeaths} Guard${actualDeaths === 1 ? '' : 's'} lost and ${actualInjuries} injured.`, 'log-bad');
   }
 }
 
@@ -1401,6 +1477,17 @@ function checkSaveConflict() {
     addLog('Paused: another Emberhold tab changed the saved game. Reload this tab to continue with that save. This tab will not overwrite it.', 'log-bad');
   }
   return true;
+}
+
+function conquerTown(id) {
+  const entry = state.diplomacy && state.diplomacy[id];
+  if (!entry || !localTribe(id) || !entry.siegeReady || entry.conquered) return;
+  if (ableGuards() < 15) return;
+  state.jobs.guard = Math.max(0, (state.jobs.guard || 0) - 15);
+  state.guardInjuries = Math.min(state.guardInjuries || 0, state.jobs.guard);
+  entry.conquered = true;
+  entry.siegeReady = false;
+  addLog(`Emberhold conquers the ${tribeDef(id).name}. The town joins the realm, but its occupation steadily weighs on morale.`, 'log-good');
 }
 function saveGame(silent) {
   try {
@@ -1597,6 +1684,8 @@ const ACHIEVEMENTS = [
   { id: 'trialist', name: 'Oathbound', desc: 'Complete a trial.', test: () => Object.values(state.trialDone || {}).some(n => n > 0), progress: () => `${Object.values(state.trialDone || {}).reduce((a, n) => a + n, 0)} completed` },
   { id: 'beacon', name: 'The Beacon Burns', desc: 'Reach the Age of Light.', test: () => state.era >= 5 || state.won, progress: () => `Age ${Math.min(state.era, 5)} / 5` },
   { id: 'manyHands', name: 'Many Hands', desc: 'Grow Emberhold to 25 people.', test: () => state.pop >= 25, progress: () => `${Math.min(state.pop, 25)} / 25 people` },
+  { id: 'butchersBill', name: "The Butcher's Bill", desc: 'Lose at least 25 Guards during a single migration.', test: () => state.migrationChallengePending && (state.migrationGuardDeaths || 0) >= 25, progress: () => `${Math.min(state.migrationGuardDeaths || 0, 25)} / 25 Guard deaths this migration` },
+  { id: 'peacefulMigration', name: 'The Quiet Road', desc: 'Complete a migration without launching a raid.', test: () => state.migrationChallengePending && (state.migrationRaids || 0) === 0, progress: () => `${state.migrationRaids || 0} raids launched this migration` },
   ...LINEAGES.map(lineage => ({
     id: `lineage-${lineage.id}`,
     name: `Lineage: ${lineage.name}`,
@@ -1860,16 +1949,27 @@ function renderDiplomacy() {
       `<div class="card-desc">${tribe.text}</div>` +
       `<div class="res-note">${habitatText(tribe)}</div>` +
       `<div class="trial-reward">${lineageDef(id).name} lineage: ${lineageDef(id).effect}. ${lineageUnlocked(id) ? 'Unlocked for future migrations.' : 'Migrate with disposition 80+ to unlock for future migrations.'}</div>` +
-      (local && entry.disposition >= 80 ? '<div class="trial-reward">Active ally: +5% to all village incomes.</div>' : '') +
+      (local && (entry.disposition >= 80 || entry.conquered) ? `<div class="trial-reward">Active ally: +${Math.round(alliedIncomeBonus() * 1000) / 10}% to all village incomes.</div>` : '') +
       (local && entry.disposition < 0 ? `<div class="trial-mod">Relations are strained: the ${tribe.name} may raid the village.</div>` : '') +
       (local ? `<div class="trial-goal">${diplomacyRequestText(tribe, entry)}</div>` : '<div class="res-note">Only a few nice letters can reach them for now.</div>') +
       (local ? `<div class="card-cost">offer: ${costHtml(requestCost)} — +15 relations</div>` : '') +
       (local ? `<div class="card-actions"><button data-action="diplomacy-supply" data-tribe="${id}" ${canSupply ? '' : 'disabled'}>Supply the request</button></div>` : '');
     if (local && tech('guards')) {
-      const raidCost = { food: 30, tools: 2 };
-      const canRaid = ableGuards() > 0 && canAfford(raidCost);
-      h += `<div class="trial-mod">Raid cost: ${costHtml(raidCost)}. This damages relations and may cost Guards.</div>` +
-        `<div class="card-actions"><button data-action="raid" data-tribe="${id}" ${canRaid ? '' : 'disabled'}>Raid the ${tribe.name}</button></div>`;
+      if (entry.conquered) {
+        h += '<div class="trial-reward">Conquered realm: +5% to all village incomes. This realm no longer produces diplomatic events.</div>';
+      } else {
+        h += '<div class="trial-mod">Attack stages cost more and become harder, but grant more loot rolls. The final three stages also roll for uncommon loot.</div>';
+        h += RAID_STAGES.map(stage => {
+          const canRaid = ableGuards() > 0 && canAfford(stage.cost);
+          const uncommon = stage.uncommon ? ` + ${stage.uncommon} uncommon` : '';
+          return `<div class="card-actions"><button data-action="raid" data-tribe="${id}" data-stage="${stage.id}" ${canRaid ? '' : 'disabled'}>${stage.name} — ${costHtml(stage.cost)} — ${stage.rolls} roll${stage.rolls === 1 ? '' : 's'}${uncommon}</button></div>`;
+        }).join('');
+        if (entry.siegeReady) {
+          const canConquer = ableGuards() >= 15;
+          h += `<div class="trial-reward">The siege succeeded. Commit 15 healthy Guards to conquer this town; conquest grants the ally bonus but causes a steady −1 morale pressure.</div>` +
+            `<div class="card-actions"><button data-action="conquer" data-tribe="${id}" ${canConquer ? '' : 'disabled'}>Conquer the ${tribe.name} (15 healthy Guards)</button></div>`;
+        }
+      }
     }
     if (local && tech('diplomacy')) {
       h += `<div class="res-note">${JOBS.diplomat.name}s assigned: ${diplomatCount(id)} — each adds +3 relations per minute</div>` +
@@ -1885,7 +1985,7 @@ function renderGovernance() {
   if (!tech('civics')) return '<h2 class="section">Governance</h2><div class="card"><div class="card-desc">Writing and the Age of Iron will give Emberhold the laws needed to govern itself.</div></div>';
   let h = '<h2 class="section">Governance — the Civic Hall</h2>';
   h += '<div class="res-note">Choose one policy per settlement. Policies and research reset on migration; Civic Law must be researched again.</div>';
-  for (const c of CIVICS) h += `<div class="card ${state.policy === c.id ? 'trial-active' : ''}"><div class="card-head"><span class="card-title">${c.name}</span>${state.policy === c.id ? '<span class="card-count">current policy</span>' : ''}</div><div class="card-effect">${c.desc}</div><div class="card-actions"><button data-action="policy" data-id="${c.id}" ${state.policy === c.id ? 'disabled' : ''}>Adopt</button></div></div>`;
+  for (const c of CIVICS.filter(c => !c.req || c.req())) h += `<div class="card ${state.policy === c.id ? 'trial-active' : ''}"><div class="card-head"><span class="card-title">${c.name}</span>${state.policy === c.id ? '<span class="card-count">current policy</span>' : ''}</div><div class="card-effect">${c.desc}</div><div class="card-actions"><button data-action="policy" data-id="${c.id}" ${state.policy === c.id ? 'disabled' : ''}>Adopt</button></div></div>`;
   if (!tech('council')) return h + '<div class="card"><div class="card-desc">Research The Council to appoint a Governor and advisors.</div></div>';
   h += '<h2 class="section">Governor</h2><div class="res-note">Appointments cost 40 Currency. Only one governor may serve at a time.</div>';
   for (const g of GOVERNORS) h += `<div class="card ${state.governor === g.id ? 'trial-active' : ''}"><div class="card-head"><span class="card-title">${g.name}</span>${state.governor === g.id ? '<span class="card-count">serving</span>' : ''}</div><div class="card-effect">${g.desc}</div><div class="card-actions"><button data-action="governor" data-id="${g.id}" ${state.governor === g.id || state.res.currency < 40 ? 'disabled' : ''}>Appoint</button></div></div>`;
@@ -2196,6 +2296,7 @@ const automationActionFns = {
   migrationOut: setOut,
   migrationRefund,
   raid: doRaid,
+  conquer: conquerTown,
   research: attemptResearch,
   trialAbandon: () => endTrial(false),
   trialStart: startTrial,
@@ -2269,7 +2370,8 @@ function runAction(btn) {
     case 'research': attemptResearch(btn.dataset.id); render(); break;
     case 'queue-cancel': cancelQueue(btn.dataset.type, +btn.dataset.index); render(); break;
     case 'diplomacy-supply': supplyDiplomacyRequest(btn.dataset.tribe); render(); break;
-    case 'raid': doRaid(btn.dataset.tribe); render(); break;
+    case 'raid': doRaid(btn.dataset.tribe, btn.dataset.stage); render(); break;
+    case 'conquer': conquerTown(btn.dataset.tribe); render(); break;
     case 'diplomat-inc': doAssignDiplomat(btn.dataset.tribe, +1); render(); break;
     case 'diplomat-dec': doAssignDiplomat(btn.dataset.tribe, -1); render(); break;
     case 'performer-inc': doAssignPerformer(+1); render(); break;

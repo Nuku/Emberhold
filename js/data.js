@@ -286,6 +286,9 @@ const TECHS = [
   { id: 'council', name: 'The Council', cost: 1100,
     desc: 'Unlocks a Governor and two Council seats whose talents shape each Emberhold.',
     req: () => tech('civics') && tech('diplomacy') },
+  { id: 'commonality', name: 'Commonality', cost: 2400,
+    desc: 'Unlocks the Commonality government, ending the morale pressure of conquered realms and strengthening ally income.',
+    req: () => tech('civics') && tech('council') && conqueredRealm() },
   { id: 'festivals', name: 'Civic Festivals', cost: 1400,
     desc: 'Raises the maximum Morale by 15.',
     req: () => tech('civics') && bld('amphitheatre') > 0 },
@@ -318,6 +321,8 @@ const CIVICS = [
     desc: '+20% Knowledge and +10% Aether.' },
   { id: 'warCouncil', name: 'War Council', defense: 1.30, mods: { food: 0.95 },
     desc: '+30% raid strength; −5% food production.' },
+  { id: 'commonality', name: 'Commonality', req: () => tech('commonality'),
+    desc: 'Conquered peoples are represented within the realm: occupation morale pressure is removed and the ally bonus becomes +7.5% to all village incomes.' },
 ];
 
 const GOVERNORS = [
@@ -627,6 +632,21 @@ const ANIMAL_LINEAGES = [
   const pct = Math.round((mod - 1) * 100);
   return `${pct > 0 ? '+' : '−'}${Math.abs(pct)}% ${RESOURCES.find(r => r.id === res).name}`;
 }).join(', ') }));
+
+// --- attack stages ---
+// Eight stages give six meaningful choices between a basic raid and a siege.
+// The final three add an uncommon loot roll; the actual contents are filtered
+// by the technologies available in the current settlement.
+const RAID_STAGES = [
+  { id: 'raid', name: 'Raid', difficulty: 1, cost: { food: 30, tools: 2 }, rolls: 1, loot: 1 },
+  { id: 'foray', name: 'Foray', difficulty: 1.25, cost: { food: 40, tools: 2 }, rolls: 1, loot: 1.1 },
+  { id: 'skirmish', name: 'Skirmish', difficulty: 1.55, cost: { food: 50, tools: 3 }, rolls: 2, loot: 1.2 },
+  { id: 'assault', name: 'Assault', difficulty: 1.9, cost: { food: 65, tools: 3 }, rolls: 2, loot: 1.3 },
+  { id: 'offensive', name: 'Offensive', difficulty: 2.3, cost: { food: 80, tools: 4 }, rolls: 3, loot: 1.45 },
+  { id: 'breakthrough', name: 'Breakthrough', difficulty: 2.75, cost: { food: 100, tools: 5 }, rolls: 3, loot: 1.6, uncommon: 1 },
+  { id: 'breach', name: 'Breach', difficulty: 3.25, cost: { food: 125, tools: 6 }, rolls: 4, loot: 1.8, uncommon: 1 },
+  { id: 'siege', name: 'Siege', difficulty: 3.8, cost: { food: 160, tools: 8 }, rolls: 5, loot: 2, uncommon: 2 },
+];
 
 // --- neighboring tribes ---
 // Humans are the default people of Emberhold. After each migration, there is

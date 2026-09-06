@@ -4,6 +4,12 @@ All notable changes to Emberhold are recorded here, with the newest changes firs
 
 ## 2026-09-06
 
+- Added eight attack stages from Raids through Sieges, with escalating costs and difficulty, additional loot rolls, and uncommon loot in the final three stages; Tools, Steel, and Currency appear when unlocked.
+- Tuned combat so incoming raids are less destructive and staffed outgoing attacks are more reliable.
+- Added post-Siege conquest: commit 15 healthy Guards to take a neighboring town, gaining the ally income bonus while applying a steady −1.0 morale pressure and suppressing that realm's diplomatic events.
+- Added Commonality research and government. It removes conquered-realm morale pressure, raises the ally bonus from +5% to +7.5%, and quietly records the lineages with which Commonality has been achieved.
+- Commonality now grants half-strength positive production benefits from the conquered lineage while active; lineage penalties do not transfer, and the effect ends when the government or settlement changes.
+- Added The Butcher's Bill achievement for losing 25 Guards in one migration and The Quiet Road for completing a migration without launching a raid.
 - Added Training Yard research and buildings; each Training Yard reduces replacement Guard recruitment time by 10%, compounding without a cap.
 - Increased Steam Plant coal consumption tenfold, from 0.08 to 0.8 Coal/s per plant.
 - Fixed Forge input costs being incorrectly scaled by expedition bonuses to Iron or Coal; expeditions can now affect Forges only through an explicit Forge modifier.

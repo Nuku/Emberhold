@@ -36,6 +36,92 @@ test('neutral tribes do not raid, while hostile tribes still can', () => {
   assert.equal(run('raids'), 1);
 });
 
+test('incoming raids are less destructive and staffed raids are reliable', () => {
+  const { run } = game();
+  run(`state.techs.guards = true; state.jobs.guard = 4; state.res.food = 500;
+    state.res.tools = 20; ensureDiplomacyEntry('human');
+    state.diplomacy.human.disposition = -50; Math.random = () => 0;
+    resolveTribeRaid('human')`);
+  assert.equal(run('state.jobs.guard'), 4);
+
+  run(`state.res.food = 500; state.res.tools = 20; state.jobs.guard = 4;
+    state.guardInjuries = 0; state.diplomacy.human.disposition = 0;
+    Math.random = () => 0.5; doRaid('human')`);
+  assert.equal(run('state.res.food'), 470);
+  assert.ok(run('state.diplomacy.human.disposition') < 0);
+});
+
+test('attack stages scale difficulty and unlock uncommon loot rolls', () => {
+  const { run } = game();
+  assert.equal(run('RAID_STAGES.length'), 8);
+  assert.deepEqual(JSON.parse(run('JSON.stringify(RAID_STAGES.slice(-3).map(s => s.uncommon))')), [1, 1, 2]);
+  run(`state.techs = { guards: true, currency: true, craftsmanship: true, metallurgy: true };
+    state.jobs.guard = 100; state.res.food = 1000; state.res.tools = 10;
+    ensureDiplomacyEntry('human'); state.diplomacy.human.disposition = 0;
+    Math.random = () => 0; doRaid('human', 'siege')`);
+  assert.ok(run('state.res.tools') > 10);
+  assert.equal(run("raidUncommonLoot().includes('steel')"), true);
+  assert.ok(run("raidStage('siege').difficulty > raidStage('raid').difficulty"));
+  assert.ok(run("raidStage('siege').rolls > raidStage('raid').rolls"));
+});
+
+test('successful sieges unlock conquest and conquered realms become allies', () => {
+  const { run } = game();
+  run(`state.techs.guards = true; state.jobs.guard = 20; ensureDiplomacyEntry('human');
+    state.diplomacy.human.siegeReady = true; state.diplomacy.human.disposition = -40;
+    conquerTown('human')`);
+  assert.equal(run('state.jobs.guard'), 5);
+  assert.equal(run('state.diplomacy.human.conquered'), true);
+  assert.equal(run('state.diplomacy.human.siegeReady'), false);
+  assert.equal(run('state.morale'), 70);
+  run('state.res.food = 10; updateMorale(1, 0)');
+  assert.equal(run('state.morale'), 69);
+  assert.equal(run('alliedTribes()'), 1);
+
+  run(`state.tradePartner = 'clocklings'; ensureDiplomacyEntry('clocklings');
+    state.diplomacy.clocklings.disposition = -50; state.diplomacy.clocklings.conquered = true;
+    state.migrating = true; state.pendingLanding = 'emberplain'; state.pendingSpecies = 'human';
+    state.pendingLandings = [{ id: 'emberplain' }]; setOut()`);
+  assert.equal(run("state.lineagesUnlocked.clocklings"), true);
+});
+
+test('Commonality appears after conquest and replaces the occupation penalty', () => {
+  const { run } = game();
+  run(`state.techs = { civics: true, council: true }; state.res.knowledge = 2400;
+    ensureDiplomacyEntry('human')`);
+  assert.equal(run("renderResearch().includes('Commonality')"), false);
+  run("state.diplomacy.human.conquered = true; state.tradePartner = 'human'");
+  assert.equal(run("renderResearch().includes('Commonality')"), true);
+  run(`doResearch('commonality'); choosePolicy('commonality'); state.res.food = 10;
+    state.morale = 70; updateMorale(1, 0)`);
+  assert.equal(run("tech('commonality')"), true);
+  assert.equal(run("state.policy"), 'commonality');
+  assert.equal(run('state.morale'), 70);
+  assert.equal(run('alliedIncomeBonus()'), 0.075);
+  assert.equal(run('alliedTribes()'), 1);
+
+  run(`state.tradePartner = 'clocklings'; state.diplomacy.clocklings = { disposition: -40, conquered: true };
+  state.species = 'human'`);
+  assert.equal(run("lineageMod('tools')"), 1.1);
+  assert.equal(run("state.commonalityLineages.clocklings"), true);
+  assert.equal(run("lineageMod('food')"), 1);
+  run("state.policy = 'commons'");
+  assert.equal(run("lineageMod('tools')"), 1);
+});
+
+test('migration combat achievements record deaths and peaceful departures', () => {
+  const losses = game();
+  losses.run(`state.pop = 10; state.migrationGuardDeaths = 25; state.migrationRaids = 1;
+    state.migrating = true; state.pendingLanding = 'emberplain'; state.pendingSpecies = 'human';
+    state.pendingLandings = [{ id: 'emberplain' }]; setOut()`);
+  assert.equal(losses.run("state.achievements.butchersBill"), true);
+
+  const peaceful = game();
+  peaceful.run(`state.migrating = true; state.pendingLanding = 'emberplain'; state.pendingSpecies = 'human';
+    state.pendingLandings = [{ id: 'emberplain' }]; setOut()`);
+  assert.equal(peaceful.run('state.achievements.peacefulMigration'), true);
+});
+
 test('one diplomat makes progress even through repeated worst diplomatic slights', () => {
   const { run } = game();
   run(`ensureDiplomacyEntry('human'); state.diplomacy.human.disposition = 0;
