@@ -4,6 +4,10 @@ All notable changes to Emberhold are recorded here, with the newest changes firs
 
 ## 2026-09-06
 
+- Added the early-Steam Living Block: an uncapped housing building for five villagers, built from Steel, Stone, and Wood, with steep escalating costs, 1 Power capacity required per block, and −0.1 morale/s from cramped living.
+- Added the Journal of Old Times Ancestral Shop upgrade for 500 Echoes. It permanently provides +0.2 Knowledge/s, and refunded Echo purchases now remove their bonuses immediately.
+- Added +0.006 morale/s during summer to match winter's −0.006 morale/s. Seasonal pressure stacks with daily weather; spring and autumn are neutral.
+- Added daily skies and seasonal temperatures beside the chronicle date. Clear skies lift morale, storms lower it, and rain, frost, heat, fog, and auroras affect production. Each migration destination now has a visible local climate; weather remains consistent across saving and offline progress.
 - Changed Power from a draining resource store into generator capacity. Steam Plants provide 3 capacity each, factories require 1.5 capacity each, and factories stop when capacity is insufficient.
 - Updated Power displays, tooltips, factory recipe cards, README guidance, and regression tests to describe capacity rather than storage.
 - Removed the generic next-step card after all guided milestones are complete.

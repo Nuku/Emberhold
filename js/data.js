@@ -33,6 +33,7 @@ const RESOURCES = [
 // separate so research and upgrades can tune generation and demand later.
 const POWER_PER_STEAM_PLANT = 3;
 const FACTORY_POWER_REQUIREMENT = 1.5;
+const LIVING_BLOCK_POWER_REQUIREMENT = 1;
 
 // --- eras ---
 const ERAS = [
@@ -217,6 +218,11 @@ const BUILDINGS = [
     cost: { steel: 70, tools: 55, currency: 90 },
     effect: () => '+10% all production; selectable powered production in the Village',
     req: () => (trialActive('industrialization') || perm('factory')) && tech('metallurgy'), desc: 'the drumbeat of the new age' },
+
+  { id: 'livingBlock', name: 'Living Block', max: Infinity, scale: 2.5,
+    cost: { steel: 40, stone: 80, wood: 30 },
+    effect: () => `+5 population cap; requires ${LIVING_BLOCK_POWER_REQUIREMENT} Power; −0.1 morale/s`,
+    req: () => tech('machineryTech'), desc: 'five people packed tightly together; miserable, but it is a roof' },
 
   { id: 'observatory', name: 'Observatory', max: 1, scale: 1,
     cost: { steel: 130, machinery: 20, tools: 60, currency: 150, goods: 60 },
@@ -581,6 +587,23 @@ const TRIALS = [
 
 // --- landings: where the migration ends up. Modifiers multiply production
 // of that resource (passive income included). The road decides, for now.
+const CLIMATES = {
+  emberplain: { name: 'Sunlit plains', offset: 2, weights: [55, 25, 15, 5], text: 'Warmer, sunnier days; storms are uncommon.' },
+  greenfold: { name: 'Rain-fed woodland', offset: 0, weights: [25, 30, 35, 10], text: 'Frequent rain nourishes food production.' },
+  grayrocks: { name: 'Stormbound heights', offset: -8, weights: [20, 25, 20, 35], text: 'Colder days and frequent storms; frost can hinder food production.' },
+  floodmeadows: { name: 'Misty riverlands', offset: 1, weights: [25, 20, 35, 10, 10], text: 'Rain is common; occasional fog slows trade income.' },
+  ashfen: { name: 'Warm veiled marsh', offset: 5, weights: [15, 30, 20, 15, 20], text: 'Warmer, cloudier days with frequent fog that slows trade income.' },
+  windmere: { name: 'Aurora waters', offset: -3, weights: [30, 20, 15, 20, 5, 10], text: 'Cool and changeable; occasional auroras lift morale and aid knowledge and aether production.' },
+};
+// Weights follow this order. Effects multiply positive production, never consumption.
+const WEATHER = [
+  { id: 'clear', name: 'Clear', morale: 0.025, mods: {} },
+  { id: 'cloudy', name: 'Cloudy', morale: 0, mods: {} },
+  { id: 'rain', name: 'Rainy', morale: 0, mods: { food: 1.10 } },
+  { id: 'storm', name: 'Stormy', morale: -0.06, mods: { food: 0.90 } },
+  { id: 'fog', name: 'Foggy', morale: 0, mods: { currency: 0.90 } },
+  { id: 'aurora', name: 'Aurora', morale: 0.015, mods: { knowledge: 1.10, aether: 1.15 } },
+];
 const LANDINGS = [
   { id: 'emberplain', name: 'The Emberplain', habitats: ['plains'], mods: {},
     text: 'A wide plain of ash-grass and old roads. Nothing comes easy; nothing is denied.' },
@@ -752,6 +775,9 @@ const UPGRADES = [
   { id: 'practicedMigrator', name: 'Practiced Migrator', max: 1, costs: [250],
     effect: 'start in the Age of Stone with Stone Working researched, +5 villagers, and +5 population cap',
     desc: 'the road has become familiar enough to carry the first hard-won lessons forward' },
+  { id: 'journalOfOldTimes', name: 'Journal of Old Times', max: 1, costs: [500],
+    effect: '+0.2 Knowledge/s permanently',
+    desc: 'scribblings of the Before Times with untold clues into the nature of things' },
 ];
 
 // --- expeditions: one-time, expand the playing field permanently ---

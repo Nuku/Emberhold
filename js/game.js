@@ -456,6 +456,7 @@ function popCap() {
   if (upg('practicedMigrator')) cap += 5;
   cap += bld('hut') * (3 + upg('grandHut') + (perm('twinSouls') ? 2 : 0));
   cap += bld('aqueduct') * 4;
+  cap += bld('livingBlock') * 5;
   if (trialActive('solitude')) cap = Math.min(cap, 10);
   return cap;
 }
@@ -632,6 +633,47 @@ function updateQueues() {
 
 // ---------- production ----------
 function seasonIndex() { return Math.floor((state.day % DAYS_PER_YEAR) / DAYS_PER_SEASON); }
+function climateDef(landing = state.landing) { return CLIMATES[landing] || CLIMATES.emberplain; }
+
+// A date and place always have the same weather, including after reloads and
+// offline catch-up. No random draws from combat or other systems are consumed.
+function dailyWeather(day = state.day, landing = state.landing) {
+  const date = Math.floor(day);
+  const climate = climateDef(landing);
+  function roll(salt) {
+    let hash = 2166136261;
+    for (const char of `${landing}:${date}:${salt}`) hash = Math.imul(hash ^ char.charCodeAt(0), 16777619);
+    hash ^= hash >>> 16;
+    hash = Math.imul(hash, 0x7feb352d);
+    hash ^= hash >>> 15;
+    return (hash >>> 0) / 4294967296;
+  }
+  let pick = roll('sky') * climate.weights.reduce((sum, weight) => sum + weight, 0);
+  let sky = WEATHER[0];
+  for (let i = 0; i < climate.weights.length; i++) {
+    pick -= climate.weights[i];
+    if (pick < 0) { sky = WEATHER[i]; break; }
+  }
+  const season = Math.floor((date % DAYS_PER_YEAR) / DAYS_PER_SEASON);
+  const temperature = [12, 24, 11, -2][season] + climate.offset + Math.floor(roll('temperature') * 13) - 6;
+  const warmth = temperature <= 0 ? 'Freezing' : temperature < 10 ? 'Cold' : temperature < 20 ? 'Mild' : temperature < 30 ? 'Warm' : 'Hot';
+  const mods = { ...sky.mods };
+  if (temperature <= 0) mods.food = (mods.food || 1) * 0.90;
+  else if (temperature >= 30) mods.food = (mods.food || 1) * 0.95;
+  return { ...sky, temperature, warmth, mods };
+}
+
+function weatherSummary() {
+  const weather = dailyWeather();
+  const effects = [];
+  if (weather.morale) effects.push(`${weather.morale > 0 ? '+' : '−'}${Math.abs(weather.morale).toFixed(3)} morale/s`);
+  for (const [res, mod] of Object.entries(weather.mods)) {
+    const pct = Math.round((mod - 1) * 100);
+    effects.push(`${pct > 0 ? '+' : '−'}${Math.abs(pct)}% ${RESOURCES.find(r => r.id === res).name} production`);
+  }
+  return `${weather.name}, ${weather.warmth.toLowerCase()} (${weather.temperature}°C) — ${effects.join(', ') || 'no direct effects'}`;
+}
+
 function seasonMult() {
   const i = seasonIndex();
   if (SEASONS[i].name !== 'Winter') return SEASONS[i].mult;
@@ -704,14 +746,16 @@ function moraleLabel() {
   return m < 25 ? 'despairing' : m < 50 ? 'uneasy' : m < 80 ? 'steady' : 'heartened';
 }
 function updateMorale(dt, foodRate) {
-  const winter = SEASONS[seasonIndex()].name === 'Winter';
-  let delta = 0;
+  const season = SEASONS[seasonIndex()].name;
+  let delta = dailyWeather().morale;
   if (state.res.food <= 0.0001) delta -= 0.22;
   else if (foodRate < 0) delta -= 0.025;
   else if (state.res.food > 20) delta += state.morale < 70 ? 0.035 : -0.008;
-  if (winter) delta -= 0.006;
+  if (season === 'Winter') delta -= 0.006;
+  if (season === 'Summer') delta += 0.006;
   if (bld('shrine') > 0) delta += state.morale < 75 ? 0.012 : 0;
   delta += performerCount() * 0.10;
+  delta -= bld('livingBlock') * 0.1;
   delta -= localTribeIds().filter(id => state.diplomacy?.[id]?.conquered && !commonalityActive()).length;
   const before = moraleBand(state.morale);
   state.morale = Math.max(0, Math.min(moraleCap(), state.morale + delta * dt));
@@ -794,7 +838,9 @@ function production(dt = 0.25, breakdown = null) {
     rates[r.id] = 0;
     if (breakdown) breakdown[r.id] = [];
   }
+  const weather = dailyWeather();
   const add = (res, label, base, factors = []) => {
+    if (base > 0 && weather.mods[res]) factors = [...factors, [`Weather (${weather.name}, ${weather.temperature}°C)`, weather.mods[res]]];
     const amount = factors.reduce((value, [, factor]) => value * factor, base);
     rates[res] += amount;
     if (breakdown) breakdown[res].push({ label, base, amount, factors: factors.filter(([, factor]) => factor !== 1) });
@@ -828,6 +874,7 @@ function production(dt = 0.25, breakdown = null) {
   if (expDone('oldForest')) add('wood', 'Old Forest passive', 1.5);
   if (expDone('foothills')) add('stone', 'Foothills passive', 1.0);
   if (expDone('sunkenRuins')) add('knowledge', 'Sunken Ruins passive', 0.3);
+  if (upg('journalOfOldTimes')) add('knowledge', 'Journal of Old Times', 0.2 * upg('journalOfOldTimes'));
   if (expDone('emberVein')) add('coal', 'Ember Vein passive', 0.5);
   if (expDone('glacialPeaks')) add('aether', 'Glacial Peaks passive', 0.1);
   const localIds = localTribeIds();
@@ -860,6 +907,7 @@ function production(dt = 0.25, breakdown = null) {
     add('coal', `Steam Plant fuel: ${bld('steamPlant')} × 0.8/s`, -bld('steamPlant') * 0.8);
   }
   if (bld('dynamo') > 0) add('power', `Dynamos: ${bld('dynamo')} × 1.5/s`, bld('dynamo') * 1.5);
+  if (bld('livingBlock') > 0) add('power', `Living Blocks: ${bld('livingBlock')} × ${LIVING_BLOCK_POWER_REQUIREMENT} capacity`, -bld('livingBlock') * LIVING_BLOCK_POWER_REQUIREMENT);
   // The land, lineage, and civic choices shape output; population upkeep is
   // applied afterward so food policies do not alter how much villagers eat.
   for (const r in rates) scale(r, settlementProductionFactors(r));
@@ -1305,7 +1353,16 @@ function chooseLineage(id) {
 // ---------- core tick ----------
 function tick(dt) {
   if (saveConflict) return;
-  state.day += dt * DAY_RATE;
+  // Integrate each day's conditions separately, even during offline progress.
+  while (dt > 0) {
+    const untilTomorrow = (Math.floor(state.day) + 1 - state.day) / DAY_RATE;
+    const step = Math.min(dt, untilTomorrow);
+    tickStep(step);
+    dt -= step;
+  }
+}
+
+function tickStep(dt) {
   updateAchievements();
 
   const rates = production(dt);
@@ -1366,6 +1423,7 @@ function tick(dt) {
   updateQueues();
 
   // seasons
+  state.day += dt * DAY_RATE;
   const doy = Math.floor(state.day % DAYS_PER_YEAR);
   const sIdx = Math.floor(doy / DAYS_PER_SEASON);
   const prevDoy = Math.floor((state.day - dt * DAY_RATE) % DAYS_PER_YEAR);
@@ -2009,7 +2067,7 @@ function renderHeader() {
   document.getElementById('era-line').textContent =
     `Year ${year} of the ${ERAS[state.era - 1].name} — ${landingDef().name} — ${lineageDef(state.species).name}`;
   document.getElementById('time-line').textContent =
-    `Day ${doy % DAYS_PER_SEASON + 1} of ${season} — chronicle day ${Math.floor(state.day)}`;
+    `Day ${doy % DAYS_PER_SEASON + 1} of ${season} — chronicle day ${Math.floor(state.day)} — ${weatherSummary()}`;
   document.getElementById('pop-line').textContent =
     `${state.pop} villagers${unassigned() ? ` (${unassigned()} unassigned)` : ''} — housing for ${popCap()}`;
   const moraleEl = document.getElementById('morale-line');
@@ -2054,12 +2112,13 @@ function renderVillage() {
   const L = landingDef();
   let h = `<h2 class="section">Where you stand — ${L.name}</h2>` +
     `<div class="res-note">${L.text}</div>` +
+    `<div class="res-note">Climate: ${climateDef().name} — ${climateDef().text} Freezing days reduce food production by 10%; hot days by 5%.</div>` +
     renderNextStep() +
     `<div class="res-note">Population growth: ${fmt(popGrowthNeed())} seconds per new villager while food and housing are available. Guard healing: ${fmt(guardHealingNeed())} seconds per injury.</div>` +
     `<div class="res-note" style="margin:2px 0 6px">The land gives: ${modsHtml(L)}</div>` +
     `<div class="res-note" style="margin:2px 0 6px">${tradeAvailable() ? `Trading with ${localTribeIds().map(id => tribeDef(id).name).join(' and ')}; funds arrive at ${fmtRate(0.05 * localTribeIds().length)} before Banker work.` : `${localTribeIds().map(id => tribeDef(id).name).join(' and ') || 'No tribes'} are nearby. Research Currency to begin trading.`}</div>` +
     `<div class="res-note" style="margin:2px 0 6px">Guard armor: level ${fmt(armorLevel())} — each level reduces death odds by 8% (minimum 15%).</div>` +
-    `<div class="res-note" style="margin:2px 0 6px">Morale rises when stores are secure and falls when food runs short or winter bites. The Shrine steadies the people. ${moraleLabel()} morale changes production by ${Math.round((0.70 + state.morale * 0.0042857 - 1) * 100)}%; current ceiling: ${moraleCap()}.</div>`;
+    `<div class="res-note" style="margin:2px 0 6px">Morale rises when stores are secure and falls when food runs short. Summer adds +0.006 morale/s; winter exerts −0.006 morale/s. Spring and autumn have no seasonal morale pressure. Clear days add +0.025 morale/s; storms exert −0.060 morale/s. Seasonal and weather pressures stack. The Shrine steadies the people. ${moraleLabel()} morale changes production by ${Math.round((0.70 + state.morale * 0.0042857 - 1) * 100)}%; current ceiling: ${moraleCap()}.</div>`;
 
   if (bld('factory') > 0) {
     h += '<h2 class="section">Factory production</h2><div class="res-note">All factories share one production line. Rates below are per factory before bonuses. Production slows when supplies run short and pauses when output storage is full. The Industrialization trial requires Industrial Goods.</div>';
@@ -2404,6 +2463,7 @@ function renderMigration() {
     const expedition = EXPEDITIONS.find(e => e.landing === landing.id);
     h += `<div class="card ${selected ? 'lineage-selected' : ''} ${allowed ? '' : 'dimmed'}"><div class="card-head"><span class="card-title has-tooltip" data-tooltip="${attrText(landing.text)}">${landing.name}</span>${selected ? '<span class="card-count">chosen</span>' : ''}</div>` +
       `<div class="card-effect">${modsHtml(landing)}</div>` +
+      `<div class="res-note">Climate: ${climateDef(landing.id).name} — ${climateDef(landing.id).text}</div>` +
       (expedition ? `<div class="res-note">${expedition.name}: ${expDone(expedition.id) ? 'established' : 'unexplored'} — ${expedition.effect}</div>` : '') +
       `<div class="card-actions"><button data-action="landing" data-id="${landing.id}" ${selected || !allowed ? 'disabled' : ''}>${!allowed ? 'Unsuitable for chosen lineage' : selected ? 'Chosen' : 'Choose this landing'}</button></div></div>`;
   }
@@ -2545,7 +2605,7 @@ function renderLog() {
 function loadLatestUpdatesTooltip() {
   const button = document.getElementById('btn-updates');
   if (!button || typeof fetch !== 'function' || typeof DOMParser !== 'function') return;
-  fetch('changelog.html?v=stable-panels-20260906b')
+  fetch('changelog.html?v=living-block-weather-20260906a')
     .then(response => response.ok ? response.text() : Promise.reject(new Error('changelog unavailable')))
     .then(source => {
       const doc = new DOMParser().parseFromString(source, 'text/html');

@@ -25,6 +25,42 @@ function game() {
   return { run, context };
 }
 
+test('daily weather survives save/load, stays fixed within a day, and varies by climate and season', () => {
+  const { run } = game();
+  run('state.day = 194528.1; const today = JSON.stringify(dailyWeather())');
+  assert.equal(run('JSON.stringify(dailyWeather(194528.9))'), run('today'));
+  run('state = normalizeSave(JSON.parse(JSON.stringify(state)))');
+  assert.equal(run('JSON.stringify(dailyWeather())'), run('today'));
+  assert.ok(run(`new Set(Array.from({length: 200}, (_, day) => dailyWeather(day).id)).size >= 4`));
+  assert.ok(run(`Array.from({length: 1000}, (_, day) => dailyWeather(day, 'emberplain')).filter(w => w.id === 'clear').length > 450`));
+  assert.ok(run(`Array.from({length: 1000}, (_, day) => dailyWeather(day, 'grayrocks')).filter(w => w.id === 'storm').length > 280`));
+  assert.ok(run(`dailyWeather(50, 'emberplain').temperature > dailyWeather(150, 'grayrocks').temperature`));
+});
+
+test('clear skies lift morale, storms depress it, and weather production appears in breakdowns', () => {
+  const { run } = game();
+  run(`state.res.food = 10;
+    const findDay = id => Array.from({length: 50}, (_, day) => day).find(day => dailyWeather(day).id === id);
+    state.day = findDay('clear'); updateMorale(10, 0)`);
+  assert.equal(run('state.morale'), 70.25);
+  run(`state.morale = 70; state.day = findDay('storm'); updateMorale(10, 0)`);
+  assert.equal(run('state.morale'), 69.4);
+  run(`state.jobs.forager = 4; state.day = findDay('rain'); const weatherDetail = {}; production(0.25, weatherDetail)`);
+  assert.match(run('JSON.stringify(weatherDetail.food)'), /Weather/);
+  assert.match(run('weatherSummary()'), /Rainy.*food production/i);
+  run(`state.bld.monument = 1; state.migrating = true; state.pendingLandings = LANDINGS.map(l => ({id: l.id}))`);
+  assert.match(run('renderMigration()'), /Stormbound heights/);
+  assert.match(run('renderVillage()'), /Sunlit plains/);
+});
+
+test('ticks crossing midnight apply each day’s weather for its own duration', () => {
+  const { run } = game();
+  run(`state.day = 0.75; const weatherSteps = [];
+    updateMorale = dt => weatherSteps.push([Math.floor(state.day), dt]); tick(0.5)`);
+  assert.deepEqual(JSON.parse(run('JSON.stringify(weatherSteps)')), [[0, 0.125], [1, 0.375]]);
+  assert.equal(run('state.day'), 1.75);
+});
+
 test('every queue item lists the resources it needs', () => {
   const { run } = game();
   run(`state.queues.build = [{ type: 'build', id: 'hut' }];
@@ -99,6 +135,20 @@ test('Practiced Migrator requires all area expeditions and starts future settlem
   assert.equal(run('state.techs.stoneWorking'), true);
   assert.equal(run('state.pop'), 9);
   assert.equal(run('popCap()'), 11);
+});
+
+test('Journal of Old Times costs 500 Echoes and permanently adds Knowledge', () => {
+  const { run } = game();
+  run(`state.migrating = true; state.echoes = 500; state.res.knowledge = 0;
+    migrationBuy('journalOfOldTimes'); const rates = production(1)`);
+  assert.equal(run('state.upgrades.journalOfOldTimes'), 1);
+  assert.equal(run('state.echoes'), 0);
+  assert.ok(Math.abs(run('rates.knowledge') - 0.2) < 1e-6);
+  assert.match(run('renderShop()'), /Journal of Old Times/);
+  run('migrationRefund("journalOfOldTimes"); const refundedRates = production(1)');
+  assert.equal(run('state.upgrades.journalOfOldTimes || 0'), 0);
+  assert.equal(run('state.echoes'), 500);
+  assert.equal(run('refundedRates.knowledge'), 0);
 });
 
 test('multiple local tribes can be active at once', () => {
@@ -212,7 +262,7 @@ test('successful sieges unlock conquest and conquered realms become allies', () 
   assert.equal(run('state.diplomacy.human.siegeReady'), false);
   assert.equal(run('state.morale'), 70);
   run('state.res.food = 10; updateMorale(1, 0)');
-  assert.equal(run('state.morale'), 69);
+  assert.equal(run('state.morale'), run('69 + dailyWeather().morale'));
   assert.equal(run('alliedTribes()'), 1);
 
   run(`state.tradePartner = 'clocklings'; ensureDiplomacyEntry('clocklings');
@@ -233,7 +283,7 @@ test('Commonality appears after conquest and replaces the occupation penalty', (
     state.morale = 70; updateMorale(1, 0)`);
   assert.equal(run("tech('commonality')"), true);
   assert.equal(run("state.policy"), 'commonality');
-  assert.equal(run('state.morale'), 70);
+  assert.equal(run('state.morale'), run('70 + dailyWeather().morale'));
   assert.equal(run('alliedIncomeBonus()'), 0.075);
   assert.equal(run('alliedTribes()'), 1);
 
@@ -539,8 +589,8 @@ test('resource breakdown reconciles income and costs with scoped modifiers', () 
     state.techs.civics = true; state.policy = 'warCouncil'; state.council = ['granaryKeeper'];
     state.expeditions.oldForest = true; state.res.wood = 100; state.res.stone = 100;
     const detail = {}; const rates = production(0.25, detail)`);
-  const expected = run(`((3 * JOBS.forager.base * allMult() * seasonMult() * 1.1
-    + ableGuards() * JOBS.guard.base * allMult() * 1.5 - 2 * JOBS.guard.upkeep)
+  const expected = run(`(((3 * JOBS.forager.base * allMult() * seasonMult() * 1.1
+    + ableGuards() * JOBS.guard.base * allMult() * 1.5) * (dailyWeather().mods.food || 1) - 2 * JOBS.guard.upkeep)
     * landingMod('food') * lineageMod('food') * 0.95 * 1.1) - state.pop * FOOD_PER_POP`);
   assert.ok(Math.abs(run('rates.food') - expected) < 1e-10);
   assert.ok(run(`RESOURCES.every(r => Math.abs(detail[r.id].reduce((sum, e) => sum + e.amount, 0) - rates[r.id]) < 1e-10)`));
@@ -558,9 +608,9 @@ test('resource breakdown explains stopped jobs, factory shortages, full stores a
     const detail = {}; const rates = production(0.25, detail)`);
   assert.ok(run(`detail.tools[0].factors.some(([label, factor]) => label === 'Missing wood or stone' && factor === 0)`));
   assert.ok(run(`detail.goods[0].factors.some(([label, factor]) => label === 'Power shortage' && factor === 0)`));
-  assert.ok(run('detail.power[0].amount === 0'));
+  assert.equal(run('rates.power'), 0);
   run(`state.techs.machineryTech = true; chooseFactoryRecipe('machinery');
-    state.res.power = 10; state.res.machinery = capacityOf('machinery'); production(0.25, detail)`);
+    state.bld.steamPlant = 1; state.res.coal = 100; state.res.machinery = capacityOf('machinery'); production(0.25, detail)`);
   assert.ok(run(`detail.machinery[0].factors.some(([label, factor]) => label.includes('storage space') && factor === 0)`));
   run(`state.jobs.woodcutter = 1; state.res.wood = capacityOf('wood'); const fullRates = production(0.25, detail)`);
   assert.ok(run(`resourceRateTooltip(RESOURCES.find(r => r.id === 'wood'), fullRates.wood, detail.wood).includes('excess net income is wasted')`));
@@ -845,7 +895,7 @@ test('new lineages change actual income with both bonuses and tradeoffs', () => 
     const { run } = game();
     run(`state.jobs = { forager: 2, woodcutter: 1, ironminer: 1, thinker: 1, miner: 1, tinkerer: 1 };
       state.res.wood = 100; state.res.stone = 100;
-      state.bld.workbench = 1; state.bld.factory = 1; state.res.power = 10;
+      state.bld.workbench = 1; state.bld.factory = 1; state.bld.steamPlant = 1; state.res.coal = 100;
       state.techs.currency = true; state.tradePartner = 'human';
       const baseline = production(); state.species = '${id}'; const actual = production()`);
     for (const [res, multiplier] of [[bonus, gain], [penalty, loss]]) {
@@ -897,6 +947,20 @@ test('Steam Plants provide persistent Power capacity and consume 0.8 Coal/s each
   assert.equal(run('state.res.power'), 6);
   run('tick(10)');
   assert.equal(run('state.res.power'), 6);
+});
+
+test('Living Blocks provide uncapped housing, consume Power, and lower morale', () => {
+  const { run } = game();
+  run(`state.techs.machineryTech = true; state.bld.livingBlock = 2;
+    state.bld.steamPlant = 1; state.res.steel = 100; state.res.stone = 100; state.res.wood = 100;
+    const rates = production(1); state.res.food = 100; state.morale = 50;
+    state.bld.livingBlock = 0; updateMorale(1, 0); const noBlocks = state.morale;
+    state.morale = 50; state.bld.livingBlock = 2; updateMorale(1, 0); const withBlocks = state.morale`);
+  assert.equal(run('popCap()'), 16);
+  assert.equal(run('rates.power'), 1);
+  assert.ok(Math.abs(run('noBlocks - withBlocks') - 0.2) < 1e-10);
+  assert.equal(run('BUILDINGS.find(b => b.id === "livingBlock").max'), Infinity);
+  assert.equal(run('buildingCost(BUILDINGS.find(b => b.id === "livingBlock")).steel'), 250);
 });
 
 test('Forge input costs are not scaled by expedition production bonuses', () => {
