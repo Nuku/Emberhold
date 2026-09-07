@@ -847,6 +847,15 @@ function updateRandomEvents(dt) {
   if (state.randomEventT < (state.randomEventNext || 60)) return;
   state.randomEventT = 0;
   state.randomEventNext = 55 + Math.random() * 75;
+  if (trialActive('industrialization') && state.morale < 40 && state.res.coal > 0 &&
+      Math.random() < INDUSTRIALIZATION_RIOT_CHANCE) {
+    const lossFraction = INDUSTRIALIZATION_RIOT_LOSS[0] +
+      Math.random() * (INDUSTRIALIZATION_RIOT_LOSS[1] - INDUSTRIALIZATION_RIOT_LOSS[0]);
+    const loss = Math.max(1, Math.round(state.res.coal * lossFraction));
+    state.res.coal = Math.max(0, state.res.coal - loss);
+    addLog(`The hungry village riots at the coal stores. Coal −${fmt(loss)}.`, 'log-bad');
+    return;
+  }
   const lineageEvents = LINEAGE_EVENTS[state.species] || [];
   const local = lineageEvents.length > 0 && Math.random() < 0.5;
   const pool = local ? lineageEvents : RANDOM_EVENTS;
@@ -1045,6 +1054,9 @@ function production(dt = 0.25, breakdown = null) {
     ['Metallurgy', tech('metallurgy') ? 2 : 1], ['Electrical Engineering', tech('electricalEngineering') ? 1.5 : 1]]);
   scale('aether', [...global, ['Glacial Peaks', expDone('glacialPeaks') ? 1.10 : 1]]);
   for (const res of ['coal', 'tools', 'currency']) scale(res, global);
+  if (trialActive('industrialization')) {
+    scale('coal', [['Industrialization trial', INDUSTRIALIZATION_COAL_MULTIPLIER]]);
+  }
 
   if (bld('steamPlant') > 0) {
     add('power', `Steam Plants: ${bld('steamPlant')} × ${POWER_PER_STEAM_PLANT} capacity`, bld('steamPlant') * POWER_PER_STEAM_PLANT);
@@ -1223,7 +1235,6 @@ function updateTrial(dt) {
       break;
     case 'industrialization':
       if (state.res.goods >= 100) { endTrial(true); return; }
-      if (tr.daysActive > 1200) { endTrial(false); return; }
       break;
     case 'haste':
       if (state.era >= 5) { endTrial(true); return; }
@@ -1326,7 +1337,7 @@ function trialProgressText() {
     }
     case 'tinkering': return `${Math.floor(tr.daysActive)} / 240 days endured — ${state.jobs.tinkerer || 0} Tinkerer assigned (need at least 1)`;
     case 'wayfinding': return expDone('oldForest') ? 'The Old Forest has been mapped.' : 'The Old Forest expedition must return';
-    case 'industrialization': return `${fmt(state.res.goods)} / 100 Industrial Goods — ${Math.floor(tr.daysActive)} / 1200 days`;
+    case 'industrialization': return `${fmt(state.res.goods)} / 100 Industrial Goods — no deadline; coal production 20%`;
     case 'haste': return `${Math.floor(tr.daysActive)} / 1200 days to reach the Age of Light`;
   }
   return '';

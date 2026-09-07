@@ -34,6 +34,9 @@ const RESOURCES = [
 const POWER_PER_STEAM_PLANT = 3;
 const FACTORY_POWER_REQUIREMENT = 1.5;
 const LIVING_BLOCK_POWER_REQUIREMENT = 1;
+const INDUSTRIALIZATION_COAL_MULTIPLIER = 0.2;
+const INDUSTRIALIZATION_RIOT_CHANCE = 0.2;
+const INDUSTRIALIZATION_RIOT_LOSS = [0.10, 0.25];
 
 // --- eras ---
 const ERAS = [
@@ -594,8 +597,8 @@ const TRIALS = [
     req: () => era() >= 3 },
 
   { id: 'industrialization', name: 'Trial of Industrialization', repeat: 0,
-    mod: 'Factories require a steady supply of Power to produce Industrial Goods.',
-    goal: 'Build a Factory and produce 100 Industrial Goods within 1200 days.',
+    mod: 'Coal emerges at 20% of its usual rate. Below 40 morale, the village may riot and lose stored coal.',
+    goal: 'Build a Factory and produce 100 Industrial Goods. There is no deadline.',
     reward: 'Industrialization: Factories remain available in every future Emberhold.',
     req: () => tech('metallurgy') && bld('coalSeam') > 0 && state.res.coal > 0 },
   { id: 'expansion', name: 'Trial of Expansion', repeat: 0,

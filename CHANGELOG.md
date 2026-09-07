@@ -4,6 +4,7 @@ All notable changes to Emberhold are recorded here, with the newest changes firs
 
 ## 2026-09-07
 
+- Reworked the Trial of Industrialization: coal production is reduced to 20% during the trial, low morale can trigger riots that destroy stored coal, and the trial no longer has a deadline.
 - Moved Power allocation controls into a dedicated Power subtab under Construction, keeping the Village panel focused on settlement status and automatically returning to Incomplete when no controllable power buildings remain.
 - Expanded Power allocation controls to Living Blocks and Factories, with enabled buildings consuming capacity in priority order and factories stopping cleanly when capacity is unavailable.
 - Offline time now banks up to 24 hours of double-speed play, with a real-time countdown above Updates. Remaining time persists through saves and migration.

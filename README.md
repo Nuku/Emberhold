@@ -96,7 +96,9 @@ invalid imports, storage failures, and offline time accounting.
   location and lineage. Ashfen has marsh habitat but lacks the abundant open water
   required by the fully aquatic lineages.
 - **Industry.** The Trial of Industrialization unlocks the Factory for its
-  duration; build it and produce 100 Industrial Goods before the deadline.
+  duration; build it and produce 100 Industrial Goods. During the trial, coal
+  emerges at 20% of its usual rate, and morale below 40 can trigger a riot that
+  destroys part of the stored coal.
   Steam Plants and Dynamos provide Power capacity, while factories use that
   capacity without draining a Power store or needing workers. Factories run
   when enough capacity is available and shut off when it is not. Completing the trial makes factories permanent.
@@ -248,7 +250,7 @@ you'll have them.
 | Long Night | once | winter food ×0.25 | survive a year | Everwarm (mild winters, +5% all) |
 | Solitude | once | population capped at 10 | stockpile 800 knowledge | Huts grant +2 cap each |
 | Haste | once | all production −30% | reach Age of Light in 1200 days | Blueprints (−15% building costs) |
-| Industrialization | once | factories require Power | produce 100 Industrial Goods in 1200 days | factories remain available permanently |
+| Industrialization | once | coal production −80%; low morale can trigger coal riots | produce 100 Industrial Goods, no deadline | factories remain available permanently |
 
 ## Files
 
