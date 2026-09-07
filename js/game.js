@@ -466,6 +466,7 @@ function assignedWorkers() {
   return n + totalDiplomats() + performerCount() + explorerCount();
 }
 function unassigned() { return state.pop - assignedWorkers(); }
+function thinkerCap() { return bld('library') + 1; }
 
 // Reconcile the whole workforce, including specialists, after population loss
 // or loading older saves. Keep food gatherers first when seats must be cut.
@@ -476,6 +477,7 @@ function reconcileWorkers() {
     const job = JOBS[id];
     let n = job.unlock() && id !== 'diplomat' ? count(state.jobs[id]) : 0;
     if (id === 'guard') n = Math.min(n, guardCap());
+    if (id === 'thinker') n = Math.min(n, thinkerCap());
     if (id !== 'guard') n = Math.min(n, remaining);
     if (n) state.jobs[id] = n;
     else delete state.jobs[id];
@@ -1593,6 +1595,7 @@ function doAssign(job, delta) {
   if (!j || j.targeted || job === 'guard' || !j.unlock()) return;
   state.jobs[job] = state.jobs[job] || 0;
   if (delta > 0 && unassigned() <= 0) return;
+  if (delta > 0 && job === 'thinker' && state.jobs[job] >= thinkerCap()) return;
   if (delta < 0 && state.jobs[job] <= 0) return;
   state.jobs[job] += delta;
 }
@@ -2219,7 +2222,7 @@ function renderVillage() {
       `</span>` +
       `<span class="job-btns">` +
       `<button data-action="job-dec" data-job="${j}" data-repeat title="Hold to repeat" ${n > 0 ? '' : 'disabled'}>−</button>` +
-      `<button data-action="job-inc" data-job="${j}" data-repeat title="Hold to repeat" ${unassigned() > 0 ? '' : 'disabled'}>+</button>` +
+      `<button data-action="job-inc" data-job="${j}" data-repeat title="Hold to repeat" ${unassigned() > 0 && (j !== 'thinker' || n < thinkerCap()) ? '' : 'disabled'}>+</button>` +
       `</span></div>`;
   }
   if (JOBS.performer.unlock()) {

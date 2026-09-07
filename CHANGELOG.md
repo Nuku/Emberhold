@@ -4,6 +4,7 @@ All notable changes to Emberhold are recorded here, with the newest changes firs
 
 ## 2026-09-07
 
+- Limited Thinkers to one worker per Library plus one, with loaded settlements and assignment controls enforcing the same cap.
 - Simplified the weather summary beside the chronicle date so it stays readable at a glance while preserving the detailed production effects in the relevant tooltips.
 - Added a focusable morale tooltip that explains the settlement's current positive and negative morale pressures, including weather, food stores, seasons, buildings, Performers, Living Blocks, and conquered towns.
 - Reduced Huts' base population capacity from +3 to +1.

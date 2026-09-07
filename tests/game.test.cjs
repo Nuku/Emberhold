@@ -669,6 +669,16 @@ test('job production exposes zeroed multipliers to automation', () => {
   assert.equal(run("jobProduction('thinker')"), 0);
 });
 
+test('thinkers are limited to one more than the number of libraries', () => {
+  const { run } = game();
+  run('state.bld.library = 1; state.pop = 10; state.jobs.thinker = 8; reconcileWorkers()');
+  assert.equal(run('state.jobs.thinker'), 2);
+  run('doAssign("thinker", 1)');
+  assert.equal(run('state.jobs.thinker'), 2);
+  run('state.bld.library = 3; doAssign("thinker", 1)');
+  assert.equal(run('state.jobs.thinker'), 3);
+});
+
 test('repeatable trials grow harder after rewards and retain difficulty on failure and load', () => {
   const { run } = game();
   for (const id of ['scarcity', 'frugality', 'overflow']) {
