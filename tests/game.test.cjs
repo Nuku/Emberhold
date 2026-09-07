@@ -994,6 +994,18 @@ test('Living Blocks provide uncapped housing, consume Power, and lower morale', 
   assert.equal(run('buildingCost(BUILDINGS.find(b => b.id === "livingBlock")).steel'), 250);
 });
 
+test('Hospitals gently support morale below 50', () => {
+  const { run } = game();
+  run(`state.res.food = 0; state.morale = 49; state.bld.hospital = 0; updateMorale(1, 0); const withoutHospital = state.morale;
+    state.morale = 49; state.bld.hospital = 1; updateMorale(1, 0); const withHospital = state.morale;
+    state.morale = 49; state.bld.hospital = 2; updateMorale(1, 0); const withTwoHospitals = state.morale;
+    state.morale = 50; state.bld.hospital = 0; updateMorale(1, 0); const atThresholdWithout = state.morale;
+    state.morale = 50; state.bld.hospital = 1; updateMorale(1, 0); const atThresholdWith = state.morale`);
+  assert.ok(Math.abs(run('withHospital - withoutHospital') - 0.01) < 1e-10);
+  assert.equal(run('withTwoHospitals'), run('withHospital'));
+  assert.equal(run('atThresholdWith'), run('atThresholdWithout'));
+});
+
 test('Forge input costs are not scaled by expedition production bonuses', () => {
   const { run } = game();
   run(`state.bld.forge = 1; state.techs.metallurgy = true;

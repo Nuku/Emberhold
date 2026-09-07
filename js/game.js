@@ -775,6 +775,7 @@ function updateMorale(dt, foodRate) {
   if (season === 'Winter') delta -= 0.006;
   if (season === 'Summer') delta += 0.006;
   if (bld('shrine') > 0) delta += state.morale < 75 ? 0.012 : 0;
+  if (bld('hospital') > 0 && state.morale < 50) delta += 0.01;
   delta += performerCount() * 0.10;
   delta -= bld('livingBlock') * 0.1;
   delta -= localTribeIds().filter(id => state.diplomacy?.[id]?.conquered && !commonalityActive()).length;
