@@ -25,6 +25,30 @@ function game() {
   return { run, context };
 }
 
+test('policy changes wait one real-time hour, persist through saves and trials, and reset on migration', () => {
+  const { run } = game();
+  run(`let now = 10000000; Date.now = () => now;
+    delete state.policyChangedAt; state = normalizeSave(state);
+    state.techs.civics = true;
+    choosePolicy('commons'); choosePolicy('invalid');`);
+  assert.equal(run('state.policyChangedAt'), 0);
+  run("choosePolicy('charter')");
+  assert.equal(run('policyCooldownRemaining()'), 3600);
+  assert.match(run('renderGovernance()'), /60m 0s/);
+  assert.match(run('renderGovernance()'), /data-id="guilds" disabled/);
+  run("choosePolicy('guilds'); saveGame(true); state = loadGame()");
+  assert.equal(run('state.policy'), 'charter');
+  assert.equal(run('policyCooldownRemaining()'), 3600);
+  run("setOut('silence'); state.techs.civics = true; now += 3599999; choosePolicy('guilds')");
+  assert.equal(run('state.policy'), 'charter');
+  run("now += 1; choosePolicy('guilds')");
+  assert.equal(run('state.policy'), 'guilds');
+  assert.equal(run('policyCooldownRemaining()'), 3600);
+  run('state.migrating = true; setOut()');
+  assert.equal(run('state.policy'), 'commons');
+  assert.equal(run('policyCooldownRemaining()'), 0);
+});
+
 test('Banking unlocks Money Lenders that cap Bankers and generate population currency', () => {
   const { run } = game();
   assert.equal(run("BUILDINGS.find(b => b.id === 'moneyLender').req()"), false);

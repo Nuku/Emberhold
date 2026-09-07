@@ -118,7 +118,9 @@ invalid imports, storage failures, and offline time accounting.
   tribes, each adding 3 relations per minute. Random diplomatic events grant
   5–10 relations or lose 2–4; only hostile tribes (below 0) may raid the village.
 - **Governance.** Civic Law unlocks five mutually exclusive settlement policies
-  such as Common Granaries, Merchant Charter, and War Council. The Council adds
+  such as Common Granaries, Merchant Charter, and War Council. Each policy change
+  starts a one-hour cooldown that continues offline and resets on migration.
+  The Council adds
   one Governor and two paid advisor seats; their bonuses reset when a new
   Emberhold is founded, keeping each migration a fresh political build.
 - **Guards.** Guards hunt while keeping watch, producing Food even in winter,

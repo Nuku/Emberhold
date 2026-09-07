@@ -9,6 +9,7 @@ const SPY_TRAINING_TIME = 180;
 const ESPIONAGE_TIME = 20 * 60;
 const SPY_CAPTURE_CHANCE = 0.0001;
 const MAX_LOCAL_TRIBES = 3;
+const POLICY_CHANGE_COOLDOWN = 60 * 60; // real-time seconds; base for future modifiers
 
 let state = null;
 let lastStoredSave = null;
@@ -65,6 +66,7 @@ function defaultState() {
     pendingLandings: [],
     pendingLanding: null,
     policy: 'commons',
+    policyChangedAt: 0,
     governor: null,
     council: [],
     guardInjuries: 0,
@@ -1374,6 +1376,7 @@ function setOut(trialId = null) {
     tradePartner: state.tradePartner,
     tradePartners: [...(state.tradePartners || [state.tradePartner])],
     policy: state.policy,
+    policyChangedAt: state.policyChangedAt,
     governor: state.governor, council: [...state.council],
   } : null;
   const landing = LANDINGS.find(l => l.id === (trialId ? state.landing : state.pendingLanding)) ||
@@ -1628,11 +1631,17 @@ function doResearch(id) {
   }
 }
 
+function policyChangeCooldown() { return POLICY_CHANGE_COOLDOWN; }
+function policyCooldownRemaining() {
+  if (!state.policyChangedAt) return 0;
+  return Math.max(0, policyChangeCooldown() - (Date.now() - state.policyChangedAt) / 1000);
+}
 function choosePolicy(id) {
   const def = CIVICS.find(c => c.id === id);
   if (!tech('civics') || !def || (def.req && !def.req())) return;
-  if (state.policy === id) return;
+  if (state.policy === id || policyCooldownRemaining() > 0) return;
   state.policy = id;
+  state.policyChangedAt = Date.now();
   if (id === 'commonality' && state.diplomacy?.[state.tradePartner]?.conquered) {
     state.commonalityLineages = state.commonalityLineages || {};
     state.commonalityLineages[state.tradePartner] = true;
@@ -2507,8 +2516,10 @@ function renderDiplomacy() {
 function renderGovernance() {
   if (!tech('civics')) return '<h2 class="section">Governance</h2><div class="card"><div class="card-desc">Writing and the Age of Iron will give Emberhold the laws needed to govern itself.</div></div>';
   let h = '<h2 class="section">Governance — the Civic Hall</h2>';
-  h += '<div class="res-note">Choose one policy per settlement. Policies and research reset on migration; Civic Law must be researched again.</div>';
-  for (const c of CIVICS.filter(c => !c.req || c.req())) h += `<div class="card ${state.policy === c.id ? 'trial-active' : ''}"><div class="card-head"><span class="card-title">${c.name}</span>${state.policy === c.id ? '<span class="card-count">current policy</span>' : ''}</div><div class="card-effect">${c.desc}</div><div class="card-actions"><button data-action="policy" data-id="${c.id}" ${state.policy === c.id ? 'disabled' : ''}>Adopt</button></div></div>`;
+  const remaining = Math.ceil(policyCooldownRemaining());
+  h += `<div class="res-note">Choose one policy per settlement. Changing policy starts a ${fmt(policyChangeCooldown() / 60)}-minute cooldown, including time offline. Policies and research reset on migration; Civic Law must be researched again.</div>`;
+  if (remaining > 0) h += `<div class="res-note">Next policy change available in ${Math.floor(remaining / 60)}m ${remaining % 60}s.</div>`;
+  for (const c of CIVICS.filter(c => !c.req || c.req())) h += `<div class="card ${state.policy === c.id ? 'trial-active' : ''}"><div class="card-head"><span class="card-title">${c.name}</span>${state.policy === c.id ? '<span class="card-count">current policy</span>' : ''}</div><div class="card-effect">${c.desc}</div><div class="card-actions"><button data-action="policy" data-id="${c.id}" ${state.policy === c.id || remaining > 0 ? 'disabled' : ''}>Adopt</button></div></div>`;
   if (!tech('council')) return h + '<div class="card"><div class="card-desc">Research The Council to appoint a Governor and advisors.</div></div>';
   h += '<h2 class="section">Governor</h2><div class="res-note">Appointments cost 40 Currency. Only one governor may serve at a time.</div>';
   for (const g of GOVERNORS) h += `<div class="card ${state.governor === g.id ? 'trial-active' : ''}"><div class="card-head"><span class="card-title">${g.name}</span>${state.governor === g.id ? '<span class="card-count">serving</span>' : ''}</div><div class="card-effect">${g.desc}</div><div class="card-actions"><button data-action="governor" data-id="${g.id}" ${state.governor === g.id || state.res.currency < 40 ? 'disabled' : ''}>Appoint</button></div></div>`;
@@ -2774,7 +2785,7 @@ function renderLog() {
 function loadLatestUpdatesTooltip() {
   const button = document.getElementById('btn-updates');
   if (!button || typeof fetch !== 'function' || typeof DOMParser !== 'function') return;
-  fetch('changelog.html?v=money-lenders-20260907a')
+  fetch('changelog.html?v=policy-cooldown-20260907b')
     .then(response => response.ok ? response.text() : Promise.reject(new Error('changelog unavailable')))
     .then(source => {
       const doc = new DOMParser().parseFromString(source, 'text/html');

@@ -4,6 +4,7 @@ All notable changes to Emberhold are recorded here, with the newest changes firs
 
 ## 2026-09-07
 
+- Added a one-hour real-time cooldown when changing governance policies; the cooldown persists through saves and offline progress and resets on migration.
 - Added Money Lenders to Banking: each supports one Banker and produces 0.001 Currency per population per second.
 - Added Awaken Ancients research, which lets Quarries, Deep Mines, and Coal Seams use Power for +10% production per powered building.
 - Added controls and saved state for powering individual dig sites, with Living Blocks receiving priority when capacity is limited.
