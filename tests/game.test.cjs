@@ -673,10 +673,21 @@ test('thinkers are limited to one more than the number of libraries', () => {
   const { run } = game();
   run('state.bld.library = 1; state.pop = 10; state.jobs.thinker = 8; reconcileWorkers()');
   assert.equal(run('state.jobs.thinker'), 2);
-  run('doAssign("thinker", 1)');
+  assert.equal(run('jobCapacity("thinker")'), 2);
+  assert.match(run('renderVillage()'), /class="job-assign">2\/2<\/span>/);
+  assert.equal(run('doAssign("thinker", 1)'), false);
   assert.equal(run('state.jobs.thinker'), 2);
+  assert.equal(run('setJob("thinker", 3)'), false);
   run('state.bld.library = 3; doAssign("thinker", 1)');
   assert.equal(run('state.jobs.thinker'), 3);
+});
+
+test('job API rejects bulk assignments beyond population or job capacity', () => {
+  const { run } = game();
+  run('state.pop = 3');
+  assert.equal(run('doAssign("forager", 4)'), false);
+  assert.equal(run('setJob("forager", 4)'), false);
+  assert.equal(run('state.jobs.forager || 0'), 0);
 });
 
 test('repeatable trials grow harder after rewards and retain difficulty on failure and load', () => {

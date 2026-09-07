@@ -69,6 +69,7 @@ const JOBS = {
   miner:       { name: 'Miner',        res: 'stone',     base: 0.28, desc: 'pulls stone from the quarry',
                  unlock: () => bld('quarry') > 0 },
   thinker:     { name: 'Thinker',      res: 'knowledge', base: 0.12, desc: 'argues, measures, writes it down',
+                 max: () => bld('library') + 1,
                  unlock: () => bld('library') > 0 },
   banker:      { name: 'Banker',      res: 'currency',  base: 0.08, desc: 'keeps trade moving and funds arriving',
                  trade: true, unlock: () => tech('banking') && tradeAvailable() },

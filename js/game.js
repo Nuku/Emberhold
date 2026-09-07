@@ -466,7 +466,13 @@ function assignedWorkers() {
   return n + totalDiplomats() + performerCount() + explorerCount();
 }
 function unassigned() { return state.pop - assignedWorkers(); }
-function thinkerCap() { return bld('library') + 1; }
+function thinkerCap() { return JOBS.thinker.max(); }
+function jobCapacity(job) {
+  const j = JOBS[job];
+  if (!j) return 0;
+  if (job === 'guard') return guardCap();
+  return job === 'thinker' ? thinkerCap() : state.pop;
+}
 
 // Reconcile the whole workforce, including specialists, after population loss
 // or loading older saves. Keep food gatherers first when seats must be cut.
@@ -1592,21 +1598,23 @@ function doExpedition(id) {
 
 function doAssign(job, delta) {
   const j = JOBS[job];
-  if (!j || j.targeted || job === 'guard' || !j.unlock()) return;
-  state.jobs[job] = state.jobs[job] || 0;
-  if (delta > 0 && unassigned() <= 0) return;
-  if (delta > 0 && job === 'thinker' && state.jobs[job] >= thinkerCap()) return;
-  if (delta < 0 && state.jobs[job] <= 0) return;
+  if (!j || j.targeted || job === 'guard' || !j.unlock() || !Number.isInteger(delta) || delta === 0) return false;
+  const current = Number(state.jobs[job] || 0);
+  if (!Number.isInteger(current) || current < 0) return false;
+  if (delta > 0 && (delta > unassigned() || current + delta > jobCapacity(job))) return false;
+  if (delta < 0 && current + delta < 0) return false;
+  state.jobs[job] = current;
   state.jobs[job] += delta;
+  if (state.jobs[job] <= 0) delete state.jobs[job];
+  return true;
 }
 function setJob(job, amount) {
-  if (!Number.isFinite(amount) || amount < 0) return false;
+  if (!Number.isFinite(amount) || amount < 0 || !JOBS[job] || JOBS[job].targeted || job === 'guard' || !JOBS[job].unlock()) return false;
   const current = Number(state.jobs[job] || 0);
   const target = Math.floor(amount);
   if (target === current) return true;
-  if (target > current && target - current > unassigned()) return false;
-  doAssign(job, target - current);
-  return Number(state.jobs[job] || 0) === target;
+  if (target > jobCapacity(job) || (target > current && target - current > unassigned())) return false;
+  return doAssign(job, target - current);
 }
 
 function doAssignPerformer(delta) {
@@ -2214,9 +2222,10 @@ function renderVillage() {
     if (job.targeted || j === 'guard') continue;
     if (!job.unlock()) continue;
     const n = state.jobs[j] || 0;
+    const assignment = typeof job.max === 'function' ? `${n}/${job.max()}` : n;
     h += `<div class="job-row">` +
       `<span class="job-name has-tooltip" data-tooltip="${attrText(job.desc)}">${job.name}</span>` +
-      `<span class="job-assign">${n}</span>` +
+      `<span class="job-assign">${assignment}</span>` +
       `<span class="job-rate">${fmt(job.base)} ${RESOURCES.find(r => r.id === job.res).name}/s each` +
       (job.inputs ? ` (uses ${Object.entries(job.inputs).map(([r, v]) => `${fmt(v)} ${RESOURCES.find(x => x.id === r).name.toLowerCase()}/s`).join(' + ')})` : '') +
       `</span>` +
@@ -2662,7 +2671,7 @@ function renderLog() {
 function loadLatestUpdatesTooltip() {
   const button = document.getElementById('btn-updates');
   if (!button || typeof fetch !== 'function' || typeof DOMParser !== 'function') return;
-  fetch('changelog.html?v=huts-capacity-20260907a')
+  fetch('changelog.html?v=job-capacity-20260907a')
     .then(response => response.ok ? response.text() : Promise.reject(new Error('changelog unavailable')))
     .then(source => {
       const doc = new DOMParser().parseFromString(source, 'text/html');
@@ -2796,6 +2805,7 @@ window.emberhold = {
     popCap,
     production,
     jobProduction,
+    jobCapacity,
     queueDemand,
     tech,
     trialActive,
