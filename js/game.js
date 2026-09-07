@@ -1887,6 +1887,15 @@ function normalizeSave(s) {
         throw new Error(`Invalid ${type} queue`);
   }
   for (const r of RESOURCES) if (s.res[r.id] === undefined) s.res[r.id] = 0;
+  // Power visibility belongs to the current settlement. Older saves could
+  // carry the discovery flag across a migration even after all power-related
+  // buildings had been left behind.
+  const hasPowerBuilding = ['steamPlant', 'dynamo', 'livingBlock', 'factory']
+    .some(id => (s.bld[id] || 0) > 0);
+  if (!hasPowerBuilding) {
+    s.seen.power = false;
+    s.res.power = 0;
+  }
   // Foundry was the original one-off Steel unlock. Preserve it as a Forge
   // when loading saves made before Steel became a building production line.
   if (s.bld.foundry) {
@@ -2136,6 +2145,8 @@ function renderNextStep() {
 }
 
 function resVisible(id) {
+  if (id === 'power' && !['steamPlant', 'dynamo', 'livingBlock', 'factory']
+    .some(building => bld(building) > 0)) return false;
   return !!state.seen?.[id];
 }
 
@@ -2701,7 +2712,7 @@ function renderLog() {
 function loadLatestUpdatesTooltip() {
   const button = document.getElementById('btn-updates');
   if (!button || typeof fetch !== 'function' || typeof DOMParser !== 'function') return;
-  fetch('changelog.html?v=crowding-20260907a')
+  fetch('changelog.html?v=power-visibility-20260907a')
     .then(response => response.ok ? response.text() : Promise.reject(new Error('changelog unavailable')))
     .then(source => {
       const doc = new DOMParser().parseFromString(source, 'text/html');

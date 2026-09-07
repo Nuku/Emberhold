@@ -977,6 +977,16 @@ test('migration does not carry undiscovered resource visibility into an early st
   assert.ok(run("renderStores().includes('>Wood<')"));
 });
 
+test('loading a stale power discovery flag hides power without power buildings', () => {
+  const { run } = game();
+  run(`state.seen.power = true; state.res.power = 12; state = normalizeSave(JSON.parse(JSON.stringify(state)))`);
+  assert.equal(run("state.seen.power"), false);
+  assert.equal(run("state.res.power"), 0);
+  assert.equal(run("renderStores().includes('>Power<')"), false);
+  run('state.bld.steamPlant = 1; state.seen.power = true');
+  assert.equal(run("renderStores().includes('>Power<')"), true);
+});
+
 test('tribal requests use discovered cultural preferences and renew after supplying', () => {
   const { run } = game();
   run(`Math.random = () => 0; state.tradePartner = 'clocklings'; state.seen = { food: true };

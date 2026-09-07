@@ -90,6 +90,7 @@ const JOBS = {
                  desc: 'recruits automatically outside the population; hunts between watches; barracks set capacity',
                  unlock: () => tech('guards') && bld('barracks') > 0 },
   digger:      { name: 'Coal Digger',  res: 'coal',      base: 0.14, desc: 'black dust under black fingernails',
+                 max: () => bld('deepStore') + 3,
                  unlock: () => bld('coalSeam') > 0 },
   ironminer:   { name: 'Iron Miner',   res: 'iron',      base: 0.11, desc: 'chases red veins into the dark',
                  max: () => bld('deepStore') + 3,
@@ -680,7 +681,9 @@ const ANIMAL_LINEAGES = [
 ].map(l => ({ ...l, effect: Object.entries(l.mods).map(([res, mod]) => {
   const pct = Math.round((mod - 1) * 100);
   return `${pct > 0 ? '+' : '−'}${Math.abs(pct)}% ${RESOURCES.find(r => r.id === res).name}`;
-}).join(', ') }));
+}).concat(l.growthTime && l.growthTime !== 1
+  ? [`${Math.round(Math.abs(l.growthTime - 1) * 100)}% ${l.growthTime < 1 ? 'less' : 'more'} time for population growth`]
+  : []).join(', ') }));
 
 // --- attack stages ---
 // Eight stages give six meaningful choices between a basic raid and a siege.
