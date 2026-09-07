@@ -3,8 +3,7 @@
 // ============================================================
 'use strict';
 
-const OFFLINE_CAP = 24 * 3600;  // seconds of offline simulation allowed
-const OFFLINE_RATE = 1;         // offline runs at real time
+const OFFLINE_CAP = 24 * 3600;  // maximum banked seconds of double-speed play
 const SPY_TRAINING_TIME = 180;
 const ESPIONAGE_TIME = 20 * 60;
 const SPY_CAPTURE_CHANCE = 0.0001;
@@ -14,6 +13,7 @@ const POLICY_CHANGE_COOLDOWN = 60 * 60; // real-time seconds; base for future mo
 let state = null;
 let lastStoredSave = null;
 let saveConflict = false;
+let lastGameAt = null;
 let activeTab = 'village';
 let buildFilter = 'incomplete';
 const raidSelections = {};
@@ -28,6 +28,7 @@ function defaultState() {
   const s = {
     v: 1,
     savedAt: Date.now(),
+    bonusTime: 0,
     day: 0,
     era: 1,
     pop: 4,
@@ -1408,7 +1409,7 @@ function setOut(trialId = null) {
     diplomacy: state.diplomacy,
     achievements: state.achievements,
     commonalityLineages: state.commonalityLineages,
-    won: state.won, savedAt: state.savedAt, log: state.log,
+    won: state.won, savedAt: state.savedAt, bonusTime: state.bonusTime, log: state.log,
   };
   state = defaultState();
   state.day = keep.day;
@@ -1426,6 +1427,7 @@ function setOut(trialId = null) {
   state.commonalityLineages = keep.commonalityLineages;
   state.won = keep.won;
   state.savedAt = keep.savedAt;
+  state.bonusTime = keep.bonusTime;
   state.log = keep.log;
   state.landing = landing.id;
   if (settings) Object.assign(state, settings);
@@ -1482,9 +1484,27 @@ function chooseLineage(id) {
 }
 
 // ---------- core tick ----------
+function advanceRealTime(elapsed) {
+  if (saveConflict || elapsed <= 0) return;
+  // A suspended browser or sleeping computer banks time instead of catching up.
+  if (elapsed > 5) {
+    state.bonusTime = Math.min(OFFLINE_CAP, state.bonusTime + elapsed);
+    return;
+  }
+  const bonus = Math.min(state.bonusTime, elapsed);
+  state.bonusTime -= bonus;
+  tick(elapsed + bonus);
+}
+
+function updateGameClock() {
+  const now = Date.now();
+  if (lastGameAt !== null) advanceRealTime((now - lastGameAt) / 1000);
+  lastGameAt = now;
+}
+
 function tick(dt) {
   if (saveConflict) return;
-  // Integrate each day's conditions separately, even during offline progress.
+  // Integrate each day's conditions separately, including during double speed.
   while (dt > 0) {
     const untilTomorrow = (Math.floor(state.day) + 1 - state.day) / DAY_RATE;
     const step = Math.min(dt, untilTomorrow);
@@ -1887,6 +1907,7 @@ function conquerTown(id) {
 function saveGame(silent) {
   try {
     if (saveConflict || checkSaveConflict()) return false;
+    if (lastGameAt !== null) updateGameClock();
     const savedAt = Date.now();
     const serialized = JSON.stringify({ ...state, savedAt });
     localStorage.setItem(SAVE_KEY, serialized);
@@ -1922,6 +1943,7 @@ function normalizeSave(s) {
       (Array.isArray(d[key]) ? !Array.isArray(s[key]) : object(d[key]) && !object(s[key]))))
       throw new Error(`Invalid ${key}`);
   }
+  s.bonusTime = Math.max(0, Math.min(OFFLINE_CAP, s.bonusTime));
   if (!Number.isInteger(s.pop) || s.pop < 1 || !Number.isInteger(s.era) || s.era < 1 || s.era > ERAS.length)
     throw new Error('Invalid settlement');
   for (const key of ['res', 'jobs', 'bld', 'trialDone', 'upgrades', 'diplomats']) {
@@ -1996,14 +2018,11 @@ function loadGame() {
 }
 
 function offlineProgress() {
-  const elapsed = (Date.now() - state.savedAt) / 1000;
-  if (elapsed < 60) return;
-  const simSeconds = Math.min(elapsed, OFFLINE_CAP) * OFFLINE_RATE;
-  const step = 2;
-  for (let t = 0; t < simSeconds; t += step) tick(Math.min(step, simSeconds - t));
-  const hrs = (elapsed / 3600).toFixed(1);
-  const got = Math.min(elapsed, OFFLINE_CAP);
-  addLog(`While you were away (~${hrs} h, real-time, capped at 24 h), the village carried on for ${Math.floor(got * OFFLINE_RATE)} seconds.`, 'log-important');
+  const now = Date.now();
+  const elapsed = Math.max(0, (now - state.savedAt) / 1000);
+  state.bonusTime = Math.min(OFFLINE_CAP, state.bonusTime + elapsed);
+  state.savedAt = now;
+  if (elapsed >= 60) addLog('Time away has been banked for double-speed play (up to 24 hours).', 'log-important');
 }
 
 async function exportSave() {
@@ -2213,7 +2232,17 @@ function resVisible(id) {
   return !!state.seen?.[id];
 }
 
+function renderBonusTimer() {
+  const timer = document.getElementById('bonus-timer');
+  timer.classList.toggle('hidden', state.bonusTime <= 0);
+  const seconds = Math.ceil(state.bonusTime);
+  const hours = Math.floor(seconds / 3600);
+  const minutes = Math.floor(seconds % 3600 / 60);
+  timer.textContent = `2× speed · ${[hours, minutes, seconds % 60].map(n => String(n).padStart(2, '0')).join(':')}`;
+}
+
 function renderHeader() {
+  renderBonusTimer();
   const doy = Math.floor(state.day % DAYS_PER_YEAR);
   const season = SEASONS[Math.floor(doy / DAYS_PER_SEASON)].name;
   const year = Math.floor(state.day / DAYS_PER_YEAR) + 1;
@@ -3139,12 +3168,11 @@ function boot() {
     b.addEventListener('click', () => switchTab(b.dataset.tab)));
   loadLatestUpdatesTooltip();
 
-  let last = performance.now();
+  lastGameAt = Date.now();
+  saveGame(true);
   setInterval(() => {
-    const now = performance.now();
-    const dt = Math.min((now - last) / 1000, 5); // clamp long tab sleeps
-    last = now;
-    tick(dt);
+    updateGameClock();
+    renderBonusTimer();
   }, 250);
   setInterval(() => { if (!tooltipHover && !pointerDown && !document.activeElement?.closest('.has-tooltip')) render(); }, 500);
   setInterval(() => { if (state.settings.autosave) saveGame(true); }, 15000);

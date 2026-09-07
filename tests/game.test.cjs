@@ -1060,10 +1060,59 @@ test('save failure is visible and does not change the last save timestamp', () =
   assert.match(run('state.log[0].t'), /could not be saved/);
 });
 
-test('offline simulation uses the elapsed interval at real time', () => {
+test('offline time is banked without simulation, including short absences, up to 24 hours', () => {
   const { run } = game();
   run('Date.now = () => 100000; state.savedAt = 39000; offlineProgress()');
-  assert.equal(run('state.day'), 122);
+  assert.equal(run('state.day'), 0);
+  assert.equal(run('state.bonusTime'), 61);
+  run('offlineProgress()');
+  assert.equal(run('state.bonusTime'), 61);
+  run('state.savedAt -= 1000; offlineProgress()');
+  assert.equal(run('state.bonusTime'), 62);
+  run('state.savedAt -= 48 * 3600 * 1000; offlineProgress()');
+  assert.equal(run('state.bonusTime'), 86400);
+  run('state.savedAt += 1000; offlineProgress()');
+  assert.equal(run('state.bonusTime'), 86400);
+});
+
+test('bonus time doubles play and expires precisely, while suspended time is banked', () => {
+  const { run } = game();
+  run('state.bonusTime = 2.5; advanceRealTime(2)');
+  assert.equal(run('state.day'), 8);
+  assert.equal(run('state.bonusTime'), 0.5);
+  run('advanceRealTime(1)');
+  assert.equal(run('state.day'), 11);
+  assert.equal(run('state.bonusTime'), 0);
+  run('advanceRealTime(1)');
+  assert.equal(run('state.day'), 13);
+  run('advanceRealTime(120)');
+  assert.equal(run('state.day'), 13);
+  assert.equal(run('state.bonusTime'), 120);
+  run('saveConflict = true; advanceRealTime(2)');
+  assert.equal(run('state.bonusTime'), 120);
+});
+
+test('bonus time survives saves and migration and older saves default to zero', () => {
+  const { run } = game();
+  run('delete state.bonusTime; state = normalizeSave(state)');
+  assert.equal(run('state.bonusTime'), 0);
+  run('state.bonusTime = 123; saveGame(true); state = loadGame(); setOut()');
+  assert.equal(run('state.bonusTime'), 123);
+  run('state.bonusTime = 999999; state = normalizeSave(state)');
+  assert.equal(run('state.bonusTime'), 86400);
+  run('state.bonusTime = -1; state = normalizeSave(state)');
+  assert.equal(run('state.bonusTime'), 0);
+});
+
+test('bonus timer shows remaining real time and hides when depleted', () => {
+  const { run, context } = game();
+  const timer = { classList: { toggle(name, hidden) { this.hidden = hidden; } } };
+  context.document.getElementById = () => timer;
+  run('state.bonusTime = 3661.1; renderBonusTimer()');
+  assert.equal(timer.textContent, '2× speed · 01:01:02');
+  assert.equal(timer.classList.hidden, false);
+  run('state.bonusTime = 0; renderBonusTimer()');
+  assert.equal(timer.classList.hidden, true);
 });
 
 test('a valid save round trips through storage', () => {
