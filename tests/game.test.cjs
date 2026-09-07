@@ -25,22 +25,33 @@ function game() {
   return { run, context };
 }
 
-test('daily weather survives save/load, stays fixed within a day, and varies by climate and season', () => {
+test('weather survives save/load, lasts 15–30 days, and varies by climate and season', () => {
   const { run } = game();
   run('state.day = 194528.1; const today = JSON.stringify(dailyWeather())');
   assert.equal(run('JSON.stringify(dailyWeather(194528.9))'), run('today'));
   run('state = normalizeSave(JSON.parse(JSON.stringify(state)))');
   assert.equal(run('JSON.stringify(dailyWeather())'), run('today'));
-  assert.ok(run(`new Set(Array.from({length: 200}, (_, day) => dailyWeather(day).id)).size >= 4`));
-  assert.ok(run(`Array.from({length: 1000}, (_, day) => dailyWeather(day, 'emberplain')).filter(w => w.id === 'clear').length > 450`));
-  assert.ok(run(`Array.from({length: 1000}, (_, day) => dailyWeather(day, 'grayrocks')).filter(w => w.id === 'storm').length > 280`));
-  assert.ok(run(`dailyWeather(50, 'emberplain').temperature > dailyWeather(150, 'grayrocks').temperature`));
+  assert.ok(run(`new Set(Array.from({length: 1000}, (_, day) => dailyWeather(day).id)).size >= 4`));
+  assert.ok(run(`Array.from({length: 1000}, (_, day) => dailyWeather(day * 45, 'emberplain')).filter(w => w.id === 'clear').length > 450`));
+  assert.ok(run(`Array.from({length: 1000}, (_, day) => dailyWeather(day * 45, 'grayrocks')).filter(w => w.id === 'storm').length > 280`));
+  assert.ok(run(`dailyWeather(90, 'emberplain').temperature > dailyWeather(180, 'grayrocks').temperature`));
+  assert.ok(run(`LANDINGS.every(landing => {
+    for (let day = 194500; day < 195000;) {
+      const weather = dailyWeather(day, landing.id);
+      const duration = weather.endsAt - weather.startsAt;
+      if (duration < 15 || duration > 30) return false;
+      if (JSON.stringify(weather) !== JSON.stringify(dailyWeather(weather.endsAt - 0.01, landing.id))) return false;
+      if (dailyWeather(weather.endsAt, landing.id).startsAt !== weather.endsAt) return false;
+      day = weather.endsAt;
+    }
+    return true;
+  })`));
 });
 
 test('clear skies lift morale, storms depress it, and weather production appears in breakdowns', () => {
   const { run } = game();
   run(`state.res.food = 10;
-    const findDay = id => Array.from({length: 50}, (_, day) => day).find(day => dailyWeather(day).id === id);
+    const findDay = id => Array.from({length: 10000}, (_, day) => day).find(day => day % DAYS_PER_YEAR < DAYS_PER_SEASON && dailyWeather(day).id === id);
     state.day = findDay('clear'); updateMorale(10, 0)`);
   assert.equal(run('state.morale'), 70.25);
   run(`state.morale = 70; state.day = findDay('storm'); updateMorale(10, 0)`);

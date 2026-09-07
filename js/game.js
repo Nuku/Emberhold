@@ -635,10 +635,12 @@ function updateQueues() {
 function seasonIndex() { return Math.floor((state.day % DAYS_PER_YEAR) / DAYS_PER_SEASON); }
 function climateDef(landing = state.landing) { return CLIMATES[landing] || CLIMATES.emberplain; }
 
-// A date and place always have the same weather, including after reloads and
-// offline catch-up. No random draws from combat or other systems are consumed.
+// Each 45-day span has two weather patterns, each lasting 15–30 days.
+// Date and place determine the schedule, including after reloads and offline
+// catch-up, without consuming random draws from combat or other systems.
 function dailyWeather(day = state.day, landing = state.landing) {
-  const date = Math.floor(day);
+  const blockStart = Math.floor(day / 45) * 45;
+  let date = blockStart;
   const climate = climateDef(landing);
   function roll(salt) {
     let hash = 2166136261;
@@ -648,6 +650,9 @@ function dailyWeather(day = state.day, landing = state.landing) {
     hash ^= hash >>> 15;
     return (hash >>> 0) / 4294967296;
   }
+  const split = 15 + Math.floor(roll('duration') * 16);
+  if (day >= blockStart + split) date += split;
+  const endsAt = date === blockStart ? blockStart + split : blockStart + 45;
   let pick = roll('sky') * climate.weights.reduce((sum, weight) => sum + weight, 0);
   let sky = WEATHER[0];
   for (let i = 0; i < climate.weights.length; i++) {
@@ -660,7 +665,7 @@ function dailyWeather(day = state.day, landing = state.landing) {
   const mods = { ...sky.mods };
   if (temperature <= 0) mods.food = (mods.food || 1) * 0.90;
   else if (temperature >= 30) mods.food = (mods.food || 1) * 0.95;
-  return { ...sky, temperature, warmth, mods };
+  return { ...sky, temperature, warmth, mods, startsAt: date, endsAt };
 }
 
 function weatherSummary() {
@@ -2605,7 +2610,7 @@ function renderLog() {
 function loadLatestUpdatesTooltip() {
   const button = document.getElementById('btn-updates');
   if (!button || typeof fetch !== 'function' || typeof DOMParser !== 'function') return;
-  fetch('changelog.html?v=living-block-weather-20260906a')
+  fetch('changelog.html?v=weather-patterns-20260906b')
     .then(response => response.ok ? response.text() : Promise.reject(new Error('changelog unavailable')))
     .then(source => {
       const doc = new DOMParser().parseFromString(source, 'text/html');
