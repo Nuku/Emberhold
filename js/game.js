@@ -466,12 +466,11 @@ function assignedWorkers() {
   return n + totalDiplomats() + performerCount() + explorerCount();
 }
 function unassigned() { return state.pop - assignedWorkers(); }
-function thinkerCap() { return JOBS.thinker.max(); }
 function jobCapacity(job) {
   const j = JOBS[job];
   if (!j) return 0;
   if (job === 'guard') return guardCap();
-  return job === 'thinker' ? thinkerCap() : state.pop;
+  return typeof j.max === 'function' ? j.max() : state.pop;
 }
 
 // Reconcile the whole workforce, including specialists, after population loss
@@ -483,7 +482,7 @@ function reconcileWorkers() {
     const job = JOBS[id];
     let n = job.unlock() && id !== 'diplomat' ? count(state.jobs[id]) : 0;
     if (id === 'guard') n = Math.min(n, guardCap());
-    if (id === 'thinker') n = Math.min(n, thinkerCap());
+    if (typeof job.max === 'function') n = Math.min(n, jobCapacity(id));
     if (id !== 'guard') n = Math.min(n, remaining);
     if (n) state.jobs[id] = n;
     else delete state.jobs[id];
@@ -2231,7 +2230,7 @@ function renderVillage() {
       `</span>` +
       `<span class="job-btns">` +
       `<button data-action="job-dec" data-job="${j}" data-repeat title="Hold to repeat" ${n > 0 ? '' : 'disabled'}>−</button>` +
-      `<button data-action="job-inc" data-job="${j}" data-repeat title="Hold to repeat" ${unassigned() > 0 && (j !== 'thinker' || n < thinkerCap()) ? '' : 'disabled'}>+</button>` +
+      `<button data-action="job-inc" data-job="${j}" data-repeat title="Hold to repeat" ${unassigned() > 0 && (typeof job.max !== 'function' || n < job.max()) ? '' : 'disabled'}>+</button>` +
       `</span></div>`;
   }
   if (JOBS.performer.unlock()) {

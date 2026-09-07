@@ -690,6 +690,18 @@ test('job API rejects bulk assignments beyond population or job capacity', () =>
   assert.equal(run('state.jobs.forager || 0'), 0);
 });
 
+test('miner capacities scale with their supporting buildings', () => {
+  const { run } = game();
+  run('state.bld.quarry = 1; state.bld.deepMine = 1; state.pop = 20');
+  assert.equal(run('jobCapacity("miner")'), 1);
+  assert.equal(run('jobCapacity("ironminer")'), 3);
+  assert.equal(run('setJob("miner", 2)'), false);
+  assert.equal(run('setJob("ironminer", 4)'), false);
+  run('state.bld.stoneWorks = 2; state.bld.deepStore = 2; reconcileWorkers()');
+  assert.equal(run('jobCapacity("miner")'), 3);
+  assert.equal(run('jobCapacity("ironminer")'), 5);
+});
+
 test('repeatable trials grow harder after rewards and retain difficulty on failure and load', () => {
   const { run } = game();
   for (const id of ['scarcity', 'frugality', 'overflow']) {
