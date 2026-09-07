@@ -889,11 +889,14 @@ test('Forges automatically smelt Steel, throttle on inputs, and migrate old Foun
   assert.equal(run('CRAFTS.some(c => c.id === "steel")'), false);
 });
 
-test('Steam Plants consume 0.8 Coal/s each', () => {
+test('Steam Plants provide persistent Power capacity and consume 0.8 Coal/s each', () => {
   const { run } = game();
-  run(`state.bld.steamPlant = 2; state.res.coal = 100; const rates = production(1)`);
-  assert.equal(run('rates.power'), 2.4);
+  run(`state.bld.steamPlant = 2; state.res.coal = 100; const rates = production(1); tick(1)`);
+  assert.equal(run('rates.power'), 6);
   assert.equal(run('rates.coal'), -1.6);
+  assert.equal(run('state.res.power'), 6);
+  run('tick(10)');
+  assert.equal(run('state.res.power'), 6);
 });
 
 test('Forge input costs are not scaled by expedition production bonuses', () => {
@@ -930,27 +933,27 @@ test('factories switch outputs and consume recipe materials without multiplying 
     ['machinery', 'machineryTech', 0.02, 'steel', 0.1],
   ]) {
     const { run } = game();
-    run(`state.bld.factory = 1; state.res.power = 10;
+    run(`state.bld.factory = 1; state.bld.steamPlant = 1; state.res.power = 10;
       state.res.wood = 100; state.res.iron = 100; state.res.coal = 100; state.res.steel = 10;
       state.techs['${research}'] = true; chooseFactoryRecipe('${id}'); const rates = production(1)`);
     assert.ok(Math.abs(run(`rates['${id}']`) - output) < 1e-10);
-    assert.equal(run('rates.power'), -0.35);
+    assert.equal(run('rates.power'), 3);
     if (input) assert.equal(run(`rates['${input}']`), -cost);
     if (id !== 'goods') assert.equal(run('rates.goods'), 0);
   }
 });
 
-test('factories throttle to available materials and storage and stop without power', () => {
+test('factories throttle to available materials and storage and stop without Power capacity', () => {
   const { run } = game();
-  run(`state.bld.factory = 3; state.techs.machineryTech = true; chooseFactoryRecipe('machinery');
+  run(`state.bld.factory = 2; state.bld.steamPlant = 1; state.techs.machineryTech = true; chooseFactoryRecipe('machinery');
     state.res.steel = 0.01; state.res.coal = 10; state.res.power = 10;
     const limited = production(5)`);
   assert.ok(Math.abs(run('limited.machinery * 5') - 0.002) < 1e-10);
   assert.ok(Math.abs(run('limited.steel * 5') + 0.01) < 1e-10);
   run(`state.res.steel = 10; state.res.machinery = capacityOf('machinery'); const full = production(5)`);
   assert.equal(run('full.machinery'), 0);
-  assert.equal(run('full.power'), 0);
-  run(`state.res.machinery = 0; state.res.power = 0; const unpowered = production(5)`);
+  assert.equal(run('full.power'), 3);
+  run(`state.res.machinery = 0; state.bld.steamPlant = 0; state.res.power = 10; const unpowered = production(5)`);
   assert.equal(run('unpowered.machinery'), 0);
   assert.equal(run('unpowered.steel'), 0);
 });

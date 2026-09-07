@@ -96,11 +96,13 @@ invalid imports, storage failures, and offline time accounting.
   required by the fully aquatic lineages.
 - **Industry.** The Trial of Industrialization unlocks the Factory for its
   duration; build it and produce 100 Industrial Goods before the deadline.
-  Steam Plants and Dynamos generate Power, while factories consume it without
-  needing workers. Completing the trial makes factories permanent.
+  Steam Plants and Dynamos provide Power capacity, while factories use that
+  capacity without draining a Power store or needing workers. Factories run
+  when enough capacity is available and shut off when it is not. Completing the trial makes factories permanent.
   In the Village, switch all factories between Industrial Goods (the default),
   Tools (Craftsmanship), Steel (Metallurgy), and Machinery (Mechanism).
-  Each factory consumes 0.35 Power/s. Tools use Wood, Steel uses Iron and Coal,
+  Each Steam Plant provides 3 Power capacity, and each factory requires 1.5 Power capacity.
+  Tools use Wood, Steel uses Iron and Coal,
   and Machinery uses Steel and Coal. Steel is smelted automatically by scalable
   Forges; it is no longer a hand-crafted item. Recipe cards show output and input rates. Lineage and governance
   bonuses affect output, while input costs stay fixed. Production slows when

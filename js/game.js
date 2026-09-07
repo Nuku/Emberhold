@@ -856,7 +856,7 @@ function production(dt = 0.25, breakdown = null) {
   for (const res of ['coal', 'tools', 'currency']) scale(res, global);
 
   if (bld('steamPlant') > 0) {
-    add('power', `Steam Plants: ${bld('steamPlant')} × 1.2/s`, bld('steamPlant') * 1.2);
+    add('power', `Steam Plants: ${bld('steamPlant')} × ${POWER_PER_STEAM_PLANT} capacity`, bld('steamPlant') * POWER_PER_STEAM_PLANT);
     add('coal', `Steam Plant fuel: ${bld('steamPlant')} × 0.8/s`, -bld('steamPlant') * 0.8);
   }
   if (bld('dynamo') > 0) add('power', `Dynamos: ${bld('dynamo')} × 1.5/s`, bld('dynamo') * 1.5);
@@ -889,7 +889,7 @@ function production(dt = 0.25, breakdown = null) {
     const recipe = factoryRecipe();
     const factors = settlementProductionFactors(recipe.id);
     const output = factors.reduce((value, [, factor]) => value * factor, bld('factory') * recipe.rate);
-    const inputs = { ...recipe.inputs, power: 0.35 };
+    const inputs = { ...recipe.inputs };
     let fraction = Math.min(1, Math.max(0, capacityOf(recipe.id) - state.res[recipe.id]) / (output * dt));
     let limitation = fraction < 1 ? `${recipe.name} storage space` : 'Factory utilization';
     for (const r in inputs) {
@@ -897,6 +897,11 @@ function production(dt = 0.25, breakdown = null) {
       const supplied = available / (inputs[r] * bld('factory') * dt);
       if (supplied < fraction) limitation = `${RESOURCES.find(resource => resource.id === r).name} shortage`;
       fraction = Math.min(fraction, supplied);
+    }
+    const powerNeeded = bld('factory') * FACTORY_POWER_REQUIREMENT;
+    if (rates.power < powerNeeded) {
+      limitation = 'Power shortage';
+      fraction = 0;
     }
     add(recipe.id, `Factories (${recipe.name}): ${bld('factory')} × ${recipe.rate}/s`, bld('factory') * recipe.rate, [...factors, [limitation, fraction]]);
     for (const r in inputs) add(r, `Factory inputs (${recipe.name}): ${bld('factory')} × ${inputs[r]}/s`, -inputs[r] * bld('factory'), [[limitation, fraction]]);
@@ -924,7 +929,8 @@ function jobProduction(jobId) {
 function resourceRateTooltip(resource, rate, entries) {
   const number = value => Number(value.toFixed(4)).toString();
   const signed = value => `${value > 0 ? '+' : ''}${number(value)}/s`;
-  const lines = [`${resource.name} — net ${signed(rate)}`, 'Amounts per second; modifiers multiply in order.'];
+  const power = resource.id === 'power';
+  const lines = [power ? `${resource.name} — ${number(Math.max(0, rate))} capacity available` : `${resource.name} — net ${signed(rate)}`, power ? 'Capacity is provided by generators and does not drain.' : 'Amounts per second; modifiers multiply in order.'];
   for (const [heading, outgoing] of [['Income', false], ['Outgoing', true]]) {
     const group = entries.filter(entry => (entry.base < 0) === outgoing);
     lines.push('', `${heading}: ${signed(group.reduce((sum, entry) => sum + entry.amount, 0))}`);
@@ -934,7 +940,7 @@ function resourceRateTooltip(resource, rate, entries) {
     }
     if (!group.length) lines.push('None');
   }
-  if (isFull(resource.id) && rate > 0) lines.push('', 'Storage full: excess net income is wasted.');
+    if (!power && isFull(resource.id) && rate > 0) lines.push('', 'Storage full: excess net income is wasted.');
   if (state.res[resource.id] <= 0 && rate < 0) lines.push('', 'Store empty: the shortfall cannot be deducted below zero.');
   return lines.join('\n');
 }
@@ -1305,6 +1311,11 @@ function tick(dt) {
   const rates = production(dt);
   const steelBefore = state.res.steel;
   for (const r in rates) {
+    if (r === 'power') {
+      state.res.power = Math.max(0, rates.power);
+      state.seen.power = true;
+      continue;
+    }
     if (rates[r] > 0) {
       const cap = capacityOf(r);
       if (state.res[r] >= cap) continue; // a full store wastes the flow
@@ -1981,10 +1992,7 @@ function renderNextStep() {
     action = 'Open Research';
     tab = 'research';
   } else {
-    title = 'The hold is growing';
-    text = 'Build, research, and watch the tab bar for new systems as Emberhold reaches each milestone.';
-    action = 'Open Build';
-    tab = 'build';
+    return '';
   }
   return `<div class="next-step card"><div class="card-head"><span class="card-title">${title}</span><span class="card-count">Next step</span></div>` +
     `<div class="card-desc">${text}</div><div class="card-actions"><button data-action="tab" data-tab="${tab}">${action}</button></div></div>`;
@@ -2027,13 +2035,16 @@ function renderStores() {
     const rate = rates[r.id];
     const cls = rate > 0.0001 ? 'rate-pos' : (rate < -0.0001 ? 'rate-neg' : '');
     const cap = capacityOf(r.id);
-    const amount = cap === Infinity
+    const amount = r.id === 'power'
+      ? `${fmt(state.res[r.id])} capacity`
+      : cap === Infinity
       ? fmt(state.res[r.id])
       : `${fmt(state.res[r.id])} / ${fmt(cap)}${isFull(r.id) ? ' FULL' : ''}`;
+    const status = r.id === 'power' ? (rate > 0.0001 ? 'online' : 'offline') : (fmtRate(rate) || '0/s');
     h += `<div class="res-row">` +
       `<span class="res-name has-tooltip" data-tooltip="${attrText(r.note)}">${r.name}</span>` +
       `<span class="res-amount ${isFull(r.id) ? 'res-full' : ''}">${amount}</span>` +
-      `<span class="res-rate has-tooltip ${cls}" tabindex="0" data-tooltip="${attrText(resourceRateTooltip(r, rate, breakdown[r.id]))}">${fmtRate(rate) || '0/s'}</span>` +
+      `<span class="res-rate has-tooltip ${cls}" tabindex="0" data-tooltip="${attrText(resourceRateTooltip(r, rate, breakdown[r.id]))}">${status}</span>` +
       `</div>`;
   }
   return h;
@@ -2055,9 +2066,10 @@ function renderVillage() {
     for (const recipe of FACTORY_RECIPES) {
       const unlocked = !recipe.tech || tech(recipe.tech);
       const selected = factoryRecipe().id === recipe.id;
-      const inputs = Object.entries({ ...recipe.inputs, power: 0.35 }).map(([r, n]) => `${n} ${RESOURCES.find(res => res.id === r).name}/s`).join(', ');
+      const inputs = Object.entries(recipe.inputs).map(([r, n]) => `${n} ${RESOURCES.find(res => res.id === r).name}/s`).join(', ');
+      const powerText = `${FACTORY_POWER_REQUIREMENT} Power capacity per factory`;
       h += `<div class="card"><div class="card-head"><span class="card-title">${recipe.name}</span><span class="card-count">${selected ? 'Active' : unlocked ? 'Available' : `Requires ${recipe.unlock}`}</span></div>` +
-        `<div class="card-desc">Produces ${recipe.rate}/s; consumes ${inputs}.</div>` +
+        `<div class="card-desc">Produces ${recipe.rate}/s; requires ${powerText}${inputs ? ` and consumes ${inputs}` : ''}.</div>` +
         `<div class="card-actions"><button data-action="factory-recipe" data-id="${recipe.id}" ${!unlocked || selected ? 'disabled' : ''}>${selected ? 'Producing ' : 'Produce '}${recipe.name}</button></div></div>`;
     }
   }

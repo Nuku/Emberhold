@@ -4,6 +4,9 @@ All notable changes to Emberhold are recorded here, with the newest changes firs
 
 ## 2026-09-06
 
+- Changed Power from a draining resource store into generator capacity. Steam Plants provide 3 capacity each, factories require 1.5 capacity each, and factories stop when capacity is insufficient.
+- Updated Power displays, tooltips, factory recipe cards, README guidance, and regression tests to describe capacity rather than storage.
+- Removed the generic next-step card after all guided milestones are complete.
 - Updated panels in place to prevent refresh blinking and preserve controls; focused dropdowns stay open during game and automation updates.
 - Replaced the long list of attack buttons with an attack-type dropdown and a single Attack button for each neighboring town.
 - Added progressive tab unlocking and a guided next-step card so new settlements reveal systems as their prerequisites become available.
