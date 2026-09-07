@@ -686,13 +686,7 @@ function dailyWeather(day = state.day, landing = state.landing) {
 
 function weatherSummary() {
   const weather = dailyWeather();
-  const effects = [];
-  if (weather.morale) effects.push(`${weather.morale > 0 ? '+' : '−'}${Math.abs(weather.morale).toFixed(3)} morale/s`);
-  for (const [res, mod] of Object.entries(weather.mods)) {
-    const pct = Math.round((mod - 1) * 100);
-    effects.push(`${pct > 0 ? '+' : '−'}${Math.abs(pct)}% ${RESOURCES.find(r => r.id === res).name} production`);
-  }
-  return `${weather.name}, ${weather.warmth.toLowerCase()} (${weather.temperature}°C) — ${effects.join(', ') || 'no direct effects'}`;
+  return `${weather.name}, ${weather.warmth.toLowerCase()} (${weather.temperature}°C)`;
 }
 
 function seasonMult() {
@@ -765,6 +759,30 @@ function moraleBand(morale) {
 function moraleLabel() {
   const m = Number(state.morale) || 0;
   return m < 25 ? 'despairing' : m < 50 ? 'uneasy' : m < 80 ? 'steady' : 'heartened';
+}
+function moraleTooltip(foodRate = production(0.25).food) {
+  const weather = dailyWeather();
+  const season = SEASONS[seasonIndex()].name;
+  const up = [];
+  const down = [];
+  const add = (amount, label) => {
+    if (amount > 0) up.push(`+${amount.toFixed(3)} morale/s — ${label}`);
+    else if (amount < 0) down.push(`−${Math.abs(amount).toFixed(3)} morale/s — ${label}`);
+  };
+  add(weather.morale, `${weather.name} weather`);
+  if (state.res.food <= 0.0001) add(-0.22, 'food store empty');
+  else if (foodRate < 0) add(-0.025, 'food production is falling short');
+  else if (state.res.food > 20) add(state.morale < 70 ? 0.035 : -0.008, state.morale < 70 ? 'secure food stores' : 'secure food stores at high morale');
+  if (season === 'Winter') add(-0.006, 'winter');
+  if (season === 'Summer') add(0.006, 'summer');
+  if (bld('shrine') > 0 && state.morale < 75) add(0.012, 'Shrine');
+  if (bld('hospital') > 0 && state.morale < 50) add(0.01, 'Hospital');
+  add(performerCount() * 0.10, `${performerCount()} Performer${performerCount() === 1 ? '' : 's'}`);
+  add(-bld('livingBlock') * 0.1, `${bld('livingBlock')} Living Block${bld('livingBlock') === 1 ? '' : 's'}`);
+  const conquered = localTribeIds().filter(id => state.diplomacy?.[id]?.conquered && !commonalityActive()).length;
+  add(-conquered, conquered === 1 ? 'conquered town' : `${conquered} conquered towns`);
+  const weatherNote = weather.morale ? `${weather.name} weather` : `${weather.name} weather — no morale pressure`;
+  return ['Current morale pressures', `Weather: ${weatherNote}`, '', 'Up:', ...(up.length ? up : ['None']), '', 'Down:', ...(down.length ? down : ['None'])].join('\n');
 }
 function updateMorale(dt, foodRate) {
   const season = SEASONS[seasonIndex()].name;
@@ -2102,6 +2120,9 @@ function renderHeader() {
   const moraleEl = document.getElementById('morale-line');
   moraleEl.textContent = `Morale ${Math.round(state.morale)} / ${moraleCap()} — ${moraleLabel()} (${state.morale >= 70 ? '+' : ''}${Math.round((0.70 + state.morale * 0.0042857 - 1) * 100)}% production)`;
   moraleEl.className = state.morale < 25 ? 'morale-low' : state.morale >= 80 ? 'morale-high' : '';
+  moraleEl.classList.add('has-tooltip');
+  moraleEl.tabIndex = 0;
+  moraleEl.dataset.tooltip = attrText(moraleTooltip());
   const echoEl = document.getElementById('echo-line');
   if (bld('monument') > 0 || state.echoes > 0 || state.migrating) {
     echoEl.classList.remove('hidden');

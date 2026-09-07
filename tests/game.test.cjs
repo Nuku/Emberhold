@@ -58,7 +58,9 @@ test('clear skies lift morale, storms depress it, and weather production appears
   assert.equal(run('state.morale'), 69.4);
   run(`state.jobs.forager = 4; state.day = findDay('rain'); const weatherDetail = {}; production(0.25, weatherDetail)`);
   assert.match(run('JSON.stringify(weatherDetail.food)'), /Weather/);
-  assert.match(run('weatherSummary()'), /Rainy.*food production/i);
+  assert.match(run('weatherSummary()'), /^Rainy,/i);
+  assert.doesNotMatch(run('weatherSummary()'), /food production/i);
+  assert.match(run('moraleTooltip()'), /Rainy weather/);
   run(`state.bld.monument = 1; state.migrating = true; state.pendingLandings = LANDINGS.map(l => ({id: l.id}))`);
   assert.match(run('renderMigration()'), /Stormbound heights/);
   assert.match(run('renderVillage()'), /Sunlit plains/);

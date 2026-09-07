@@ -2,6 +2,11 @@
 
 All notable changes to Emberhold are recorded here, with the newest changes first.
 
+## 2026-09-07
+
+- Simplified the weather summary beside the chronicle date so it stays readable at a glance while preserving the detailed production effects in the relevant tooltips.
+- Added a focusable morale tooltip that explains the settlement's current positive and negative morale pressures, including weather, food stores, seasons, buildings, Performers, Living Blocks, and conquered towns.
+
 ## 2026-09-06
 
 - Fixed migration Ancestral Shop visibility so upgrades only appear when their total Echoes cost, including already-spent Echoes, is affordable.
