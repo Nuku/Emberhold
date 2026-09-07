@@ -4,6 +4,7 @@ All notable changes to Emberhold are recorded here, with the newest changes firs
 
 ## 2026-09-06
 
+- Fixed migration Ancestral Shop visibility so upgrades only appear when their total Echoes cost, including already-spent Echoes, is affordable.
 - Slowed weather changes to every 15–30 game days, keeping skies, temperature, and weather effects steady throughout each pattern, including across season boundaries and reloads.
 - Added the early-Steam Living Block: an uncapped housing building for five villagers, built from Steel, Stone, and Wood, with steep escalating costs, 1 Power capacity required per block, and −0.1 morale/s from cramped living.
 - Added the Journal of Old Times Ancestral Shop upgrade for 500 Echoes. It permanently provides +0.2 Knowledge/s, and refunded Echo purchases now remove their bonuses immediately.

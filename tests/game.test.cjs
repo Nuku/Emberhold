@@ -173,6 +173,15 @@ test('Journal of Old Times costs 500 Echoes and permanently adds Knowledge', () 
   assert.equal(run('refundedRates.knowledge'), 0);
 });
 
+test('migration shop hides upgrades above total echoes including spent echoes', () => {
+  const { run } = game();
+  run('state.migrating = true; state.echoes = 437; state.upgrades = { deepRoots: 5 };');
+  assert.equal(run("renderShop().includes('Journal of Old Times')"), false);
+
+  run('state.echoes = 438');
+  assert.equal(run("renderShop().includes('Journal of Old Times')"), true);
+});
+
 test('multiple local tribes can be active at once', () => {
   const { run } = game();
   run(`state.techs = { currency: true, diplomacy: true };

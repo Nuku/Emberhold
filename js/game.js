@@ -1261,6 +1261,13 @@ function migrationRefund(id) {
   state.echoes += def.costs[lvl - 1];
 }
 
+function totalMigrationEchoes() {
+  return state.echoes + UPGRADES.reduce((total, u) => {
+    const levels = Math.min(upg(u.id), u.costs.length);
+    return total + u.costs.slice(0, levels).reduce((spent, cost) => spent + cost, 0);
+  }, 0);
+}
+
 function setOut(trialId = null) {
   if (!state.migrating && !trialId) return;
   const settings = trialId ? {
@@ -2518,6 +2525,7 @@ function renderShop() {
     const lvl = upg(u.id);
     const maxed = lvl >= u.max;
     const nextCost = maxed ? null : u.costs[lvl];
+    if (state.migrating && !maxed && nextCost > totalMigrationEchoes()) continue;
     h += `<div class="card ${maxed ? 'done' : ''}"><div class="card-head">` +
       `<span class="card-title has-tooltip" data-tooltip="${attrText(u.desc)}">${u.name}</span>` +
       `<span class="card-count">${lvl} / ${u.max}</span>` +
