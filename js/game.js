@@ -2338,15 +2338,6 @@ function renderVillage() {
     `<div class="res-note" style="margin:2px 0 6px">Guard armor: level ${fmt(armorLevel())} — each level reduces death odds by 8% (minimum 15%).</div>` +
     `<div class="res-note" style="margin:2px 0 6px">Morale rises when stores are secure and falls when food runs short. Summer adds +0.006 morale/s; winter exerts −0.006 morale/s. Spring and autumn have no seasonal morale pressure. Clear days add +0.025 morale/s; storms exert −0.060 morale/s. Seasonal and weather pressures stack. The Shrine steadies the people. ${moraleLabel()} morale changes production and population growth speed by ${Math.round((moraleMult() - 1) * 100)}%; current ceiling: ${moraleCap()}.</div>`;
 
-  const controllablePowerBuildings = ['livingBlock', ...Object.keys(DIG_SITE_RESOURCES), 'factory']
-    .filter(id => powerBuildingControllable(id) && bld(id));
-  if (controllablePowerBuildings.length) {
-    h += '<h2 class="section">Power controls</h2><div class="res-note">Set how many buildings are enabled. Power is allocated to Living Blocks first, then Quarry, Deep Mine, Coal Seam, and finally Factories; enabled buildings without capacity remain inactive.</div>';
-    const active = powerAllocation();
-    for (const id of controllablePowerBuildings) {
-      h += `<div class="card"><div class="card-title">${BUILDINGS.find(b => b.id === id).name}</div>${renderBuildingPower(id, active)}</div>`;
-    }
-  }
   if (bld('factory') > 0) {
     h += '<h2 class="section">Factory production</h2><div class="res-note">All factories share one production line. Rates below are per factory before bonuses. Production slows when supplies run short and pauses when output storage is full. The Industrialization trial requires Industrial Goods.</div>';
     for (const recipe of FACTORY_RECIPES) {
@@ -2452,10 +2443,22 @@ function renderBuild() {
   const knownBuildings = BUILDINGS.filter(b => bld(b.id) > 0 || !b.req || b.req());
   const completedCount = knownBuildings.filter(b => bld(b.id) >= b.max).length;
   const incompleteCount = knownBuildings.length - completedCount;
+  const controllablePowerBuildings = ['livingBlock', ...Object.keys(DIG_SITE_RESOURCES), 'factory']
+    .filter(id => powerBuildingControllable(id) && bld(id));
   h += `<div class="subtabs" role="tablist" aria-label="Construction status">` +
     `<button class="subtab ${buildFilter === 'incomplete' ? 'active' : ''}" data-action="build-filter" data-filter="incomplete" role="tab" aria-selected="${buildFilter === 'incomplete'}">Incomplete <span class="subtab-count">${incompleteCount}</span></button>` +
     `<button class="subtab ${buildFilter === 'complete' ? 'active' : ''}" data-action="build-filter" data-filter="complete" role="tab" aria-selected="${buildFilter === 'complete'}">Completed <span class="subtab-count">${completedCount}</span></button>` +
+    (controllablePowerBuildings.length ? `<button class="subtab ${buildFilter === 'power' ? 'active' : ''}" data-action="build-filter" data-filter="power" role="tab" aria-selected="${buildFilter === 'power'}">Power</button>` : '') +
     `</div>`;
+  if (buildFilter === 'power' && controllablePowerBuildings.length) {
+    h += '<div class="res-note">Set how many buildings are enabled. Power is allocated to Living Blocks first, then Quarry, Deep Mine, Coal Seam, and finally Factories; enabled buildings without capacity remain inactive.</div>';
+    const active = powerAllocation();
+    for (const id of controllablePowerBuildings) {
+      h += `<div class="card"><div class="card-title">${BUILDINGS.find(b => b.id === id).name}</div>${renderBuildingPower(id, active)}</div>`;
+    }
+    return h;
+  }
+  if (buildFilter === 'power') buildFilter = 'incomplete';
   let any = false;
   for (const b of knownBuildings) {
     const count = bld(b.id);

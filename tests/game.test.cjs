@@ -85,9 +85,12 @@ test('Awaken Ancients unlocks after Mechanism and powers each mining resource wi
     assert.equal(run(`JSON.stringify(after.${res}.filter(e => e.base < 0))`), run(`JSON.stringify(before.${res}.filter(e => e.base < 0))`));
   }
   assert.ok(Math.abs(run('poweredRates.power') - 2.4) < 1e-10);
-  assert.match(run('renderVillage()'), /1 \/ 1 enabled; 1 active/);
-  run("buildFilter = 'complete'");
+  assert.doesNotMatch(run('renderVillage()'), /Power controls/);
+  run("buildFilter = 'power'");
   assert.match(run('renderBuild()'), /data-action="power-off"/);
+  run('state.bld.quarry = 0; state.bld.deepMine = 0; state.bld.coalSeam = 0');
+  assert.doesNotMatch(run('renderBuild()'), /data-filter="power"/);
+  assert.equal(run('buildFilter'), 'incomplete');
   run(`setBuildingPower('quarry', 0); const off = {}; production(1, off)`);
   assert.equal(run('off.stone[0].amount'), run('before.stone[0].amount'));
 });
