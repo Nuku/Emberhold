@@ -11,6 +11,7 @@ All notable changes to Emberhold are recorded here, with the newest changes firs
 - Hardened the worker assignment APIs so bulk assignments reject invalid, over-capacity, and over-population requests without partially changing the settlement.
 - Simplified the weather summary beside the chronicle date so it stays readable at a glance while preserving the detailed production effects in the relevant tooltips.
 - Added a focusable morale tooltip that explains the settlement's current positive and negative morale pressures, including weather, food stores, seasons, buildings, Performers, Living Blocks, and conquered towns.
+- Added a stacking morale penalty of −0.01 morale/s for each villager beyond 20.
 - Reduced Huts' base population capacity from +3 to +1.
 
 ## 2026-09-06

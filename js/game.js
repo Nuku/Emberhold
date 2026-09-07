@@ -767,6 +767,9 @@ function moraleLabel() {
   const m = Number(state.morale) || 0;
   return m < 25 ? 'despairing' : m < 50 ? 'uneasy' : m < 80 ? 'steady' : 'heartened';
 }
+function crowdMoralePenalty() {
+  return Math.max(0, state.pop - 20) * 0.01;
+}
 function moraleTooltip(foodRate = production(0.25).food) {
   const weather = dailyWeather();
   const season = SEASONS[seasonIndex()].name;
@@ -786,6 +789,7 @@ function moraleTooltip(foodRate = production(0.25).food) {
   if (bld('hospital') > 0 && state.morale < 50) add(0.01, 'Hospital');
   add(performerCount() * 0.10, `${performerCount()} Performer${performerCount() === 1 ? '' : 's'}`);
   add(-bld('livingBlock') * 0.1, `${bld('livingBlock')} Living Block${bld('livingBlock') === 1 ? '' : 's'}`);
+  add(-crowdMoralePenalty(), `${Math.max(0, state.pop - 20)} villager${Math.max(0, state.pop - 20) === 1 ? '' : 's'} beyond 20`);
   const conquered = localTribeIds().filter(id => state.diplomacy?.[id]?.conquered && !commonalityActive()).length;
   add(-conquered, conquered === 1 ? 'conquered town' : `${conquered} conquered towns`);
   const weatherNote = weather.morale ? `${weather.name} weather` : `${weather.name} weather — no morale pressure`;
@@ -803,6 +807,7 @@ function updateMorale(dt, foodRate) {
   if (bld('hospital') > 0 && state.morale < 50) delta += 0.01;
   delta += performerCount() * 0.10;
   delta -= bld('livingBlock') * 0.1;
+  delta -= crowdMoralePenalty();
   delta -= localTribeIds().filter(id => state.diplomacy?.[id]?.conquered && !commonalityActive()).length;
   const before = moraleBand(state.morale);
   state.morale = Math.max(0, Math.min(moraleCap(), state.morale + delta * dt));
@@ -2670,7 +2675,7 @@ function renderLog() {
 function loadLatestUpdatesTooltip() {
   const button = document.getElementById('btn-updates');
   if (!button || typeof fetch !== 'function' || typeof DOMParser !== 'function') return;
-  fetch('changelog.html?v=advanced-science-20260907f')
+  fetch('changelog.html?v=crowding-20260907a')
     .then(response => response.ok ? response.text() : Promise.reject(new Error('changelog unavailable')))
     .then(source => {
       const doc = new DOMParser().parseFromString(source, 'text/html');

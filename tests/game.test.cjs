@@ -1057,6 +1057,14 @@ test('Hospitals gently support morale below 50', () => {
   assert.equal(run('atThresholdWith'), run('atThresholdWithout'));
 });
 
+test('crowding applies a stacking morale penalty beyond 20 villagers', () => {
+  const { run } = game();
+  run(`state.res.food = 10; state.morale = 70; state.pop = 20; updateMorale(1, 0); const atLimit = state.morale;
+    state.morale = 70; state.pop = 23; updateMorale(1, 0); const crowded = state.morale`);
+  assert.ok(Math.abs(run('atLimit - crowded') - 0.03) < 1e-10);
+  assert.match(run('moraleTooltip()'), /3 villagers beyond 20/);
+});
+
 test('Forge input costs are not scaled by expedition production bonuses', () => {
   const { run } = game();
   run(`state.bld.forge = 1; state.techs.metallurgy = true;
