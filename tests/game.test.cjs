@@ -25,6 +25,85 @@ function game() {
   return { run, context };
 }
 
+test('Awaken Ancients unlocks after Mechanism and powers each mining resource without boosting input costs', () => {
+  const { run } = game();
+  assert.equal(run("TECHS.find(t => t.id === 'awakenAncients').req()"), false);
+  run(`state.techs.machineryTech = true; state.bld.quarry = 1; state.bld.deepMine = 1;
+    state.bld.coalSeam = 1; state.bld.steamPlant = 1; state.jobs.miner = 1;
+    state.jobs.ironminer = 1; state.jobs.digger = 1; state.jobs.tinkerer = 1;
+    const before = {}; production(1, before)`);
+  assert.equal(run("TECHS.find(t => t.id === 'awakenAncients').req()"), true);
+  assert.equal(run("setBuildingPower('quarry', 1)"), false);
+  run(`state.techs.awakenAncients = true;
+    for (const id of Object.keys(DIG_SITE_RESOURCES)) setBuildingPower(id, 1);
+    const after = {}; const poweredRates = production(1, after)`);
+  for (const res of ['stone', 'iron', 'coal']) {
+    assert.ok(run(`Math.abs(after.${res}.filter(e => e.base > 0).reduce((n, e) => n + e.amount, 0) -
+      before.${res}.filter(e => e.base > 0).reduce((n, e) => n + e.amount, 0) * 1.1) < 1e-10`));
+    assert.equal(run(`JSON.stringify(after.${res}.filter(e => e.base < 0))`), run(`JSON.stringify(before.${res}.filter(e => e.base < 0))`));
+  }
+  assert.ok(Math.abs(run('poweredRates.power') - 2.4) < 1e-10);
+  assert.match(run('renderVillage()'), /1 \/ 1 enabled; 1 active/);
+  run("buildFilter = 'complete'");
+  assert.match(run('renderBuild()'), /data-action="power-off"/);
+  run(`setBuildingPower('quarry', 0); const off = {}; production(1, off)`);
+  assert.equal(run('off.stone[0].amount'), run('before.stone[0].amount'));
+});
+
+test('dig site power supports partial counts, shortages, save normalization, and fresh settlements', () => {
+  const { run } = game();
+  run(`state.techs.awakenAncients = true; state.bld.quarry = 20;
+    state.bld.deepMine = 1; state.bld.dynamo = 1;
+    setBuildingPower('quarry', 3); setBuildingPower('deepMine', 1)`);
+  assert.equal(run('digSitePower().quarry'), 3);
+  assert.equal(run('digSitePower().deepMine'), 1);
+  run("setBuildingPower('quarry', 100)");
+  assert.equal(run("buildingPowerCount('quarry')"), 20);
+  assert.equal(run('digSitePower().quarry'), 7);
+  assert.equal(run('digSitePower().deepMine'), 0);
+  run('state.bld.dynamo = 0; state.res.power = 100');
+  assert.equal(run('digSitePower().quarry'), 0);
+  run(`setBuildingPower('quarry', -1)`);
+  assert.equal(run("buildingPowerCount('quarry')"), 0);
+  assert.equal(run("setBuildingPower('factory', 1)"), false);
+  run(`setBuildingPower('quarry', 2); saveGame(true); state = loadGame()`);
+  assert.equal(run("buildingPowerCount('quarry')"), 2);
+  run(`state.buildingPower.quarry = 100; state.buildingPower.deepMine = -1;
+    state = normalizeSave(JSON.parse(JSON.stringify(state)))`);
+  assert.equal(run("buildingPowerCount('quarry')"), 20);
+  assert.equal(run("buildingPowerCount('deepMine')"), 0);
+  run('delete state.buildingPower; state = normalizeSave(JSON.parse(JSON.stringify(state)))');
+  assert.equal(run("buildingPowerCount('quarry')"), 0);
+  assert.equal(run('Object.keys(defaultState().buildingPower).length'), 0);
+});
+
+test('power API exposes live capacity, controllable buildings, and action events', () => {
+  const { run } = game();
+  run(`render = () => {}; const events = []; window.emberhold.subscribe(event => events.push(event));
+    state.bld.steamPlant = 1; state.bld.livingBlock = 1; state.bld.quarry = 20;
+    state.res.power = 999`);
+  assert.equal(run('window.emberhold.getPower().available'), 2);
+  assert.equal(run('Object.keys(window.emberhold.getPower().buildings).length'), 0);
+  assert.equal(run("window.emberhold.actions.setBuildingPower('quarry', 1)"), false);
+  run('state.techs.awakenAncients = true');
+  assert.equal(run("window.emberhold.actions.setBuildingPower('quarry', 3)"), true);
+  assert.ok(Math.abs(run('window.emberhold.getState().power.used') - 1.6) < 1e-10);
+  assert.ok(Math.abs(run('window.emberhold.getPower().available') - 1.4) < 1e-10);
+  assert.equal(run('events.at(-1).action'), 'setBuildingPower');
+  assert.equal(run('events.at(-1).state.power.buildings.quarry.enabled'), 3);
+  run(`const detached = window.emberhold.getPower(); detached.buildings.quarry.enabled = 0`);
+  assert.equal(run('window.emberhold.getPower().buildings.quarry.enabled'), 3);
+  assert.equal(run("window.emberhold.action('setBuildingPower', 'quarry', 20)"), true);
+  assert.equal(run('window.emberhold.getPower().buildings.quarry.active'), 10);
+  assert.equal(run('window.emberhold.getPower().requested'), 5);
+  assert.equal(run('window.emberhold.getPower().shortfall'), 2);
+  assert.equal(run('window.emberhold.getPower().available'), 0);
+  run("window.emberhold.actions.setBuildingPower('quarry', 0)");
+  assert.equal(run('window.emberhold.getPower().available'), 2);
+  assert.equal(run("window.emberhold.actions.setBuildingPower('quarry', NaN)"), false);
+  assert.equal(run("window.emberhold.actions.setBuildingPower('factory', 1)"), false);
+});
+
 test('weather survives save/load, lasts 15–30 days, and varies by climate and season', () => {
   const { run } = game();
   run('state.day = 194528.1; const today = JSON.stringify(dailyWeather())');

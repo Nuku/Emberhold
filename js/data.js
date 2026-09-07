@@ -195,7 +195,7 @@ const BUILDINGS = [
   { id: 'shrine', name: 'Shrine', max: 5, scale: 1.8,
     cost: { wood: 220, stone: 220, currency: 30 },
     effect: () => '+5% all production',
-    req: () => era() >= 3, desc: 'for whatever watches over Emberhold' },
+    req: () => era() >= 3, desc: 'for whatever watches over Emberhold. Each Shrine adds +5% to all production. Having at least one Shrine adds +0.012 morale/s while morale is below 75; additional Shrines do not increase this morale bonus.' },
 
   { id: 'amphitheatre', name: 'Amphitheatre', max: 1, scale: 1,
     cost: { wood: 260, stone: 340, currency: 60 },
@@ -298,6 +298,9 @@ const TECHS = [
   { id: 'machineryTech', name: 'Mechanism', cost: 1000,
     desc: 'Unlocks the Workshop (Machinery). Enters the Age of Steam.',
     req: () => tech('metallurgy') },
+  { id: 'awakenAncients', name: 'Awaken Ancients', cost: 1500,
+    desc: 'You stir the ancient diggers into motion. Quarries, Deep Mines, and Coal Seams can each use 0.2 Power for +10% production of their resource per powered building. Adjust their power supply in the Village or Construction. Power the future.',
+    req: () => tech('machineryTech') },
   { id: 'advancedScience', name: 'Advanced Science', cost: 2200,
     desc: 'Unlocks the uncapped Instrument Hall and Experimentalists, whose work advances Knowledge beyond the Thinkers.',
     req: () => tech('machineryTech') && tech('writing') },

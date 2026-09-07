@@ -147,6 +147,38 @@ invalid imports, storage failures, and offline time accounting.
 - **Endgame.** Research Optics and build **The Beacon** to finish the
   chronicle — then keep playing.
 
+## Automation power API
+
+`window.emberhold.getPower()` returns live power capacity, also included as
+`window.emberhold.getState().power` and in subscription event snapshots:
+
+- `generated`: capacity supplied by generators.
+- `used`: capacity charged to Living Blocks and active dig sites (can exceed
+  generation when Living Blocks are underpowered).
+- `available`: remaining capacity, clamped to zero.
+- `requested`: Living Block demand plus all enabled dig sites, including unsupplied sites.
+- `shortfall`: requested capacity beyond generation, clamped to zero.
+- `buildings`: owned buildings with unlocked power controls, keyed by building ID.
+  Each entry provides `built`, `enabled`, `active`, `powerPerBuilding`,
+  `requested`, `used`, `resource`, and `productionBonus` (a fraction: `0.1` = +10%).
+
+Factories currently check available capacity without reserving it, so their
+capacity requirement is not included in `used` or `requested`.
+
+```js
+const api = window.emberhold;
+const power = api.getPower();
+api.actions.setBuildingPower('quarry', 1); // Enable one owned Quarry.
+api.action('setBuildingPower', 'quarry', 0); // Turn its power off.
+```
+
+The action accepts a finite numeric count, floors it, and clamps it from zero
+to the owned building count. It returns `true` for supported, unlocked controls,
+or `false` for an unsupported building, locked research, or invalid count.
+Changes refresh the UI and emit the standard action event. Enabled counts are
+saved; active counts reflect current supply. Returned snapshots are detached
+from game state and are calculated immediately, without waiting for a tick.
+
 ## The Great Migration (the loop)
 
 Once the Monument stands, the village may be abandoned and founded anew.

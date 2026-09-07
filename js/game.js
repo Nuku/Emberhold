@@ -40,6 +40,7 @@ function defaultState() {
     bld: {},
     queues: { build: [], research: [], expedition: [] },
     factoryRecipe: 'goods',
+    buildingPower: {},
     techs: {},
     trialDone: {},
     trial: null,
@@ -905,6 +906,44 @@ function chooseFactoryRecipe(id) {
   state.factoryRecipe = id;
 }
 
+const DIG_SITE_RESOURCES = { quarry: 'stone', deepMine: 'iron', coalSeam: 'coal' };
+const DIG_SITE_POWER = 0.2;
+
+function buildingPowerCount(id) {
+  if (!tech('awakenAncients') || !Object.hasOwn(DIG_SITE_RESOURCES, id)) return 0;
+  const count = state.buildingPower[id];
+  return Number.isFinite(count) ? Math.max(0, Math.min(Math.floor(bld(id)), Math.floor(count))) : 0;
+}
+
+function setBuildingPower(id, count) {
+  if (!tech('awakenAncients') || !Object.hasOwn(DIG_SITE_RESOURCES, id) || !Number.isFinite(count)) return false;
+  state.buildingPower[id] = Math.max(0, Math.min(Math.floor(bld(id)), Math.floor(count)));
+  return true;
+}
+
+function digSitePower() {
+  const powerFactor = settlementProductionFactors('power').reduce((value, [, factor]) => value * factor, 1);
+  let available = Math.max(0, (bld('steamPlant') * POWER_PER_STEAM_PLANT + bld('dynamo') * 1.5 -
+    bld('livingBlock') * LIVING_BLOCK_POWER_REQUIREMENT) * powerFactor);
+  const active = {};
+  for (const id of Object.keys(DIG_SITE_RESOURCES)) {
+    active[id] = Math.min(buildingPowerCount(id), Math.floor((available + 1e-9) / DIG_SITE_POWER));
+    available = Math.max(0, available - active[id] * DIG_SITE_POWER);
+  }
+  return active;
+}
+
+function renderBuildingPower(id, active = digSitePower()) {
+  if (!tech('awakenAncients') || !Object.hasOwn(DIG_SITE_RESOURCES, id) || !bld(id)) return '';
+  const count = buildingPowerCount(id);
+  const resource = RESOURCES.find(r => r.id === DIG_SITE_RESOURCES[id]).name;
+  return `<div class="card-desc">Power supply: ${count} / ${bld(id)} enabled; ${active[id]} active (${+(active[id] * DIG_SITE_POWER).toFixed(2)} Power), +${active[id] * 10}% ${resource} production.</div>` +
+    `<div class="card-actions"><button data-action="power-off" data-id="${id}" ${count ? '' : 'disabled'}>Off</button>` +
+    `<button data-action="power-dec" data-id="${id}" data-repeat aria-label="Reduce ${id} power" ${count ? '' : 'disabled'}>−</button>` +
+    `<button data-action="power-inc" data-id="${id}" data-repeat aria-label="Increase ${id} power" ${count < bld(id) ? '' : 'disabled'}>+</button>` +
+    `<button data-action="power-all" data-id="${id}" ${count < bld(id) ? '' : 'disabled'}>All</button></div>`;
+}
+
 function production(dt = 0.25, breakdown = null) {
   const rates = {};
   for (const r of RESOURCES) {
@@ -912,7 +951,12 @@ function production(dt = 0.25, breakdown = null) {
     if (breakdown) breakdown[r.id] = [];
   }
   const weather = dailyWeather();
+  const poweredSites = digSitePower();
   const add = (res, label, base, factors = []) => {
+    if (base > 0) {
+      const active = Object.entries(DIG_SITE_RESOURCES).reduce((sum, [id, resource]) => sum + (resource === res ? poweredSites[id] : 0), 0);
+      if (active) factors = [...factors, ['Awaken Ancients', 1 + 0.10 * active]];
+    }
     if (base > 0 && weather.mods[res]) factors = [...factors, [`Weather (${weather.name}, ${weather.temperature}°C)`, weather.mods[res]]];
     const amount = factors.reduce((value, [, factor]) => value * factor, base);
     rates[res] += amount;
@@ -984,6 +1028,9 @@ function production(dt = 0.25, breakdown = null) {
   // The land, lineage, and civic choices shape output; population upkeep is
   // applied afterward so food policies do not alter how much villagers eat.
   for (const r in rates) scale(r, settlementProductionFactors(r));
+  for (const [id, active] of Object.entries(poweredSites)) {
+    if (active) add('power', `${BUILDINGS.find(b => b.id === id).name}: ${active} × ${DIG_SITE_POWER} capacity`, -active * DIG_SITE_POWER);
+  }
   // Reserve inputs after other consumption; bonuses affect output, not costs.
   // Forges are independent production buildings: each one smelts Steel
   // continuously, using fixed amounts of Iron and Coal. Keep this after the
@@ -1871,6 +1918,8 @@ function normalizeSave(s) {
     for (const n of Object.values(s[key]))
       if (typeof n !== 'number' || n < 0) throw new Error(`Invalid ${key}`);
   }
+  s.buildingPower = Object.fromEntries(Object.keys(DIG_SITE_RESOURCES).map(id => [id,
+    Number.isFinite(s.buildingPower[id]) ? Math.max(0, Math.min(Math.floor(s.bld[id] || 0), Math.floor(s.buildingPower[id]))) : 0]));
   if (!savedTradePartners) s.tradePartners = [legacyTradePartner || 'human'];
   s.tradePartners = [...new Set(s.tradePartners.filter(id => typeof id === 'string'))];
   if (!s.tradePartners.length) s.tradePartners = [s.tradePartner || 'human'];
@@ -2226,6 +2275,13 @@ function renderVillage() {
     `<div class="res-note" style="margin:2px 0 6px">Guard armor: level ${fmt(armorLevel())} — each level reduces death odds by 8% (minimum 15%).</div>` +
     `<div class="res-note" style="margin:2px 0 6px">Morale rises when stores are secure and falls when food runs short. Summer adds +0.006 morale/s; winter exerts −0.006 morale/s. Spring and autumn have no seasonal morale pressure. Clear days add +0.025 morale/s; storms exert −0.060 morale/s. Seasonal and weather pressures stack. The Shrine steadies the people. ${moraleLabel()} morale changes production and population growth speed by ${Math.round((moraleMult() - 1) * 100)}%; current ceiling: ${moraleCap()}.</div>`;
 
+  if (tech('awakenAncients')) {
+    h += '<h2 class="section">Awaken Ancients</h2><div class="res-note">Each enabled dig site requests 0.2 Power for +10% production of its resource. Unsupplied sites retain normal production. Power goes to Living Blocks first, then Quarry, Deep Mine, Coal Seam, and finally Factories. Power the future.</div>';
+    const active = digSitePower();
+    for (const id of Object.keys(DIG_SITE_RESOURCES)) {
+      if (bld(id)) h += `<div class="card"><div class="card-title">${BUILDINGS.find(b => b.id === id).name}</div>${renderBuildingPower(id, active)}</div>`;
+    }
+  }
   if (bld('factory') > 0) {
     h += '<h2 class="section">Factory production</h2><div class="res-note">All factories share one production line. Rates below are per factory before bonuses. Production slows when supplies run short and pauses when output storage is full. The Industrialization trial requires Industrial Goods.</div>';
     for (const recipe of FACTORY_RECIPES) {
@@ -2350,6 +2406,7 @@ function renderBuild() {
       (b.max === Infinity ? `<span class="card-count">${count} built</span>` : b.max > 1 ? `<span class="card-count">${count} / ${b.max}</span>` : (count ? `<span class="card-count">built</span>` : '')) +
       `<span class="card-effect">${b.effect()}</span></div>` +
       `<div class="card-cost">cost: ${costHtml(cost)}</div>` +
+      renderBuildingPower(b.id) +
       `<div class="card-actions"><button data-action="build" data-id="${b.id}" ${ok ? '' : 'disabled'}>${maxed ? 'Complete' : queued ? 'Queued' : canAfford(cost) ? 'Build' : 'Queue'}</button></div>` +
       `</div>`;
   }
@@ -2775,7 +2832,26 @@ function switchTab(tab) {
 const automationListeners = new Set();
 
 function automationSnapshot() {
-  return JSON.parse(JSON.stringify(state));
+  return state ? JSON.parse(JSON.stringify({ ...state, power: powerStatus() })) : null;
+}
+
+function powerStatus() {
+  const breakdown = {};
+  const rates = production(0, breakdown);
+  const generated = breakdown.power.reduce((sum, entry) => sum + Math.max(0, entry.amount), 0);
+  const used = breakdown.power.reduce((sum, entry) => sum + Math.max(0, -entry.amount), 0);
+  const active = digSitePower();
+  const buildings = {};
+  for (const [id, resource] of Object.entries(DIG_SITE_RESOURCES)) {
+    if (!tech('awakenAncients') || bld(id) < 1) continue;
+    const enabled = buildingPowerCount(id);
+    buildings[id] = { built: bld(id), enabled, active: active[id], powerPerBuilding: DIG_SITE_POWER,
+      requested: enabled * DIG_SITE_POWER, used: active[id] * DIG_SITE_POWER,
+      resource, productionBonus: active[id] * 0.10 };
+  }
+  const requested = used + Object.values(buildings).reduce((sum, building) => sum + building.requested - building.used, 0);
+  return { generated, used, available: Math.max(0, rates.power), requested,
+    shortfall: Math.max(0, requested - generated), buildings };
 }
 
 function emitAutomationEvent(type, detail = {}) {
@@ -2790,6 +2866,7 @@ function emitAutomationEvent(type, detail = {}) {
 const automationActionFns = {
   assign: doAssign,
   setJob,
+  setBuildingPower,
   assignDiplomat: doAssignDiplomat,
   assignExplorer: doAssignExplorer,
   assignPerformer: doAssignPerformer,
@@ -2829,6 +2906,7 @@ window.emberhold = {
   version: 1,
   get state() { return automationSnapshot(); },
   getState: automationSnapshot,
+  getPower: powerStatus,
   action(name, ...args) { return runAutomationAction(name, ...args); },
   actions: Object.fromEntries(Object.keys(automationActionFns).map(name =>
     [name, (...args) => runAutomationAction(name, ...args)])),
@@ -2846,6 +2924,9 @@ window.emberhold = {
     capacityOf,
     expeditionCost,
     factoryRecipe,
+    buildingPowerCount,
+    digSitePower,
+    setBuildingPower,
     landingDef,
     popCap,
     production,
@@ -2882,6 +2963,10 @@ function runAction(btn) {
     case 'build-filter': buildFilter = btn.dataset.filter; render(); break;
     case 'craft': doCraft(btn.dataset.id); render(); break;
     case 'factory-recipe': chooseFactoryRecipe(btn.dataset.id); render(); break;
+    case 'power-off': setBuildingPower(btn.dataset.id, 0); render(); break;
+    case 'power-dec': setBuildingPower(btn.dataset.id, buildingPowerCount(btn.dataset.id) - 1); render(); break;
+    case 'power-inc': setBuildingPower(btn.dataset.id, buildingPowerCount(btn.dataset.id) + 1); render(); break;
+    case 'power-all': setBuildingPower(btn.dataset.id, bld(btn.dataset.id)); render(); break;
     case 'research': attemptResearch(btn.dataset.id); render(); break;
     case 'queue-cancel': cancelQueue(btn.dataset.type, +btn.dataset.index); render(); break;
     case 'diplomacy-supply': supplyDiplomacyRequest(btn.dataset.tribe); render(); break;

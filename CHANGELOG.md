@@ -4,6 +4,10 @@ All notable changes to Emberhold are recorded here, with the newest changes firs
 
 ## 2026-09-07
 
+- Added Awaken Ancients research, which lets Quarries, Deep Mines, and Coal Seams use Power for +10% production per powered building.
+- Added controls and saved state for powering individual dig sites, with Living Blocks receiving priority when capacity is limited.
+- Exposed live power capacity and dig-site controls through the automation API.
+- Expanded Shrine descriptions with their low-morale bonus.
 - Updated morale so its production modifier also speeds or slows population growth by the same percentage.
 - Added population-growth timing modifiers to lineage descriptions.
 - Fixed migrated saves carrying stale Power discovery into settlements without current Power buildings; Power is now hidden and reset until the settlement has a Power building.
