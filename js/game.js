@@ -2187,6 +2187,15 @@ function renderStores() {
       `<span class="res-rate has-tooltip ${cls}" tabindex="0" data-tooltip="${attrText(resourceRateTooltip(r, rate, breakdown[r.id]))}">${status}</span>` +
       `</div>`;
   }
+  if (perm('explorers')) {
+    const rate = explorerCount() * 0.025;
+    const cls = rate > 0.0001 ? 'rate-pos' : '';
+    h += `<div class="res-row">` +
+      `<span class="res-name has-tooltip" data-tooltip="Survey points gathered by Explorers; spent to reveal additional landing choices during migration.">Survey</span>` +
+      `<span class="res-amount">${fmt(state.surveyPoints || 0)}</span>` +
+      `<span class="res-rate ${cls}">${fmtRate(rate) || '0/s'}</span>` +
+      `</div>`;
+  }
   return h;
 }
 

@@ -85,6 +85,15 @@ test('every queue item lists the resources it needs', () => {
   }
 });
 
+test('stores display Survey after Explorers are unlocked', () => {
+  const { run } = game();
+  run(`state.trialDone.wayfinding = 1; state.surveyPoints = 12.5; state.jobs.explorer = 2`);
+  const stores = run('renderStores()');
+  assert.match(stores, /Survey/);
+  assert.match(stores, /12\.5/);
+  assert.match(stores, /0\.05\/s/);
+});
+
 test('the top queue item shows each missing resource with its own estimate', () => {
   const { run } = game();
   run(`state.queues.build = [{ type: 'build', id: 'stoneWorks' }, { type: 'build', id: 'lumberYard' }];
