@@ -573,6 +573,22 @@ function queueLabel(seconds) {
   return `${fmt(Math.ceil(seconds))}s`;
 }
 
+function queueWaitingHtml(entry) {
+  const cost = queueCost(entry);
+  if (!cost) return '';
+  const rates = production(1);
+  const waiting = Object.entries(cost).filter(([resource, amount]) =>
+    Math.max(0, amount - (state.res[resource] || 0)) > 0);
+  if (!waiting.length) return '<span class="queue-ready">ready</span>';
+  return '<span class="queue-waiting">' + waiting.map(([resource, amount]) => {
+    const missing = Math.max(0, amount - (state.res[resource] || 0));
+    const name = RESOURCES.find(item => item.id === resource).name;
+    const rate = rates[resource] || 0;
+    const seconds = rate > 0 ? missing / rate : Infinity;
+    return `<span class="queue-waiting-item"><span>${fmt(missing)} ${name}</span><span class="queue-time">${queueLabel(seconds)}</span></span>`;
+  }).join('') + '</span>';
+}
+
 function queueEntry(type, id) {
   const def = queueDef({ type, id });
   if (!def || state.queues[type].length >= queueCapacity(type)) return false;
@@ -2214,9 +2230,12 @@ function renderQueue(type) {
   return entries.map((entry, index) => {
     const def = queueDef(entry);
     const cost = queueCost(entry);
+    const details = index === 0
+      ? queueWaitingHtml(entry)
+      : `<span class="queue-needs">needs ${costHtml(cost)}</span><span class="queue-time">${queueLabel(queueTime(entry))}</span>`;
     return `<button class="queue-item" data-action="queue-cancel" data-type="${type}" data-index="${index}" title="Click to cancel">` +
       `<span class="queue-name">${esc(def ? def.name : entry.id)}</span>` +
-      `<span class="queue-details"><span class="queue-needs">needs ${costHtml(cost)}</span><span class="queue-time">${queueLabel(queueTime(entry))}</span></span></button>`;
+      `<span class="queue-details">${details}</span></button>`;
   }).join('') + `<div class="queue-capacity">${entries.length} / ${queueCapacity(type)} slots used</div>`;
 }
 
@@ -2610,7 +2629,7 @@ function renderLog() {
 function loadLatestUpdatesTooltip() {
   const button = document.getElementById('btn-updates');
   if (!button || typeof fetch !== 'function' || typeof DOMParser !== 'function') return;
-  fetch('changelog.html?v=weather-patterns-20260906b')
+  fetch('changelog.html?v=queue-details-20260906a')
     .then(response => response.ok ? response.text() : Promise.reject(new Error('changelog unavailable')))
     .then(source => {
       const doc = new DOMParser().parseFromString(source, 'text/html');

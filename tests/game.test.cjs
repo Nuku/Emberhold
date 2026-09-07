@@ -78,9 +78,20 @@ test('every queue item lists the resources it needs', () => {
     state.queues.research = [{ type: 'research', id: 'writing' }];
     state.queues.expedition = [{ type: 'expedition', id: 'oldForest' }];`);
   for (const type of ['build', 'research', 'expedition']) {
-    assert.match(run(`renderQueue('${type}')`), /queue-needs/);
-    assert.match(run(`renderQueue('${type}')`), /needs /);
+    assert.match(run(`renderQueue('${type}')`), /queue-(needs|ready|waiting)/);
+    assert.match(run(`renderQueue('${type}')`), /needs |ready|waiting/);
   }
+});
+
+test('the top queue item shows each missing resource with its own estimate', () => {
+  const { run } = game();
+  run(`state.queues.build = [{ type: 'build', id: 'stoneWorks' }, { type: 'build', id: 'lumberYard' }];
+    state.res.wood = 0; state.res.stone = 0;`);
+  const html = run("renderQueue('build')");
+  assert.equal((html.match(/queue-waiting-item/g) || []).length, 2);
+  assert.match(html, /queue-waiting-item[\s\S]*queue-time/);
+  assert.match(html, /lumberCamp|Lumber/);
+  assert.equal((html.match(/queue-needs/g) || []).length, 1);
 });
 
 test('neutral tribes do not raid, while hostile tribes still can', () => {
