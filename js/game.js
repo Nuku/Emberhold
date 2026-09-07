@@ -15,6 +15,7 @@ let lastStoredSave = null;
 let saveConflict = false;
 let activeTab = 'village';
 let buildFilter = 'incomplete';
+const raidSelections = {};
 let tooltipHover = false;
 let pointerDown = false;
 
@@ -1874,6 +1875,9 @@ function costHtml(cost) {
   }
   return parts.join(', ');
 }
+function costText(cost) {
+  return Object.entries(cost).map(([r, amount]) => `${fmt(amount)} ${RESOURCES.find(x => x.id === r).name}`).join(', ');
+}
 
 function lineageAccessCount() { return LINEAGES.filter(lineage => lineageUnlocked(lineage.id)).length; }
 
@@ -2234,11 +2238,16 @@ function renderDiplomacy() {
         h += '<div class="trial-reward">Conquered realm: +5% to all village incomes. This realm no longer produces diplomatic events.</div>';
       } else {
         h += '<div class="trial-mod">Attack stages cost more and become harder, but grant more loot rolls. The final three stages also roll for uncommon loot.</div>';
-        h += RAID_STAGES.map(stage => {
-          const canRaid = ableGuards() > 0 && canAfford(stage.cost);
-          const uncommon = stage.uncommon ? ` + ${stage.uncommon} uncommon` : '';
-          return `<div class="card-actions"><button data-action="raid" data-tribe="${id}" data-stage="${stage.id}" ${canRaid ? '' : 'disabled'}>${stage.name} — ${costHtml(stage.cost)} — ${stage.rolls} roll${stage.rolls === 1 ? '' : 's'}${uncommon}</button></div>`;
-        }).join('');
+        const selectedStage = raidStage(raidSelections[id]);
+        const canRaid = ableGuards() > 0 && canAfford(selectedStage.cost);
+        h += `<div class="card-actions raid-actions">` +
+          `<label for="raid-stage-${id}">Attack type</label>` +
+          `<select id="raid-stage-${id}" data-raid-select="${id}" aria-label="Attack type against the ${tribe.name}">` +
+          RAID_STAGES.map(stage => {
+            const uncommon = stage.uncommon ? ` + ${stage.uncommon} uncommon` : '';
+            return `<option value="${stage.id}" ${stage.id === selectedStage.id ? 'selected' : ''}>${stage.name} — ${costText(stage.cost)} — ${stage.rolls} roll${stage.rolls === 1 ? '' : 's'}${uncommon}</option>`;
+          }).join('') +
+          `</select><button data-action="raid" data-tribe="${id}" data-stage="${selectedStage.id}" ${canRaid ? '' : 'disabled'}>Attack</button></div>`;
         if (entry.siegeReady) {
           const canConquer = ableGuards() >= 15;
           h += `<div class="trial-reward">The siege succeeded. Commit 15 healthy Guards to conquer this town; conquest grants the ally bonus but causes a steady −1 morale pressure.</div>` +
@@ -2491,7 +2500,7 @@ function renderLog() {
 function loadLatestUpdatesTooltip() {
   const button = document.getElementById('btn-updates');
   if (!button || typeof fetch !== 'function' || typeof DOMParser !== 'function') return;
-  fetch('changelog.html?v=onboarding-1254-20260906a')
+  fetch('changelog.html?v=attack-select-20260906a')
     .then(response => response.ok ? response.text() : Promise.reject(new Error('changelog unavailable')))
     .then(source => {
       const doc = new DOMParser().parseFromString(source, 'text/html');
@@ -2724,6 +2733,19 @@ document.addEventListener('click', (e) => {
   }
   runAction(btn);
   render();
+});
+
+document.addEventListener('change', (e) => {
+  const select = e.target.closest('[data-raid-select]');
+  if (!select) return;
+  const stage = raidStage(select.value);
+  const tribeId = select.dataset.raidSelect;
+  raidSelections[tribeId] = stage.id;
+  const button = select.parentElement.querySelector('[data-action="raid"]');
+  if (button) {
+    button.dataset.stage = stage.id;
+    button.disabled = ableGuards() < 1 || !canAfford(stage.cost);
+  }
 });
 
 document.addEventListener('pointerdown', (e) => {
