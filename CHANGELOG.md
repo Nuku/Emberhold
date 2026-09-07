@@ -4,6 +4,8 @@ All notable changes to Emberhold are recorded here, with the newest changes firs
 
 ## 2026-09-07
 
+- Renamed Aphrodisiac research to Fertility Rites and updated its related guidance and tests.
+- Limited Copper Diggers to the larger of the Miner or Iron Miner capacity, so copper assignments scale with the settlement's available mining infrastructure.
 - Added Advanced Science research, the uncapped Instrument Hall, and Experimentalists, who extend Knowledge production beyond Thinkers.
 - Updated automation to research Advanced Science, build Instrument Halls, and assign Experimentalists as they become available.
 - Limited Miners to one worker per Stone Works plus one, and Iron Miners to three workers per Deep Store plus three, with loaded settlements and assignment controls enforcing both caps.

@@ -95,6 +95,7 @@ const JOBS = {
                  max: () => bld('deepStore') + 3,
                  unlock: () => bld('deepMine') > 0 },
   copperminer: { name: 'Copper Digger', res: 'copper',   base: 0.08, desc: 'follows green stains through the shallows',
+                 max: () => Math.max(JOBS.miner.max(), JOBS.ironminer.max()),
                  unlock: () => tech('copperProspecting') },
   astronomer:  { name: 'Astronomer',   res: 'aether',    base: 0.05, desc: 'listens to the sky at night',
                  unlock: () => bld('observatory') > 0 },
@@ -249,7 +250,7 @@ const BUILDINGS = [
 
 // --- research ---
 const TECHS = [
-  { id: 'aphrodisiac', name: 'Aphrodisiac', cost: 50,
+  { id: 'aphrodisiac', name: 'Fertility Rites', cost: 50,
     desc: 'Reduces population growth time by 25%. Stacks with Hospitals.' },
   { id: 'hospital', name: 'Hospital', cost: 150,
     desc: 'Unlocks Hospitals. Each level reduces Guard healing and population growth time by 10%, compounding.',
