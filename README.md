@@ -156,17 +156,16 @@ invalid imports, storage failures, and offline time accounting.
 `window.emberhold.getState().power` and in subscription event snapshots:
 
 - `generated`: capacity supplied by generators.
-- `used`: capacity charged to Living Blocks and active dig sites (can exceed
-  generation when Living Blocks are underpowered).
+- `used`: capacity charged to active Living Blocks, dig sites, and factories.
 - `available`: remaining capacity, clamped to zero.
-- `requested`: Living Block demand plus all enabled dig sites, including unsupplied sites.
+- `requested`: demand from all enabled power buildings, including unsupplied buildings.
 - `shortfall`: requested capacity beyond generation, clamped to zero.
 - `buildings`: owned buildings with unlocked power controls, keyed by building ID.
   Each entry provides `built`, `enabled`, `active`, `powerPerBuilding`,
   `requested`, `used`, `resource`, and `productionBonus` (a fraction: `0.1` = +10%).
 
-Factories currently check available capacity without reserving it, so their
-capacity requirement is not included in `used` or `requested`.
+Power controls are available for Living Blocks and Factories as well as Awaken
+Ancients dig sites. Existing saves keep those buildings enabled by default.
 
 ```js
 const api = window.emberhold;

@@ -125,7 +125,7 @@ test('power API exposes live capacity, controllable buildings, and action events
     state.bld.steamPlant = 1; state.bld.livingBlock = 1; state.bld.quarry = 20;
     state.res.power = 999`);
   assert.equal(run('window.emberhold.getPower().available'), 2);
-  assert.equal(run('Object.keys(window.emberhold.getPower().buildings).length'), 0);
+  assert.equal(run('Object.keys(window.emberhold.getPower().buildings).length'), 1);
   assert.equal(run("window.emberhold.actions.setBuildingPower('quarry', 1)"), false);
   run('state.techs.awakenAncients = true');
   assert.equal(run("window.emberhold.actions.setBuildingPower('quarry', 3)"), true);

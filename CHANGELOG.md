@@ -4,6 +4,7 @@ All notable changes to Emberhold are recorded here, with the newest changes firs
 
 ## 2026-09-07
 
+- Expanded Power allocation controls to Living Blocks and Factories, with enabled buildings consuming capacity in priority order and factories stopping cleanly when capacity is unavailable.
 - Offline time now banks up to 24 hours of double-speed play, with a real-time countdown above Updates. Remaining time persists through saves and migration.
 - Added a one-hour real-time cooldown when changing governance policies; the cooldown persists through saves and offline progress and resets on migration.
 - Added Money Lenders to Banking: each supports one Banker and produces 0.001 Currency per population per second.

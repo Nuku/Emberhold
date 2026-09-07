@@ -460,7 +460,7 @@ function popCap() {
   if (upg('practicedMigrator')) cap += 5;
   cap += bld('hut') * (1 + upg('grandHut') + (perm('twinSouls') ? 2 : 0));
   cap += bld('aqueduct') * 4;
-  cap += bld('livingBlock') * 5;
+  cap += powerAllocation().livingBlock * 5;
   if (trialActive('solitude')) cap = Math.min(cap, 10);
   return cap;
 }
@@ -796,7 +796,8 @@ function moraleTooltip(foodRate = production(0.25).food) {
   if (bld('shrine') > 0 && state.morale < 75) add(0.012, 'Shrine');
   if (bld('hospital') > 0 && state.morale < 50) add(0.01, 'Hospital');
   add(performerCount() * 0.10, `${performerCount()} Performer${performerCount() === 1 ? '' : 's'}`);
-  add(-bld('livingBlock') * 0.1, `${bld('livingBlock')} Living Block${bld('livingBlock') === 1 ? '' : 's'}`);
+  const activeLivingBlocks = powerAllocation().livingBlock;
+  add(-activeLivingBlocks * 0.1, `${activeLivingBlocks} Living Block${activeLivingBlocks === 1 ? '' : 's'}`);
   add(-crowdMoralePenalty(), `${Math.max(0, state.pop - 20)} villager${Math.max(0, state.pop - 20) === 1 ? '' : 's'} beyond 20`);
   const conquered = localTribeIds().filter(id => state.diplomacy?.[id]?.conquered && !commonalityActive()).length;
   add(-conquered, conquered === 1 ? 'conquered town' : `${conquered} conquered towns`);
@@ -814,7 +815,7 @@ function updateMorale(dt, foodRate) {
   if (bld('shrine') > 0) delta += state.morale < 75 ? 0.012 : 0;
   if (bld('hospital') > 0 && state.morale < 50) delta += 0.01;
   delta += performerCount() * 0.10;
-  delta -= bld('livingBlock') * 0.1;
+  delta -= powerAllocation().livingBlock * 0.1;
   delta -= crowdMoralePenalty();
   delta -= localTribeIds().filter(id => state.diplomacy?.[id]?.conquered && !commonalityActive()).length;
   const before = moraleBand(state.morale);
@@ -911,36 +912,57 @@ function chooseFactoryRecipe(id) {
 
 const DIG_SITE_RESOURCES = { quarry: 'stone', deepMine: 'iron', coalSeam: 'coal' };
 const DIG_SITE_POWER = 0.2;
+const POWER_BUILDINGS = {
+  livingBlock: { power: LIVING_BLOCK_POWER_REQUIREMENT, label: 'Living Blocks' },
+  ...Object.fromEntries(Object.keys(DIG_SITE_RESOURCES).map(id => [id, { power: DIG_SITE_POWER }])),
+  factory: { power: FACTORY_POWER_REQUIREMENT, label: 'Factories' },
+};
+
+function powerBuildingControllable(id) {
+  return Object.hasOwn(POWER_BUILDINGS, id) && (id === 'livingBlock' || id === 'factory' || tech('awakenAncients'));
+}
 
 function buildingPowerCount(id) {
-  if (!tech('awakenAncients') || !Object.hasOwn(DIG_SITE_RESOURCES, id)) return 0;
+  if (!powerBuildingControllable(id)) return 0;
   const count = state.buildingPower[id];
-  return Number.isFinite(count) ? Math.max(0, Math.min(Math.floor(bld(id)), Math.floor(count))) : 0;
+  // New controls default existing buildings to enabled so older saves keep
+  // their previous behavior.
+  return Number.isFinite(count) ? Math.max(0, Math.min(Math.floor(bld(id)), Math.floor(count))) : Math.floor(bld(id));
 }
 
 function setBuildingPower(id, count) {
-  if (!tech('awakenAncients') || !Object.hasOwn(DIG_SITE_RESOURCES, id) || !Number.isFinite(count)) return false;
+  if (!powerBuildingControllable(id) || !bld(id) || !Number.isFinite(count)) return false;
   state.buildingPower[id] = Math.max(0, Math.min(Math.floor(bld(id)), Math.floor(count)));
   return true;
 }
 
-function digSitePower() {
+function powerAllocation() {
   const powerFactor = settlementProductionFactors('power').reduce((value, [, factor]) => value * factor, 1);
-  let available = Math.max(0, (bld('steamPlant') * POWER_PER_STEAM_PLANT + bld('dynamo') * 1.5 -
-    bld('livingBlock') * LIVING_BLOCK_POWER_REQUIREMENT) * powerFactor);
+  let available = Math.max(0, (bld('steamPlant') * POWER_PER_STEAM_PLANT + bld('dynamo') * 1.5) * powerFactor);
   const active = {};
-  for (const id of Object.keys(DIG_SITE_RESOURCES)) {
-    active[id] = Math.min(buildingPowerCount(id), Math.floor((available + 1e-9) / DIG_SITE_POWER));
-    available = Math.max(0, available - active[id] * DIG_SITE_POWER);
+  for (const id of ['livingBlock', ...Object.keys(DIG_SITE_RESOURCES), 'factory']) {
+    active[id] = Math.min(buildingPowerCount(id), Math.floor((available + 1e-9) / POWER_BUILDINGS[id].power));
+    available = Math.max(0, available - active[id] * POWER_BUILDINGS[id].power);
   }
   return active;
 }
 
-function renderBuildingPower(id, active = digSitePower()) {
-  if (!tech('awakenAncients') || !Object.hasOwn(DIG_SITE_RESOURCES, id) || !bld(id)) return '';
+function digSitePower() {
+  const allocation = powerAllocation();
+  const active = {};
+  for (const id of Object.keys(DIG_SITE_RESOURCES)) {
+    active[id] = allocation[id];
+  }
+  return active;
+}
+
+function renderBuildingPower(id, active = powerAllocation()) {
+  if (!powerBuildingControllable(id) || !bld(id)) return '';
   const count = buildingPowerCount(id);
-  const resource = RESOURCES.find(r => r.id === DIG_SITE_RESOURCES[id]).name;
-  return `<div class="card-desc">Power supply: ${count} / ${bld(id)} enabled; ${active[id]} active (${+(active[id] * DIG_SITE_POWER).toFixed(2)} Power), +${active[id] * 10}% ${resource} production.</div>` +
+  const info = POWER_BUILDINGS[id];
+  const resource = DIG_SITE_RESOURCES[id] ? RESOURCES.find(r => r.id === DIG_SITE_RESOURCES[id]).name : null;
+  const effect = resource ? `, +${active[id] * 10}% ${resource} production` : '';
+  return `<div class="card-desc">Power supply: ${count} / ${bld(id)} enabled; ${active[id]} active (${+(active[id] * info.power).toFixed(2)} Power)${effect}.</div>` +
     `<div class="card-actions"><button data-action="power-off" data-id="${id}" ${count ? '' : 'disabled'}>Off</button>` +
     `<button data-action="power-dec" data-id="${id}" data-repeat aria-label="Reduce ${id} power" ${count ? '' : 'disabled'}>−</button>` +
     `<button data-action="power-inc" data-id="${id}" data-repeat aria-label="Increase ${id} power" ${count < bld(id) ? '' : 'disabled'}>+</button>` +
@@ -954,6 +976,7 @@ function production(dt = 0.25, breakdown = null) {
     if (breakdown) breakdown[r.id] = [];
   }
   const weather = dailyWeather();
+  const power = powerAllocation();
   const poweredSites = digSitePower();
   const add = (res, label, base, factors = []) => {
     if (base > 0) {
@@ -1028,7 +1051,7 @@ function production(dt = 0.25, breakdown = null) {
     add('coal', `Steam Plant fuel: ${bld('steamPlant')} × 0.8/s`, -bld('steamPlant') * 0.8);
   }
   if (bld('dynamo') > 0) add('power', `Dynamos: ${bld('dynamo')} × 1.5/s`, bld('dynamo') * 1.5);
-  if (bld('livingBlock') > 0) add('power', `Living Blocks: ${bld('livingBlock')} × ${LIVING_BLOCK_POWER_REQUIREMENT} capacity`, -bld('livingBlock') * LIVING_BLOCK_POWER_REQUIREMENT);
+  if (power.livingBlock) add('power', `Living Blocks: ${power.livingBlock} × ${LIVING_BLOCK_POWER_REQUIREMENT} capacity`, -power.livingBlock * LIVING_BLOCK_POWER_REQUIREMENT);
   // The land, lineage, and civic choices shape output; population upkeep is
   // applied afterward so food policies do not alter how much villagers eat.
   for (const r in rates) scale(r, settlementProductionFactors(r));
@@ -1060,23 +1083,23 @@ function production(dt = 0.25, breakdown = null) {
   if (bld('factory') > 0 && dt > 0) {
     const recipe = factoryRecipe();
     const factors = settlementProductionFactors(recipe.id);
-    const output = factors.reduce((value, [, factor]) => value * factor, bld('factory') * recipe.rate);
+    const activeFactories = power.factory;
+    const output = factors.reduce((value, [, factor]) => value * factor, activeFactories * recipe.rate);
     const inputs = { ...recipe.inputs };
-    let fraction = Math.min(1, Math.max(0, capacityOf(recipe.id) - state.res[recipe.id]) / (output * dt));
+    let fraction = output > 0 ? Math.min(1, Math.max(0, capacityOf(recipe.id) - state.res[recipe.id]) / (output * dt)) : 0;
     let limitation = fraction < 1 ? `${recipe.name} storage space` : 'Factory utilization';
     for (const r in inputs) {
       const available = Math.max(0, state.res[r] + Math.min(0, rates[r]) * dt);
-      const supplied = available / (inputs[r] * bld('factory') * dt);
+      const supplied = activeFactories ? available / (inputs[r] * activeFactories * dt) : 0;
       if (supplied < fraction) limitation = `${RESOURCES.find(resource => resource.id === r).name} shortage`;
       fraction = Math.min(fraction, supplied);
     }
-    const powerNeeded = bld('factory') * FACTORY_POWER_REQUIREMENT;
-    if (rates.power < powerNeeded) {
-      limitation = 'Power shortage';
-      fraction = 0;
+    if (activeFactories < bld('factory')) {
+      limitation = buildingPowerCount('factory') < bld('factory') ? 'Power disabled' : 'Power shortage';
+      if (!activeFactories) fraction = 0;
     }
-    add(recipe.id, `Factories (${recipe.name}): ${bld('factory')} × ${recipe.rate}/s`, bld('factory') * recipe.rate, [...factors, [limitation, fraction]]);
-    for (const r in inputs) add(r, `Factory inputs (${recipe.name}): ${bld('factory')} × ${inputs[r]}/s`, -inputs[r] * bld('factory'), [[limitation, fraction]]);
+    add(recipe.id, `Factories (${recipe.name}): ${activeFactories} active × ${recipe.rate}/s`, activeFactories * recipe.rate, [...factors, [limitation, fraction]]);
+    for (const r in inputs) add(r, `Factory inputs (${recipe.name}): ${activeFactories} active × ${inputs[r]}/s`, -inputs[r] * activeFactories, [[limitation, fraction]]);
   }
   if (state.pop) add('food', `Villager upkeep: ${state.pop} × ${FOOD_PER_POP}/s`, -state.pop * FOOD_PER_POP);
   return rates;
@@ -1950,8 +1973,9 @@ function normalizeSave(s) {
     for (const n of Object.values(s[key]))
       if (typeof n !== 'number' || n < 0) throw new Error(`Invalid ${key}`);
   }
-  s.buildingPower = Object.fromEntries(Object.keys(DIG_SITE_RESOURCES).map(id => [id,
-    Number.isFinite(s.buildingPower[id]) ? Math.max(0, Math.min(Math.floor(s.bld[id] || 0), Math.floor(s.buildingPower[id]))) : 0]));
+  s.buildingPower = Object.fromEntries(Object.keys(POWER_BUILDINGS).map(id => [id,
+    Number.isFinite(s.buildingPower[id]) ? Math.max(0, Math.min(Math.floor(s.bld[id] || 0), Math.floor(s.buildingPower[id]))) :
+      (id === 'factory' || id === 'livingBlock' ? Math.floor(s.bld[id] || 0) : 0)]));
   if (!savedTradePartners) s.tradePartners = [legacyTradePartner || 'human'];
   s.tradePartners = [...new Set(s.tradePartners.filter(id => typeof id === 'string'))];
   if (!s.tradePartners.length) s.tradePartners = [s.tradePartner || 'human'];
@@ -2314,11 +2338,13 @@ function renderVillage() {
     `<div class="res-note" style="margin:2px 0 6px">Guard armor: level ${fmt(armorLevel())} — each level reduces death odds by 8% (minimum 15%).</div>` +
     `<div class="res-note" style="margin:2px 0 6px">Morale rises when stores are secure and falls when food runs short. Summer adds +0.006 morale/s; winter exerts −0.006 morale/s. Spring and autumn have no seasonal morale pressure. Clear days add +0.025 morale/s; storms exert −0.060 morale/s. Seasonal and weather pressures stack. The Shrine steadies the people. ${moraleLabel()} morale changes production and population growth speed by ${Math.round((moraleMult() - 1) * 100)}%; current ceiling: ${moraleCap()}.</div>`;
 
-  if (tech('awakenAncients')) {
-    h += '<h2 class="section">Awaken Ancients</h2><div class="res-note">Each enabled dig site requests 0.2 Power for +10% production of its resource. Unsupplied sites retain normal production. Power goes to Living Blocks first, then Quarry, Deep Mine, Coal Seam, and finally Factories. Power the future.</div>';
-    const active = digSitePower();
-    for (const id of Object.keys(DIG_SITE_RESOURCES)) {
-      if (bld(id)) h += `<div class="card"><div class="card-title">${BUILDINGS.find(b => b.id === id).name}</div>${renderBuildingPower(id, active)}</div>`;
+  const controllablePowerBuildings = ['livingBlock', ...Object.keys(DIG_SITE_RESOURCES), 'factory']
+    .filter(id => powerBuildingControllable(id) && bld(id));
+  if (controllablePowerBuildings.length) {
+    h += '<h2 class="section">Power controls</h2><div class="res-note">Set how many buildings are enabled. Power is allocated to Living Blocks first, then Quarry, Deep Mine, Coal Seam, and finally Factories; enabled buildings without capacity remain inactive.</div>';
+    const active = powerAllocation();
+    for (const id of controllablePowerBuildings) {
+      h += `<div class="card"><div class="card-title">${BUILDINGS.find(b => b.id === id).name}</div>${renderBuildingPower(id, active)}</div>`;
     }
   }
   if (bld('factory') > 0) {
@@ -2814,7 +2840,7 @@ function renderLog() {
 function loadLatestUpdatesTooltip() {
   const button = document.getElementById('btn-updates');
   if (!button || typeof fetch !== 'function' || typeof DOMParser !== 'function') return;
-  fetch('changelog.html?v=policy-cooldown-20260907b')
+  fetch('changelog.html?v=power-controls-20260907c')
     .then(response => response.ok ? response.text() : Promise.reject(new Error('changelog unavailable')))
     .then(source => {
       const doc = new DOMParser().parseFromString(source, 'text/html');
@@ -2880,18 +2906,19 @@ function powerStatus() {
   const breakdown = {};
   const rates = production(0, breakdown);
   const generated = breakdown.power.reduce((sum, entry) => sum + Math.max(0, entry.amount), 0);
-  const used = breakdown.power.reduce((sum, entry) => sum + Math.max(0, -entry.amount), 0);
-  const active = digSitePower();
+  const active = powerAllocation();
+  const used = breakdown.power.reduce((sum, entry) => sum + Math.max(0, -entry.amount), 0) +
+    active.factory * FACTORY_POWER_REQUIREMENT;
   const buildings = {};
-  for (const [id, resource] of Object.entries(DIG_SITE_RESOURCES)) {
-    if (!tech('awakenAncients') || bld(id) < 1) continue;
+  for (const [id, info] of Object.entries(POWER_BUILDINGS)) {
+    if (!powerBuildingControllable(id) || bld(id) < 1) continue;
     const enabled = buildingPowerCount(id);
-    buildings[id] = { built: bld(id), enabled, active: active[id], powerPerBuilding: DIG_SITE_POWER,
-      requested: enabled * DIG_SITE_POWER, used: active[id] * DIG_SITE_POWER,
-      resource, productionBonus: active[id] * 0.10 };
+    buildings[id] = { built: bld(id), enabled, active: active[id], powerPerBuilding: info.power,
+      requested: enabled * info.power, used: active[id] * info.power,
+      ...(DIG_SITE_RESOURCES[id] ? { resource: DIG_SITE_RESOURCES[id], productionBonus: active[id] * 0.10 } : {}) };
   }
   const requested = used + Object.values(buildings).reduce((sum, building) => sum + building.requested - building.used, 0);
-  return { generated, used, available: Math.max(0, rates.power), requested,
+  return { generated, used, available: Math.max(0, rates.power - active.factory * FACTORY_POWER_REQUIREMENT), requested,
     shortfall: Math.max(0, requested - generated), buildings };
 }
 
