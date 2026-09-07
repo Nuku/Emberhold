@@ -614,6 +614,17 @@ test('resource happenings scale with the affected resource storage capacity', ()
   assert.equal(run('state.res.wood'), baseGain * 3);
 });
 
+test('Turtlefolk lake memories grant time-scaled knowledge and survey', () => {
+  const { run } = game();
+  run(`state.species = 'turtlefolk'; state.seen.knowledge = true; state.res.knowledge = 0;
+    state.trialDone.wayfinding = 1; state.jobs.thinker = 1; state.jobs.explorer = 2;
+    Math.random = (() => { const rolls = [0, 0, 0.99, 0.5, 0]; return () => rolls.shift() ?? 0; })();
+    updateRandomEvents(60)`);
+  assert.equal(run('state.res.knowledge'), 5);
+  assert.equal(run('state.surveyPoints'), 0.75);
+  assert.match(run('state.log[0].t'), /Knowledge \+5; Survey \+0\.75/);
+});
+
 test('resource breakdown reconciles income and costs with scoped modifiers', () => {
   const { run } = game();
   run(`state.jobs = { forager: 3, guard: 2, tinkerer: 1, woodcutter: 2 };

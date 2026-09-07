@@ -443,7 +443,7 @@ const LINEAGE_EVENTS = {
   ],
   turtlefolk: [
     { text: 'The Turtlefolk annual walking race reaches its first bend. Spectators settle in for a pleasant afternoon.' },
-    { text: 'A Turtlefolk elder traces a lake memory on a slate, completing a map begun generations ago.', knowledge: [5, 12] },
+    { text: 'A Turtlefolk elder traces a lake memory on a slate, completing a map begun generations ago.', knowledge: [5, 12], timeReward: [10, 20], survey: true },
   ],
   axolotlkin: [
     { text: 'Axolotlkin students practice looking solemn during a submerged lecture. Their waving gills betray their laughter.' },

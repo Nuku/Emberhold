@@ -4,6 +4,7 @@ All notable changes to Emberhold are recorded here, with the newest changes firs
 
 ## 2026-09-07
 
+- Updated the Turtlefolk lake-memory event to grant time-scaled Knowledge and Explorer-based Survey points.
 - Renamed Aphrodisiac research to Fertility Rites and updated its related guidance and tests.
 - Limited Copper Diggers to the larger of the Miner or Iron Miner capacity, so copper assignments scale with the settlement's available mining infrastructure.
 - Added Advanced Science research, the uncapped Instrument Hall, and Experimentalists, who extend Knowledge production beyond Thinkers.

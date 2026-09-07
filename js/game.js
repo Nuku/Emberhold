@@ -854,7 +854,24 @@ function updateRandomEvents(dt) {
     state.morale = Math.max(0, Math.min(moraleCap(), before + randomRange(event.delta)));
     record('Morale', state.morale - before);
   }
+  if (event.timeReward) {
+    const seconds = randomRange(event.timeReward);
+    const knowledgeFloor = event.knowledge ? randomRange(event.knowledge) : 0;
+    const knowledge = Math.max(knowledgeFloor, Math.round(production(0).knowledge * seconds));
+    if (knowledge && state.seen.knowledge) {
+      state.res.knowledge += knowledge;
+      record('Knowledge', knowledge);
+    }
+    if (event.survey) {
+      const survey = perm('explorers') ? explorerCount() * 0.025 * seconds : 0;
+      if (survey) {
+        state.surveyPoints = (state.surveyPoints || 0) + survey;
+        record('Survey', survey);
+      }
+    }
+  }
   for (const { id: resource, name } of RESOURCES) {
+    if (event.timeReward && (resource === 'knowledge' || event.survey && resource === 'survey')) continue;
     if (!event[resource] || !state.seen[resource]) continue;
     const amount = randomEventResourceAmount(resource, event[resource]);
     const before = state.res[resource];
