@@ -2488,19 +2488,52 @@ function renderSettings() {
   return h;
 }
 
+// Patch existing nodes instead of replacing panels, preserving focus and hover.
+function updateContent(element, html) {
+  // Native dropdowns must retain both their node and options while open.
+  const focused = document.activeElement;
+  if (focused && element.contains(focused) && focused.matches('select, input, textarea, [contenteditable="true"]')) return;
+  const template = document.createElement('template');
+  template.innerHTML = html;
+  function patch(parent, desired) {
+    const nextNodes = [...desired.childNodes];
+    for (let i = 0; i < nextNodes.length; i++) {
+      const next = nextNodes[i];
+      const current = parent.childNodes[i];
+      if (!current) {
+        parent.appendChild(next.cloneNode(true));
+      } else if (current.nodeType !== next.nodeType || current.nodeName !== next.nodeName) {
+        current.replaceWith(next.cloneNode(true));
+      } else if (current.nodeType === 1) {
+        for (const attribute of [...current.attributes]) {
+          if (!next.hasAttribute(attribute.name)) current.removeAttribute(attribute.name);
+        }
+        for (const attribute of next.attributes) {
+          if (current.getAttribute(attribute.name) !== attribute.value) current.setAttribute(attribute.name, attribute.value);
+        }
+        patch(current, next);
+      } else if (current.nodeValue !== next.nodeValue) {
+        current.nodeValue = next.nodeValue;
+      }
+    }
+    while (parent.childNodes.length > nextNodes.length) parent.lastChild.remove();
+  }
+  patch(element, template.content);
+}
+
 function renderLog() {
   const el = document.getElementById('log');
   let h = '';
   for (const e of state.log.slice(0, 80)) {
     h += `<div class="log-entry ${e.c}"><span class="log-day">d${e.d}</span>${esc(e.t)}</div>`;
   }
-  el.innerHTML = h;
+  updateContent(el, h);
 }
 
 function loadLatestUpdatesTooltip() {
   const button = document.getElementById('btn-updates');
   if (!button || typeof fetch !== 'function' || typeof DOMParser !== 'function') return;
-  fetch('changelog.html?v=attack-select-20260906a')
+  fetch('changelog.html?v=stable-panels-20260906a')
     .then(response => response.ok ? response.text() : Promise.reject(new Error('changelog unavailable')))
     .then(source => {
       const doc = new DOMParser().parseFromString(source, 'text/html');
@@ -2526,7 +2559,7 @@ function render() {
     button.classList.toggle('hidden', !unlocked);
     button.setAttribute('aria-hidden', String(!unlocked));
   });
-  document.getElementById('stores').innerHTML = renderStores();
+  updateContent(document.getElementById('stores'), renderStores());
   const panels = {
     village: renderVillage,
     build: renderBuild,
@@ -2539,7 +2572,7 @@ function render() {
     stats: renderStats,
     settings: renderSettings,
   };
-  document.getElementById('panel-' + activeTab).innerHTML = panels[activeTab]();
+  updateContent(document.getElementById('panel-' + activeTab), panels[activeTab]());
   renderLog();
 }
 

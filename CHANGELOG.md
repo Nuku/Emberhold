@@ -4,6 +4,7 @@ All notable changes to Emberhold are recorded here, with the newest changes firs
 
 ## 2026-09-06
 
+- Updated panels in place to prevent refresh blinking and preserve controls; focused dropdowns stay open during game and automation updates.
 - Replaced the long list of attack buttons with an attack-type dropdown and a single Attack button for each neighboring town.
 - Added progressive tab unlocking and a guided next-step card so new settlements reveal systems as their prerequisites become available.
 - Improved automation diagnostics: the userscript now reports connection, unavailable-action, and runtime-error states instead of failing silently. The userscript version is now 1.25.4.
