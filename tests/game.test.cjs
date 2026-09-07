@@ -455,6 +455,20 @@ test('Fertility Rites and Hospitals unlock, compound timers, and persist through
   assert.equal(run('state.pop'), 5);
 });
 
+test('morale speeds or slows population growth and stacks with fertility bonuses', () => {
+  const { run } = game();
+  const neutral = run('popGrowthNeed()');
+  run('state.morale = 0');
+  assert.ok(Math.abs(run('popGrowthNeed()') - neutral / 0.7) < 1e-10);
+  run('state.morale = 100');
+  const happy = run('popGrowthNeed()');
+  assert.ok(happy < neutral);
+  assert.ok(Math.abs(neutral / happy - run("globalProductionFactors()[0][1]")) < 1e-10);
+  run("state.species = 'rabbitfolk'; state.techs.aphrodisiac = true; state.bld.hospital = 2");
+  assert.ok(Math.abs(run('popGrowthNeed()') - happy * 0.5 * 0.75 * 0.9 ** 2) < 1e-10);
+  assert.match(run('renderVillage()'), /production and population growth speed/);
+});
+
 test('Rabbitfolk population growth takes half the usual time', () => {
   const { run } = game();
   const humanGrowth = run('popGrowthNeed()');

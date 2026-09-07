@@ -707,9 +707,13 @@ function allMult() {
   return globalProductionFactors().reduce((m, [, factor]) => m * factor, 1);
 }
 
+function moraleMult() {
+  return 1 + (Math.max(0, Math.min(100, Number(state.morale) || 0)) - 70) * (0.3 / 70);
+}
+
 function globalProductionFactors() {
   return [
-    ['Morale', 0.70 + Math.max(0, Math.min(100, Number(state.morale) || 0)) * 0.0042857],
+    ['Morale', moraleMult()],
     [`Shrines (${bld('shrine')} × 5%) + factories (${bld('factory')} × 10%)`, 1 + 0.05 * bld('shrine') + 0.10 * bld('factory')],
     ['Dynamos', 1 + 0.15 * bld('dynamo')],
     ['Allied tribes', 1 + alliedIncomeBonus() * alliedTribes()],
@@ -1064,7 +1068,7 @@ function resourceRateTooltip(resource, rate, entries) {
 
 function hospitalTimeMod() { return Math.pow(0.9, bld('hospital')); }
 function popGrowthNeed() {
-  return (20 + state.pop * 4) * 0.67 * (tech('aphrodisiac') ? 0.75 : 1) * hospitalTimeMod() * (lineageDef(state.species).growthTime || 1);
+  return (20 + state.pop * 4) * 0.67 * (tech('aphrodisiac') ? 0.75 : 1) * hospitalTimeMod() * (lineageDef(state.species).growthTime || 1) / moraleMult();
 }
 function guardHealingNeed() { return 90 * hospitalTimeMod(); }
 
@@ -2161,7 +2165,7 @@ function renderHeader() {
   document.getElementById('pop-line').textContent =
     `${state.pop} villagers${unassigned() ? ` (${unassigned()} unassigned)` : ''} — housing for ${popCap()}`;
   const moraleEl = document.getElementById('morale-line');
-  moraleEl.textContent = `Morale ${Math.round(state.morale)} / ${moraleCap()} — ${moraleLabel()} (${state.morale >= 70 ? '+' : ''}${Math.round((0.70 + state.morale * 0.0042857 - 1) * 100)}% production)`;
+  moraleEl.textContent = `Morale ${Math.round(state.morale)} / ${moraleCap()} — ${moraleLabel()} (${moraleMult() >= 1 ? '+' : ''}${Math.round((moraleMult() - 1) * 100)}% production and population growth speed)`;
   moraleEl.className = state.morale < 25 ? 'morale-low' : state.morale >= 80 ? 'morale-high' : '';
   moraleEl.classList.add('has-tooltip');
   moraleEl.tabIndex = 0;
@@ -2220,7 +2224,7 @@ function renderVillage() {
     `<div class="res-note" style="margin:2px 0 6px">The land gives: ${modsHtml(L)}</div>` +
     `<div class="res-note" style="margin:2px 0 6px">${tradeAvailable() ? `Trading with ${localTribeIds().map(id => tribeDef(id).name).join(' and ')}; funds arrive at ${fmtRate(0.05 * localTribeIds().length)} before Banker work.` : `${localTribeIds().map(id => tribeDef(id).name).join(' and ') || 'No tribes'} are nearby. Research Currency to begin trading.`}</div>` +
     `<div class="res-note" style="margin:2px 0 6px">Guard armor: level ${fmt(armorLevel())} — each level reduces death odds by 8% (minimum 15%).</div>` +
-    `<div class="res-note" style="margin:2px 0 6px">Morale rises when stores are secure and falls when food runs short. Summer adds +0.006 morale/s; winter exerts −0.006 morale/s. Spring and autumn have no seasonal morale pressure. Clear days add +0.025 morale/s; storms exert −0.060 morale/s. Seasonal and weather pressures stack. The Shrine steadies the people. ${moraleLabel()} morale changes production by ${Math.round((0.70 + state.morale * 0.0042857 - 1) * 100)}%; current ceiling: ${moraleCap()}.</div>`;
+    `<div class="res-note" style="margin:2px 0 6px">Morale rises when stores are secure and falls when food runs short. Summer adds +0.006 morale/s; winter exerts −0.006 morale/s. Spring and autumn have no seasonal morale pressure. Clear days add +0.025 morale/s; storms exert −0.060 morale/s. Seasonal and weather pressures stack. The Shrine steadies the people. ${moraleLabel()} morale changes production and population growth speed by ${Math.round((moraleMult() - 1) * 100)}%; current ceiling: ${moraleCap()}.</div>`;
 
   if (bld('factory') > 0) {
     h += '<h2 class="section">Factory production</h2><div class="res-note">All factories share one production line. Rates below are per factory before bonuses. Production slows when supplies run short and pauses when output storage is full. The Industrialization trial requires Industrial Goods.</div>';
@@ -2712,7 +2716,7 @@ function renderLog() {
 function loadLatestUpdatesTooltip() {
   const button = document.getElementById('btn-updates');
   if (!button || typeof fetch !== 'function' || typeof DOMParser !== 'function') return;
-  fetch('changelog.html?v=power-visibility-20260907a')
+  fetch('changelog.html?v=morale-growth-20260907a')
     .then(response => response.ok ? response.text() : Promise.reject(new Error('changelog unavailable')))
     .then(source => {
       const doc = new DOMParser().parseFromString(source, 'text/html');

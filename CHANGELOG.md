@@ -4,6 +4,7 @@ All notable changes to Emberhold are recorded here, with the newest changes firs
 
 ## 2026-09-07
 
+- Updated morale so its production modifier also speeds or slows population growth by the same percentage.
 - Added population-growth timing modifiers to lineage descriptions.
 - Fixed migrated saves carrying stale Power discovery into settlements without current Power buildings; Power is now hidden and reset until the settlement has a Power building.
 - Updated the Turtlefolk lake-memory event to grant time-scaled Knowledge and Explorer-based Survey points.
