@@ -102,7 +102,7 @@ const FOOD_PER_POP = 0.12; // food/s eaten per villager
 const BUILDINGS = [
   { id: 'hut', name: 'Hut', max: 40, scale: 1.35,
     cost: { wood: 30 },
-    effect: () => `+3 population cap${perm('twinSouls') ? ' (+2 Twin Souls)' : ''}`,
+    effect: () => `+1 population cap${perm('twinSouls') ? ' (+2 Twin Souls)' : ''}`,
     desc: 'shelter raises children' },
 
   { id: 'storehouse', name: 'Storehouse', max: 20, scale: 2.1,

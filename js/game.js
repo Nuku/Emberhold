@@ -454,7 +454,7 @@ function isFull(id) { return state.res[id] >= capacityOf(id) - 0.001; }
 function popCap() {
   let cap = 6 + 2 * upg('wanderers');
   if (upg('practicedMigrator')) cap += 5;
-  cap += bld('hut') * (3 + upg('grandHut') + (perm('twinSouls') ? 2 : 0));
+  cap += bld('hut') * (1 + upg('grandHut') + (perm('twinSouls') ? 2 : 0));
   cap += bld('aqueduct') * 4;
   cap += bld('livingBlock') * 5;
   if (trialActive('solitude')) cap = Math.min(cap, 10);
@@ -2659,7 +2659,7 @@ function renderLog() {
 function loadLatestUpdatesTooltip() {
   const button = document.getElementById('btn-updates');
   if (!button || typeof fetch !== 'function' || typeof DOMParser !== 'function') return;
-  fetch('changelog.html?v=queue-details-20260906a')
+  fetch('changelog.html?v=huts-capacity-20260907a')
     .then(response => response.ok ? response.text() : Promise.reject(new Error('changelog unavailable')))
     .then(source => {
       const doc = new DOMParser().parseFromString(source, 'text/html');
