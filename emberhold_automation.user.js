@@ -107,17 +107,17 @@
     'stoneWorking', 'writing', 'craftsmanship', 'masonry', 'copperProspecting',
     'currency', 'guards', 'leatherArmor', 'deepMining', 'seamMining',
     'metallurgy', 'weaponry', 'banking', 'diplomacy', 'civics', 'council',
-    'machineryTech', 'hydraulics', 'weaponEfficiency', 'electricalEngineering',
+    'machineryTech', 'advancedScience', 'hydraulics', 'weaponEfficiency', 'electricalEngineering',
     'astronomy', 'optics', 'aphrodisiac', 'hospital',
   ];
   const BUILD_ORDER = [
     'hut', 'storehouse', 'foragerLodge', 'lumberYard', 'quarry', 'stoneWorks',
     'workbench', 'library', 'monument', 'barracks', 'trainingYard', 'hospital', 'deepMine', 'deepStore',
     'coalSeam', 'forge', 'aqueduct', 'shrine', 'amphitheatre', 'workshop',
-    'steamPlant', 'dynamo', 'vault', 'factory', 'observatory', 'beacon',
+    'steamPlant', 'dynamo', 'vault', 'factory', 'instrumentHall', 'observatory', 'beacon',
   ];
   const JOB_ORDER = [
-    'forager', 'woodcutter', 'miner', 'thinker', 'tinkerer', 'digger',
+    'forager', 'woodcutter', 'miner', 'thinker', 'experimentalist', 'tinkerer', 'digger',
     'ironminer', 'copperminer', 'astronomer', 'banker', 'diplomat',
   ];
 
@@ -153,6 +153,7 @@
       ['woodcutter', 1],
       ['miner', state.pop >= 6 ? 1 : 0],
       ['thinker', state.pop >= 8 ? 1 : 0],
+      ['experimentalist', state.pop >= 12 ? 1 : 0],
     ];
     const rates = api().helpers?.production?.(1) || {};
     const currencyTarget = Math.max(100, Math.ceil((demand.currency || 0) * 0.10));

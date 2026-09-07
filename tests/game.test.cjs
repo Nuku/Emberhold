@@ -682,6 +682,22 @@ test('thinkers are limited to one more than the number of libraries', () => {
   assert.equal(run('state.jobs.thinker'), 3);
 });
 
+test('advanced science unlocks uncapped instrument halls and hall-limited experimentalists', () => {
+  const { run } = game();
+  run(`state.techs.machineryTech = true; state.techs.writing = true; state.res.knowledge = 2200;
+    doResearch('advancedScience')`);
+  assert.equal(run('tech("advancedScience")'), true);
+  assert.equal(run('BUILDINGS.find(b => b.id === "instrumentHall").max'), Infinity);
+  assert.deepEqual(JSON.parse(run('JSON.stringify(BUILDINGS.find(b => b.id === "instrumentHall").cost)')),
+    { steel: 180, goods: 80, copper: 300 });
+  assert.equal(run('JOBS.experimentalist.base'), 0.6);
+  assert.equal(run('jobCapacity("experimentalist")'), 0);
+  run('state.bld.instrumentHall = 2; state.pop = 10; state.jobs.experimentalist = 10; reconcileWorkers()');
+  assert.equal(run('jobCapacity("experimentalist")'), 2);
+  assert.equal(run('state.jobs.experimentalist'), 2);
+  assert.equal(run('setJob("experimentalist", 3)'), false);
+});
+
 test('job API rejects bulk assignments beyond population or job capacity', () => {
   const { run } = game();
   run('state.pop = 3');

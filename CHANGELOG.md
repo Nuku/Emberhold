@@ -4,6 +4,8 @@ All notable changes to Emberhold are recorded here, with the newest changes firs
 
 ## 2026-09-07
 
+- Added Advanced Science research, the uncapped Instrument Hall, and Experimentalists, who extend Knowledge production beyond Thinkers.
+- Updated automation to research Advanced Science, build Instrument Halls, and assign Experimentalists as they become available.
 - Limited Miners to one worker per Stone Works plus one, and Iron Miners to three workers per Deep Store plus three, with loaded settlements and assignment controls enforcing both caps.
 - Limited Thinkers to one worker per Library plus one, with loaded settlements and assignment controls enforcing the same cap.
 - Hardened the worker assignment APIs so bulk assignments reject invalid, over-capacity, and over-population requests without partially changing the settlement.
