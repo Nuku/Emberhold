@@ -58,8 +58,9 @@ invalid imports, storage failures, and offline time accounting.
   migration, one tribe appears nearby, subject to habitat. An Explorer discovers
   a second trading partner at 1,000 Survey points, and the Age of Iron brings a
   third; later contacts tend to have stronger militaries and economies. Currency
-  makes trade with each local contact possible, while Banking unlocks Bankers who
-  increase incoming funds.
+  makes trade with each local contact possible, while Banking unlocks Money Lenders
+  and Bankers. Each Money Lender supports one Banker and produces Currency based on
+  the settlement's population.
   Steel-age buildings and later require Currency as well as materials.
 - **Lineages.** Emberborn are always available and produce Industrial Goods more
   efficiently. Stonekin, Marshfolk, Skyborn, and Mephit lineages are earned by

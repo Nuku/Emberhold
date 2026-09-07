@@ -25,6 +25,24 @@ function game() {
   return { run, context };
 }
 
+test('Banking unlocks Money Lenders that cap Bankers and generate population currency', () => {
+  const { run } = game();
+  assert.equal(run("BUILDINGS.find(b => b.id === 'moneyLender').req()"), false);
+  run('state.techs.banking = true; state.techs.currency = true; state.pop = 20');
+  assert.equal(run("BUILDINGS.find(b => b.id === 'moneyLender').req()"), true);
+  assert.equal(run("jobCapacity('banker')"), 0);
+  assert.equal(run("setJob('banker', 1)"), false);
+  run('state.bld.moneyLender = 2');
+  assert.equal(run("jobCapacity('banker')"), 2);
+  assert.equal(run("setJob('banker', 3)"), false);
+  run('state.jobs.banker = 5; reconcileWorkers()');
+  assert.ok(run('(state.jobs.banker || 0) <= 2'));
+  run('const income = {}; production(1, income)');
+  assert.equal(run("income.currency.find(e => e.label.startsWith('Money Lenders:')).base"), 0.04);
+  run('state.pop = 40; state.bld.moneyLender = 3; const larger = {}; production(1, larger)');
+  assert.equal(run("larger.currency.find(e => e.label.startsWith('Money Lenders:')).base"), 0.12);
+});
+
 test('Awaken Ancients unlocks after Mechanism and powers each mining resource without boosting input costs', () => {
   const { run } = game();
   assert.equal(run("TECHS.find(t => t.id === 'awakenAncients').req()"), false);

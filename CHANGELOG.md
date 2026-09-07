@@ -4,6 +4,7 @@ All notable changes to Emberhold are recorded here, with the newest changes firs
 
 ## 2026-09-07
 
+- Added Money Lenders to Banking: each supports one Banker and produces 0.001 Currency per population per second.
 - Added Awaken Ancients research, which lets Quarries, Deep Mines, and Coal Seams use Power for +10% production per powered building.
 - Added controls and saved state for powering individual dig sites, with Living Blocks receiving priority when capacity is limited.
 - Exposed live power capacity and dig-site controls through the automation API.

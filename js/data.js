@@ -76,6 +76,7 @@ const JOBS = {
                      max: () => bld('instrumentHall'),
                      unlock: () => bld('instrumentHall') > 0 },
   banker:      { name: 'Banker',      res: 'currency',  base: 0.08, desc: 'keeps trade moving and funds arriving',
+                 max: () => bld('moneyLender'),
                  trade: true, unlock: () => tech('banking') && tradeAvailable() },
   diplomat:   { name: 'Diplomat',    res: 'currency',  base: 0, targeted: true,
                 desc: 'improves relations with an assigned tribe',
@@ -192,6 +193,11 @@ const BUILDINGS = [
     effect: () => '+20% food production, +4 population cap',
     req: () => tech('hydraulics'), desc: 'clean water, fat fields' },
 
+  { id: 'moneyLender', name: 'Money Lender', max: Infinity, scale: 1.8,
+    cost: { wood: 220, stone: 220, currency: 30 },
+    effect: () => '+1 Banker capacity; +0.001 Currency/s per population',
+    req: () => tech('banking'), desc: 'local lending brings currency into every household' },
+
   { id: 'shrine', name: 'Shrine', max: 5, scale: 1.8,
     cost: { wood: 220, stone: 220, currency: 30 },
     effect: () => '+5% all production',
@@ -305,7 +311,7 @@ const TECHS = [
     desc: 'Unlocks the uncapped Instrument Hall and Experimentalists, whose work advances Knowledge beyond the Thinkers.',
     req: () => tech('machineryTech') && tech('writing') },
   { id: 'banking', name: 'Banking', cost: 900,
-    desc: 'Unlocks Bankers, who increase the rate at which trade funds arrive.',
+    desc: 'Unlocks Money Lenders and Bankers. Each Money Lender supports one Banker and produces 0.001 Currency per population per second.',
     req: () => tech('metallurgy') && tech('currency') },
   { id: 'diplomacy', name: 'Diplomacy', cost: 800,
     desc: 'Unlocks Diplomats, who can be assigned to improve relations with contacted tribes. Requires the Age of Iron.',

@@ -996,6 +996,7 @@ function production(dt = 0.25, breakdown = null) {
   if (expDone('glacialPeaks')) add('aether', 'Glacial Peaks passive', 0.1);
   const localIds = localTribeIds();
   if (tradeAvailable()) add('currency', `Trade with ${localIds.map(id => tribeDef(id).name).join(' and ')}`, 0.05 * localIds.length);
+  if (bld('moneyLender') > 0) add('currency', `Money Lenders: ${bld('moneyLender')} × ${state.pop} population × 0.001/s`, bld('moneyLender') * state.pop * 0.001);
   if (era() >= 2) add('copper', 'Stone age trace deposits', 0.02);
 
   // per-resource modifiers
@@ -2773,7 +2774,7 @@ function renderLog() {
 function loadLatestUpdatesTooltip() {
   const button = document.getElementById('btn-updates');
   if (!button || typeof fetch !== 'function' || typeof DOMParser !== 'function') return;
-  fetch('changelog.html?v=morale-growth-20260907a')
+  fetch('changelog.html?v=money-lenders-20260907a')
     .then(response => response.ok ? response.text() : Promise.reject(new Error('changelog unavailable')))
     .then(source => {
       const doc = new DOMParser().parseFromString(source, 'text/html');
