@@ -663,7 +663,10 @@ function updateQueues() {
 }
 
 // ---------- production ----------
-function seasonIndex() { return Math.floor((state.day % DAYS_PER_YEAR) / DAYS_PER_SEASON); }
+function seasonIndex(day = state.day) {
+  if (trialActive('longnight')) return 3;
+  return Math.floor((day % DAYS_PER_YEAR) / DAYS_PER_SEASON);
+}
 function climateDef(landing = state.landing) { return CLIMATES[landing] || CLIMATES.emberplain; }
 
 // Each 45-day span has two weather patterns, each lasting 15–30 days.
@@ -690,7 +693,7 @@ function dailyWeather(day = state.day, landing = state.landing) {
     pick -= climate.weights[i];
     if (pick < 0) { sky = WEATHER[i]; break; }
   }
-  const season = Math.floor((date % DAYS_PER_YEAR) / DAYS_PER_SEASON);
+  const season = seasonIndex(date);
   const temperature = [12, 24, 11, -2][season] + climate.offset + Math.floor(roll('temperature') * 13) - 6;
   const warmth = temperature <= 0 ? 'Freezing' : temperature < 10 ? 'Cold' : temperature < 20 ? 'Mild' : temperature < 30 ? 'Warm' : 'Hot';
   const mods = { ...sky.mods };
@@ -706,8 +709,8 @@ function weatherSummary() {
 
 function seasonMult() {
   const i = seasonIndex();
-  if (SEASONS[i].name !== 'Winter') return SEASONS[i].mult;
   if (trialActive('longnight')) return 0.25;
+  if (SEASONS[i].name !== 'Winter') return SEASONS[i].mult;
   return perm('everwarm') ? 0.75 : 0.5;
 }
 
@@ -1677,10 +1680,8 @@ function tickStep(dt) {
 
   // seasons
   state.day += dt * DAY_RATE;
-  const doy = Math.floor(state.day % DAYS_PER_YEAR);
-  const sIdx = Math.floor(doy / DAYS_PER_SEASON);
-  const prevDoy = Math.floor((state.day - dt * DAY_RATE) % DAYS_PER_YEAR);
-  const pIdx = Math.floor(prevDoy / DAYS_PER_SEASON);
+  const sIdx = seasonIndex();
+  const pIdx = seasonIndex(state.day - dt * DAY_RATE);
   if (sIdx !== pIdx) {
     const flavor = {
       Spring: 'Spring returns. The fields wake.',
@@ -1708,7 +1709,7 @@ function doBuild(id) {
   if (!canAfford(cost)) return;
   payCost(cost);
   state.bld[id] = bld(id) + 1;
-  if (state.trial && state.trial.id === 'frugality') state.trial.buildings++;
+  if (state.trial && ['frugality', 'expansion'].includes(state.trial.id)) state.trial.buildings++;
   addLog(`${def.name} completed (${bld(id)}).`);
 
   if (id === 'beacon') {

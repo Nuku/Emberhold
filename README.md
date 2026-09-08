@@ -247,7 +247,7 @@ you'll have them.
 | Overflow | ×3 | no new storage or storage bonuses | every discovered store full at once | +20% storage ceilings each |
 | Tinkering | once | no manual Tool crafting | endure 240 days with a Workbench | unlocks Tinkerers, who steadily assemble Tools from wood and stone |
 | Silence | once | no knowledge production | research Metallurgy and produce 100 Steel | Thinkers +50% |
-| Long Night | once | winter food ×0.25 | survive a year | Everwarm (mild winters, +5% all) |
+| Long Night | once | the entire trial is winter; food ×0.25 | survive a year | Everwarm (mild winters, +5% all) |
 | Solitude | once | population capped at 10 | stockpile 800 knowledge | Huts grant +2 cap each |
 | Haste | once | all production −30% | reach Age of Light in 1200 days | Blueprints (−15% building costs) |
 | Industrialization | once | coal production −80%; low morale can trigger coal riots | produce 100 Industrial Goods, no deadline | factories remain available permanently |

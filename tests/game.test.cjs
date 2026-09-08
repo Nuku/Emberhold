@@ -910,6 +910,31 @@ test('repeatable trials grow harder after rewards and retain difficulty on failu
   }
 });
 
+test('construction trials count completed buildings for Frugality and Expansion', () => {
+  const { run } = game();
+  run(`state.res.food = 1000; state.res.wood = 1000;
+    state.trial = { id: 'frugality', daysActive: 0, buildings: 0 };
+    doBuild('hut')`);
+  assert.equal(run('state.trial.buildings'), 1);
+
+  run(`state.trial = { id: 'expansion', daysActive: 0, buildings: 0 };
+    doBuild('hut')`);
+  assert.equal(run('state.trial.buildings'), 1);
+});
+
+test('Long Night keeps the whole trial in winter', () => {
+  const { run } = game();
+  run(`state.day = DAYS_PER_SEASON + 1;
+    state.trial = { id: 'longnight', daysActive: 0, buildings: 0 }`);
+  assert.equal(run('seasonIndex()'), 3);
+  assert.equal(run('seasonMult()'), 0.25);
+  const winterTemperature = run('dailyWeather().temperature');
+  run('state.trial = null');
+  assert.ok(winterTemperature < run('dailyWeather().temperature'));
+  assert.match(run('weatherSummary()'), /freezing|cold|mild/i);
+  assert.equal(run('seasonIndex()'), 1);
+});
+
 test('Overflow uses raised ceilings for progress and completion', () => {
   const { run } = game();
   run(`state.trialDone.overflow = 1; state.seen = { food: true };

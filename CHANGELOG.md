@@ -4,6 +4,7 @@ All notable changes to Emberhold are recorded here, with the newest changes firs
 
 ## 2026-09-07
 
+- Updated the Trial of the Long Night so the entire trial remains winter, keeping its food production penalty active throughout the trial.
 - Updated Power displays to distinguish generator capacity, building allocation, and remaining capacity, including factory allocation in the Stores tooltip.
 - Fixed expedition production bonuses incorrectly scaling outgoing resource costs; only explicitly defined outgoing modifiers now apply to costs.
 - Added Forge controls to the Power subtab. Forges can now be disabled without consuming Iron or Coal, and older Foundry saves migrate before power assignments are normalized.

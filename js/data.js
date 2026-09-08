@@ -581,7 +581,7 @@ const TRIALS = [
     req: () => era() >= 2 },
 
   { id: 'longnight', name: 'Trial of the Long Night', repeat: 0,
-    mod: 'Winters are brutally harsh: food production x0.25 during winter.',
+    mod: 'The entire trial is winter, with food production x0.25.',
     goal: 'Survive a full year under the trial (200 days).',
     reward: 'Everwarm: winter food penalty halved (x0.75) and +5% to all production, permanently.' },
 
