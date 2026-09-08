@@ -4,6 +4,7 @@ All notable changes to Emberhold are recorded here, with the newest changes firs
 
 ## 2026-09-08
 
+- Added an optional Strict queue order setting that processes construction, research, and expedition queues one item at a time from first to last; the default remains parallel processing.
 - The front page now keeps the active trial's goal and progress visible, with a direct link to the Trials panel.
 - Resource-bearing random and lineage events now grant at least their listed reward and can also add 10–20 seconds of the settlement's current production.
 - Extended the Trial of the Long Night from one year to ten full years (2,000 days).

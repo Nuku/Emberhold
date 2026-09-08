@@ -85,7 +85,7 @@ function defaultState() {
     won: false,
     achievements: {},
     commonalityLineages: {},
-    settings: { autosave: true, reducedMotion: false, compactStores: false },
+    settings: { autosave: true, reducedMotion: false, compactStores: false, strictQueueOrder: false },
     log: [],
   };
   s.res.food = 60;
@@ -647,7 +647,11 @@ function attemptExpedition(id) {
 
 function updateQueues() {
   for (const type of ['build', 'research', 'expedition']) {
-    for (let i = state.queues[type].length - 1; i >= 0; i--) {
+    const strict = !!state.settings?.strictQueueOrder;
+    const start = strict ? 0 : state.queues[type].length - 1;
+    const end = strict ? 1 : -1;
+    const step = strict ? 1 : -1;
+    for (let i = start; strict ? i < end : i >= end; i += step) {
       const entry = state.queues[type][i];
       const def = queueDef(entry);
       if (!def) { state.queues[type].splice(i, 1); continue; }
@@ -2890,6 +2894,7 @@ function renderSettings() {
     ['autosave', 'Autosave', 'Save the chronicle automatically every 15 seconds.'],
     ['reducedMotion', 'Reduced motion', 'Remove hover lifts and animated transitions.'],
     ['compactStores', 'Compact stores', 'Use a tighter resource list in the persistent sidebar.'],
+    ['strictQueueOrder', 'Strict queue order', 'Process queued items one at a time from first to last.'],
   ];
   h += options.map(([id, name, desc]) => `<div class="setting-row"><div><div class="setting-name">${name}</div><div class="setting-desc">${desc}</div></div><button class="setting-toggle ${settings[id] ? 'enabled' : ''}" data-action="setting-toggle" data-setting="${id}" aria-pressed="${!!settings[id]}">${settings[id] ? 'On' : 'Off'}</button></div>`).join('');
   h += '<h2 class="section">Chronicle tools</h2><div class="settings-actions"><button data-action="save">Save now</button><button data-action="export">Export save</button><button data-action="import">Import save</button><button data-action="reset" class="danger-button">Reset Emberhold</button></div>';
@@ -2942,7 +2947,7 @@ function renderLog() {
 function loadLatestUpdatesTooltip() {
   const button = document.getElementById('btn-updates');
   if (!button || typeof fetch !== 'function' || typeof DOMParser !== 'function') return;
-  fetch('changelog.html?v=publish-20260908f')
+  fetch('changelog.html?v=publish-20260908g')
     .then(response => response.ok ? response.text() : Promise.reject(new Error('changelog unavailable')))
     .then(source => {
       const doc = new DOMParser().parseFromString(source, 'text/html');
@@ -3263,7 +3268,7 @@ function boot() {
   state.diplomats = state.diplomats || {};
   state.policy = state.policy || 'commons';
   state.council = Array.isArray(state.council) ? state.council : [];
-  state.settings = { autosave: true, reducedMotion: false, compactStores: false, ...(state.settings || {}) };
+  state.settings = { autosave: true, reducedMotion: false, compactStores: false, strictQueueOrder: false, ...(state.settings || {}) };
   state.achievements = state.achievements || {};
   state.statsTab = ['stats', 'achievements', 'perks'].includes(state.statsTab) ? state.statsTab : 'stats';
   applySettings();

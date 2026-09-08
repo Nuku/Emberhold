@@ -239,6 +239,28 @@ test('the top queue item shows each missing resource with its own estimate', () 
   assert.equal((html.match(/queue-needs/g) || []).length, 1);
 });
 
+test('queue order defaults to parallel and can be switched to strict first-to-last processing', () => {
+  const { run } = game();
+  run(`state.techs.craftsmanship = true;
+    state.res.wood = 100; state.res.tools = 10;
+    state.queues.build = [{ type: 'build', id: 'hut' }, { type: 'build', id: 'lumberYard' }];
+    updateQueues()`);
+  assert.equal(run('state.bld.hut'), 1);
+  assert.equal(run('state.bld.lumberYard'), 1);
+  assert.equal(run('state.queues.build.length'), 0);
+
+  run(`state.bld = {}; state.res.wood = 100; state.res.tools = 10;
+    state.settings.strictQueueOrder = true;
+    state.queues.build = [{ type: 'build', id: 'hut' }, { type: 'build', id: 'lumberYard' }];
+    updateQueues()`);
+  assert.equal(run('state.bld.hut'), 1);
+  assert.equal(run('state.bld.lumberYard'), 0);
+  assert.equal(run('state.queues.build.length'), 1);
+  run('updateQueues()');
+  assert.equal(run('state.bld.lumberYard'), 1);
+  assert.equal(run('state.queues.build.length'), 0);
+});
+
 test('neutral tribes do not raid, while hostile tribes still can', () => {
   const { run } = game();
   run(`ensureDiplomacyEntry('human'); let raids = 0;
