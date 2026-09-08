@@ -51,7 +51,9 @@ function defaultState() {
     echoes: 0,
     upgrades: {},
     landing: 'emberplain',
-    landingsSeen: {},
+    // The starting settlement is already a known landing, even before the
+    // player completes their first migration.
+    landingsSeen: { emberplain: true },
     ancestralBlessing: false,
     species: 'human',
     lineagesUnlocked: { human: true },
@@ -1044,7 +1046,6 @@ function production(dt = 0.25, breakdown = null) {
   if (expDone('foothills')) add('stone', 'Foothills passive', 1.0);
   if (expDone('sunkenRuins')) add('knowledge', 'Sunken Ruins passive', 0.3);
   if (upg('journalOfOldTimes')) add('knowledge', 'Journal of Old Times', 0.2 * upg('journalOfOldTimes'));
-  if (state.ancestralBlessing) add('knowledge', 'Smiling ancestors', 0.33);
   if (expDone('emberVein')) add('coal', 'Ember Vein passive', 0.5);
   if (expDone('glacialPeaks')) add('aether', 'Glacial Peaks passive', 0.1);
   const localIds = localTribeIds();
@@ -1067,6 +1068,9 @@ function production(dt = 0.25, breakdown = null) {
   scale('stone', [...global, ['Stone Works', 1 + 0.10 * bld('stoneWorks')], ['Foothills', expDone('foothills') ? 1.15 : 1]]);
   scale('knowledge', [...global, ['Libraries', 1 + 0.10 * bld('library')], ['Writing', tech('writing') ? 1.25 : 1],
     ['Sunken Ruins', expDone('sunkenRuins') ? 1.15 : 1], ['Oral Tradition', perm('oralTradition') ? 1.5 : 1], ['Silence trial', trialActive('silence') ? 0 : 1]]);
+  // Ancestral Blessing is a flat bonus, so unrelated global production
+  // multipliers (such as achievement completion) do not change its value.
+  if (state.ancestralBlessing && !trialActive('silence')) add('knowledge', 'Smiling ancestors', 0.33);
   scale('iron', [...global, ['Ember Vein', expDone('emberVein') ? 1.10 : 1]]);
   scale('copper', [...global, ['Copper Prospecting', tech('copperProspecting') ? 1.75 : 1],
     ['Metallurgy', tech('metallurgy') ? 2 : 1], ['Electrical Engineering', tech('electricalEngineering') ? 1.5 : 1]]);
@@ -2024,6 +2028,9 @@ function normalizeSave(s) {
       (Array.isArray(d[key]) ? !Array.isArray(s[key]) : object(d[key]) && !object(s[key]))))
       throw new Error(`Invalid ${key}`);
   }
+  // Older saves may not have recorded the initial landing. The current
+  // settlement is necessarily known and should count as a return destination.
+  s.landingsSeen[s.landing] = true;
   s.bonusTime = Math.max(0, Math.min(OFFLINE_CAP, s.bonusTime));
   if (!Number.isInteger(s.pop) || s.pop < 1 || !Number.isInteger(s.era) || s.era < 1 || s.era > ERAS.length)
     throw new Error('Invalid settlement');
@@ -2909,7 +2916,7 @@ function renderLog() {
 function loadLatestUpdatesTooltip() {
   const button = document.getElementById('btn-updates');
   if (!button || typeof fetch !== 'function' || typeof DOMParser !== 'function') return;
-  fetch('changelog.html?v=outgoing-costs-20260907b')
+  fetch('changelog.html?v=ancestral-return-20260907a')
     .then(response => response.ok ? response.text() : Promise.reject(new Error('changelog unavailable')))
     .then(source => {
       const doc = new DOMParser().parseFromString(source, 'text/html');
