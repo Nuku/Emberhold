@@ -29,6 +29,7 @@ function defaultState() {
     v: 1,
     savedAt: Date.now(),
     bonusTime: 0,
+    paused: false,
     day: 0,
     era: 1,
     pop: 4,
@@ -1523,7 +1524,7 @@ function chooseLineage(id) {
 
 // ---------- core tick ----------
 function advanceRealTime(elapsed) {
-  if (saveConflict || elapsed <= 0) return;
+  if (saveConflict || state.paused || elapsed <= 0) return;
   // A suspended browser or sleeping computer banks time instead of catching up.
   if (elapsed > 5) {
     state.bonusTime = Math.min(OFFLINE_CAP, state.bonusTime + elapsed);
@@ -1538,6 +1539,15 @@ function updateGameClock() {
   const now = Date.now();
   if (lastGameAt !== null) advanceRealTime((now - lastGameAt) / 1000);
   lastGameAt = now;
+}
+
+function togglePause() {
+  updateGameClock();
+  state.paused = !state.paused;
+  lastGameAt = Date.now();
+  addLog(state.paused ? 'The chronicle is paused.' : 'The chronicle resumes.', 'log-important');
+  saveGame(true);
+  render();
 }
 
 function tick(dt) {
@@ -1974,6 +1984,8 @@ function normalizeSave(s) {
     }
   }
   validate(s);
+  // Saves created before the pause control should continue running when loaded.
+  if (!Object.prototype.hasOwnProperty.call(s, 'paused')) s.paused = false;
   const d = defaultState();
   for (const key of Object.keys(d)) {
     if (s[key] === undefined) s[key] = d[key];
@@ -2058,6 +2070,10 @@ function loadGame() {
 
 function offlineProgress() {
   const now = Date.now();
+  if (state.paused) {
+    state.savedAt = now;
+    return;
+  }
   const elapsed = Math.max(0, (now - state.savedAt) / 1000);
   state.bonusTime = Math.min(OFFLINE_CAP, state.bonusTime + elapsed);
   state.savedAt = now;
@@ -2282,13 +2298,17 @@ function renderBonusTimer() {
 
 function renderHeader() {
   renderBonusTimer();
+  const pauseButton = document.getElementById('btn-pause');
+  pauseButton.textContent = state.paused ? 'Resume' : 'Pause';
+  pauseButton.setAttribute('aria-pressed', String(state.paused));
+  pauseButton.setAttribute('aria-label', state.paused ? 'Resume the game' : 'Pause the game');
   const doy = Math.floor(state.day % DAYS_PER_YEAR);
   const season = SEASONS[Math.floor(doy / DAYS_PER_SEASON)].name;
   const year = Math.floor(state.day / DAYS_PER_YEAR) + 1;
   document.getElementById('era-line').textContent =
     `Year ${year} of the ${ERAS[state.era - 1].name} — ${landingDef().name} — ${lineageDef(state.species).name}`;
   document.getElementById('time-line').textContent =
-    `Day ${doy % DAYS_PER_SEASON + 1} of ${season} — chronicle day ${Math.floor(state.day)} — ${weatherSummary()}`;
+    `${state.paused ? 'Paused · ' : ''}Day ${doy % DAYS_PER_SEASON + 1} of ${season} — chronicle day ${Math.floor(state.day)} — ${weatherSummary()}`;
   document.getElementById('pop-line').textContent =
     `${state.pop} villagers${unassigned() ? ` (${unassigned()} unassigned)` : ''} — housing for ${popCap()}`;
   const moraleEl = document.getElementById('morale-line');
@@ -2858,7 +2878,7 @@ function renderLog() {
 function loadLatestUpdatesTooltip() {
   const button = document.getElementById('btn-updates');
   if (!button || typeof fetch !== 'function' || typeof DOMParser !== 'function') return;
-  fetch('changelog.html?v=ancestral-blessing-20260907a')
+  fetch('changelog.html?v=pause-control-20260907b')
     .then(response => response.ok ? response.text() : Promise.reject(new Error('changelog unavailable')))
     .then(source => {
       const doc = new DOMParser().parseFromString(source, 'text/html');
@@ -3174,6 +3194,7 @@ function boot() {
   state = loadGame();
   const loaded = !!state;
   state = state || defaultState();
+  if (!loaded) state.paused = true;
   state.diplomacy = state.diplomacy || {};
   state.diplomats = state.diplomats || {};
   state.policy = state.policy || 'commons';
@@ -3203,6 +3224,7 @@ function boot() {
     document.getElementById('banner').classList.remove('hidden');
   }
   document.getElementById('btn-save').addEventListener('click', () => { saveGame(); render(); });
+  document.getElementById('btn-pause').addEventListener('click', togglePause);
   document.getElementById('btn-updates').addEventListener('click', () => {
     window.open('changelog.html', '_blank', 'noopener,noreferrer');
   });

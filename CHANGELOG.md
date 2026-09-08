@@ -4,6 +4,7 @@ All notable changes to Emberhold are recorded here, with the newest changes firs
 
 ## 2026-09-07
 
+- Added a Pause/Resume control. New chronicles start paused, paused saves stay paused across reloads and offline time, and older saves continue running normally until paused.
 - Returning to a previously visited landing now grants an Ancestral Blessing: +0.33 Knowledge/s in the new settlement, including when migration begins through a trial.
 - Reworked the Trial of Industrialization: coal production is reduced to 20% during the trial, low morale can trigger riots that destroy stored coal, and the trial no longer has a deadline.
 - Moved Power allocation controls into a dedicated Power subtab under Construction, keeping the Village panel focused on settlement status and automatically returning to Incomplete when no controllable power buildings remain.
