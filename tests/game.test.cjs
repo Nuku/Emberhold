@@ -294,7 +294,7 @@ test('queue order defaults to parallel and can be switched to strict first-to-la
     state.queues.build = [{ type: 'build', id: 'hut' }, { type: 'build', id: 'lumberYard' }];
     updateQueues()`);
   assert.equal(run('state.bld.hut'), 1);
-  assert.equal(run('state.bld.lumberYard'), 0);
+  assert.equal(run("bld('lumberYard')"), 0);
   assert.equal(run('state.queues.build.length'), 1);
   run('updateQueues()');
   assert.equal(run('state.bld.lumberYard'), 1);
@@ -852,7 +852,7 @@ test('Turtlefolk lake memories grant time-scaled knowledge and survey', () => {
     updateRandomEvents(60)`);
   assert.equal(run('state.res.knowledge'), 5);
   assert.equal(run('state.surveyPoints'), 0.75);
-  assert.match(run('state.log[0].t'), /Knowledge \+5; Survey \+0\.75/);
+  assert.match(run('state.log[0].t'), /Survey \+0\.75; Knowledge \+5/);
 });
 
 test('Skyborn wind charts grant time-scaled knowledge', () => {
@@ -1034,7 +1034,7 @@ test('Long Night lasts ten full years', () => {
   run(`state.trial = { id: 'longnight', daysActive: LONG_NIGHT_DURATION - 1, buildings: 0 }`);
   run('updateTrial(0)');
   assert.equal(run('state.trial.id'), 'longnight');
-  assert.match(run('renderTrials()'), /2,000 days endured/);
+  assert.match(run('renderTrials()'), /1999 \/ 2000 days endured/);
   run('state.trial.daysActive = LONG_NIGHT_DURATION; updateTrial(0)');
   assert.equal(run('state.trial'), null);
 });

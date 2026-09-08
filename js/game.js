@@ -20,6 +20,28 @@ const raidSelections = {};
 let tooltipHover = false;
 let pointerDown = false;
 
+// Game definitions are immutable after data.js loads. Indexing them once keeps
+// the simulation and render paths from repeatedly scanning the same arrays.
+function indexById(definitions) {
+  return new Map(definitions.map(definition => [definition.id, definition]));
+}
+const RESOURCE_BY_ID = indexById(RESOURCES);
+const BUILDING_BY_ID = indexById(BUILDINGS);
+const TECH_BY_ID = indexById(TECHS);
+const CRAFT_BY_ID = indexById(CRAFTS);
+const EXPEDITION_BY_ID = indexById(EXPEDITIONS);
+const TRIAL_BY_ID = indexById(TRIALS);
+const CIVIC_BY_ID = indexById(CIVICS);
+const GOVERNOR_BY_ID = indexById(GOVERNORS);
+const COUNCILOR_BY_ID = indexById(COUNCILORS);
+const TRIBE_BY_ID = indexById(TRIBES);
+const LINEAGE_BY_ID = indexById(LINEAGES);
+const LANDING_BY_ID = indexById(LANDINGS);
+const UPGRADE_BY_ID = indexById(UPGRADES);
+const FACTORY_RECIPE_BY_ID = indexById(FACTORY_RECIPES);
+
+function resourceName(id) { return RESOURCE_BY_ID.get(id)?.name || id; }
+
 // ---------- state ----------
 function defaultState() {
   const res = {};
@@ -102,9 +124,9 @@ function era() { return state.era; }
 function expDone(id) { return !!state.expeditions[id]; }
 function trialCount(id) { return state.trialDone[id] || 0; }
 function upg(id) { return state.upgrades[id] || 0; }
-function civicDef(id) { return CIVICS.find(c => c.id === id) || CIVICS[0]; }
-function governorDef(id) { return GOVERNORS.find(g => g.id === id); }
-function councilorDef(id) { return COUNCILORS.find(c => c.id === id); }
+function civicDef(id) { return CIVIC_BY_ID.get(id) || CIVICS[0]; }
+function governorDef(id) { return GOVERNOR_BY_ID.get(id); }
+function councilorDef(id) { return COUNCILOR_BY_ID.get(id); }
 function governanceMod(res) {
   if (!tech('civics')) return 1;
   let m = civicDef(state.policy).mods?.[res] || 1;
@@ -133,15 +155,15 @@ function governanceDefenseMod() {
   for (const id of (state.council || [])) m *= councilorDef(id)?.defense || 1;
   return m;
 }
-function tribeDef(id) { return TRIBES.find(t => t.id === id) || TRIBES[0]; }
-function lineageDef(id) { return LINEAGES.find(l => l.id === id) || LINEAGES[0]; }
+function tribeDef(id) { return TRIBE_BY_ID.get(id) || TRIBES[0]; }
+function lineageDef(id) { return LINEAGE_BY_ID.get(id) || LINEAGES[0]; }
 function lineageUnlocked(id) { return !!(state.lineagesUnlocked && state.lineagesUnlocked[id]); }
 function habitatAllows(def, landingId) {
-  const landing = LANDINGS.find(l => l.id === landingId);
+  const landing = LANDING_BY_ID.get(landingId);
   return !!def && (!def.habitats || !!landing && def.habitats.some(h => (landing.habitats || []).includes(h)));
 }
 function lineageSelectable(id, landingId = state.pendingLanding) {
-  return lineageUnlocked(id) && (upg('farHorizons') > 0 || habitatAllows(LINEAGES.find(l => l.id === id), landingId));
+  return lineageUnlocked(id) && (upg('farHorizons') > 0 || habitatAllows(LINEAGE_BY_ID.get(id), landingId));
 }
 function localTribeIds() {
   const ids = Array.isArray(state.tradePartners)
@@ -187,7 +209,7 @@ function randomDiplomacyRequest(id) {
   const available = RESOURCES.filter(r => r.id !== 'knowledge' && r.id !== 'currency' && r.id !== 'machinery' && r.id !== 'aether' && state.seen[r.id]);
   const preferred = available.filter(r => (tribeDef(id).requests || []).includes(r.id));
   const pool = preferred.length ? preferred : available;
-  const res = (pool.length ? pool : [RESOURCES.find(r => r.id === 'wood')])[Math.floor(Math.random() * (pool.length || 1))];
+  const res = (pool.length ? pool : [RESOURCE_BY_ID.get('wood')])[Math.floor(Math.random() * (pool.length || 1))];
   const ageScale = [1, 1.5, 2.5, 4, 6][Math.min(era() - 1, 4)];
   const baseByResource = { food: 120, wood: 100, stone: 80, tools: 12, copper: 15, iron: 20, coal: 25, steel: 15 };
   const target = (baseByResource[res.id] || 20) * ageScale * (0.9 + Math.random() * 0.2);
@@ -223,7 +245,7 @@ function diplomacyTone(disposition) {
   return 'insist';
 }
 function diplomacyRequestText(tribe, entry) {
-  const res = RESOURCES.find(r => r.id === entry.request.res).name;
+  const res = resourceName(entry.request.res);
   return `The ${tribe.name} ${diplomacyTone(entry.disposition)} ${fmt(entry.request.amount)} ${res}.`;
 }
 function diplomatCount(id) { return (state.diplomats && state.diplomats[id]) || 0; }
@@ -382,7 +404,7 @@ function siteExpeditionsComplete() {
 function practicedMigratorAvailable() { return siteExpeditionsComplete(); }
 
 // ---------- landings ----------
-function landingDef() { return LANDINGS.find(l => l.id === state.landing) || LANDINGS[0]; }
+function landingDef() { return LANDING_BY_ID.get(state.landing) || LANDINGS[0]; }
 function landingMod(res) {
   const m = landingDef().mods[res];
   return m === undefined ? 1 : m;
@@ -391,7 +413,7 @@ function modsHtml(def) {
   const parts = [];
   for (const res in def.mods) {
     const pct = Math.round((def.mods[res] - 1) * 100);
-    const name = RESOURCES.find(r => r.id === res).name;
+    const name = resourceName(res);
     parts.push(`<span class="${pct > 0 ? 'rate-pos' : 'rate-neg'}">${pct > 0 ? '+' : ''}${pct}% ${name}</span>`);
   }
   return parts.length ? parts.join(', ') : 'nothing more, nothing less';
@@ -524,7 +546,7 @@ function canAfford(cost) {
   return true;
 }
 function canBuild(id) {
-  const def = BUILDINGS.find(building => building.id === id);
+  const def = BUILDING_BY_ID.get(id);
   if (!def || bld(id) >= def.max || (def.req && !def.req())) return false;
   return !(trialActive('overflow') && Object.values(STORAGE).some(s => s.bld === id));
 }
@@ -534,9 +556,9 @@ function payCost(cost) {
 
 function queueDef(entry) {
   if (!entry || !['build', 'research', 'expedition'].includes(entry.type)) return null;
-  if (entry.type === 'build') return BUILDINGS.find(def => def.id === entry.id);
-  if (entry.type === 'research') return TECHS.find(def => def.id === entry.id);
-  return EXPEDITIONS.find(def => def.id === entry.id);
+  if (entry.type === 'build') return BUILDING_BY_ID.get(entry.id);
+  if (entry.type === 'research') return TECH_BY_ID.get(entry.id);
+  return EXPEDITION_BY_ID.get(entry.id);
 }
 
 function queueCost(entry) {
@@ -601,7 +623,7 @@ function queueWaitingHtml(entry) {
   if (!waiting.length) return '<span class="queue-ready">ready</span>';
   return '<span class="queue-waiting">' + waiting.map(([resource, amount]) => {
     const missing = Math.max(0, amount - (state.res[resource] || 0));
-    const name = RESOURCES.find(item => item.id === resource).name;
+    const name = resourceName(resource);
     const rate = rates[resource] || 0;
     const seconds = rate > 0 ? missing / rate : Infinity;
     return `<span class="queue-waiting-item"><span>${fmt(missing)} ${name}</span><span class="queue-time">${queueLabel(seconds)}</span></span>`;
@@ -640,7 +662,7 @@ function reorderQueue(type, fromIndex, toIndex, after = false) {
 }
 
 function attemptBuild(id) {
-  const def = BUILDINGS.find(b => b.id === id);
+  const def = BUILDING_BY_ID.get(id);
   if (!def) return;
   const cost = buildingCost(def);
   if (canAfford(cost)) doBuild(id);
@@ -648,14 +670,14 @@ function attemptBuild(id) {
 }
 
 function attemptResearch(id) {
-  const def = TECHS.find(t => t.id === id);
+  const def = TECH_BY_ID.get(id);
   if (!def) return;
   if (canAfford(researchCost(def))) doResearch(id);
   else if (state.queues.research.length < queueCapacity('research')) queueEntry('research', id);
 }
 
 function attemptExpedition(id) {
-  const def = EXPEDITIONS.find(e => e.id === id);
+  const def = EXPEDITION_BY_ID.get(id);
   if (!def) return;
   const cost = expeditionCost(def);
   if (canAfford(cost)) doExpedition(id);
@@ -938,10 +960,11 @@ function lineageMod(res) {
 }
 
 function factoryRecipe() {
-  return FACTORY_RECIPES.find(r => r.id === state.factoryRecipe && (!r.tech || tech(r.tech))) || FACTORY_RECIPES[0];
+  const recipe = FACTORY_RECIPE_BY_ID.get(state.factoryRecipe);
+  return recipe && (!recipe.tech || tech(recipe.tech)) ? recipe : FACTORY_RECIPES[0];
 }
 function chooseFactoryRecipe(id) {
-  const recipe = FACTORY_RECIPES.find(r => r.id === id);
+  const recipe = FACTORY_RECIPE_BY_ID.get(id);
   if (!bld('factory') || !recipe || (recipe.tech && !tech(recipe.tech))) return;
   state.factoryRecipe = id;
 }
@@ -999,7 +1022,7 @@ function renderBuildingPower(id, active = powerAllocation()) {
   if (!powerBuildingControllable(id) || !bld(id)) return '';
   const count = buildingPowerCount(id);
   const info = POWER_BUILDINGS[id];
-  const resource = DIG_SITE_RESOURCES[id] ? RESOURCES.find(r => r.id === DIG_SITE_RESOURCES[id]).name : null;
+  const resource = DIG_SITE_RESOURCES[id] ? resourceName(DIG_SITE_RESOURCES[id]) : null;
   const effect = resource ? `, +${active[id] * 10}% ${resource} production` : '';
   const supply = info.power ? `Power allocation: ${count} / ${bld(id)} enabled; ${active[id]} active (${+(active[id] * info.power).toFixed(2)} capacity)` :
     `Production: ${count} / ${bld(id)} enabled; ${active[id]} active`;
@@ -1023,11 +1046,13 @@ function production(dt = 0.25, breakdown = null) {
   const weather = dailyWeather();
   const power = powerAllocation();
   const poweredSites = digSitePower();
+  const poweredBonusByResource = {};
+  for (const [buildingId, resource] of Object.entries(DIG_SITE_RESOURCES)) {
+    poweredBonusByResource[resource] = (poweredBonusByResource[resource] || 0) + (poweredSites[buildingId] || 0);
+  }
   const add = (res, label, base, factors = []) => {
-    if (base > 0) {
-      const active = Object.entries(DIG_SITE_RESOURCES).reduce((sum, [id, resource]) => sum + (resource === res ? poweredSites[id] : 0), 0);
-      if (active) factors = [...factors, ['Awaken Ancients', 1 + 0.10 * active]];
-    }
+    const active = poweredBonusByResource[res];
+    if (base > 0 && active) factors = [...factors, ['Awaken Ancients', 1 + 0.10 * active]];
     if (base > 0 && weather.mods[res]) factors = [...factors, [`Weather (${weather.name}, ${weather.temperature}°C)`, weather.mods[res]]];
     const amount = factors.reduce((value, [, factor]) => value * factor, base);
     rates[res] += amount;
@@ -1126,7 +1151,7 @@ function production(dt = 0.25, breakdown = null) {
     }
   }
   for (const [id, active] of Object.entries(poweredSites)) {
-    if (active) add('power', `${BUILDINGS.find(b => b.id === id).name}: ${active} × ${DIG_SITE_POWER} capacity`, -active * DIG_SITE_POWER);
+    if (active) add('power', `${BUILDING_BY_ID.get(id).name}: ${active} × ${DIG_SITE_POWER} capacity`, -active * DIG_SITE_POWER);
   }
   // Reserve inputs after other consumption; bonuses affect output, not costs.
   // Forges are independent production buildings: each one smelts Steel
@@ -1144,7 +1169,7 @@ function production(dt = 0.25, breakdown = null) {
     for (const r in inputs) {
       const available = Math.max(0, state.res[r] + Math.min(0, rates[r]) * dt);
       const supplied = available / (inputs[r] * activeForges * dt);
-      if (supplied < fraction) limitation = `${RESOURCES.find(resource => resource.id === r).name} shortage`;
+      if (supplied < fraction) limitation = `${resourceName(r)} shortage`;
       fraction = Math.min(fraction, supplied);
     }
     add('steel', `Forges: ${activeForges} active × ${rate}/s`, activeForges * rate, [...factors, [limitation, fraction]]);
@@ -1162,7 +1187,7 @@ function production(dt = 0.25, breakdown = null) {
     for (const r in inputs) {
       const available = Math.max(0, state.res[r] + Math.min(0, rates[r]) * dt);
       const supplied = activeFactories ? available / (inputs[r] * activeFactories * dt) : 0;
-      if (supplied < fraction) limitation = `${RESOURCES.find(resource => resource.id === r).name} shortage`;
+      if (supplied < fraction) limitation = `${resourceName(r)} shortage`;
       fraction = Math.min(fraction, supplied);
     }
     if (activeFactories < bld('factory')) {
@@ -1245,7 +1270,7 @@ function addLog(text, cls) {
 // ---------- trials ----------
 function startTrial(id) {
   if (state.trial || state.migrating) return;
-  const def = TRIALS.find(t => t.id === id);
+  const def = TRIAL_BY_ID.get(id);
   if (!def) return;
   if (def.repeat > 0 && trialCount(id) >= trialMax(def)) return;
   if (def.repeat === 0 && trialCount(id) > 0) return;
@@ -1258,7 +1283,7 @@ function startTrial(id) {
 
 function endTrial(success) {
   if (!state.trial) return;
-  const def = TRIALS.find(t => t.id === state.trial.id);
+  const def = TRIAL_BY_ID.get(state.trial.id);
   if (success) {
     state.trialDone[def.id] = trialCount(def.id) + 1;
     addLog(`${def.name} complete! ${def.reward}`, 'log-good');
@@ -1316,7 +1341,7 @@ function updateTrial(dt) {
       break;
     case 'haste':
       if (state.era >= 5) { endTrial(true); return; }
-      if (tr.daysActive > 1200) { endTrial(false); return; }
+      if (tr.daysActive > 20000) { endTrial(false); return; }
       break;
   }
 }
@@ -1385,7 +1410,7 @@ function resolveTribeRaid(id) {
     const pick = lootPool.splice(Math.floor(Math.random() * lootPool.length), 1)[0];
     const amount = Math.min(state.res[pick], Math.max(5, Math.floor(state.res[pick] * (0.05 + margin * 0.01))));
     state.res[pick] -= amount;
-    loot.push(`${fmt(amount)} ${RESOURCES.find(r => r.id === pick).name}`);
+    loot.push(`${fmt(amount)} ${resourceName(pick)}`);
   }
   entry.disposition = Math.max(-100, entry.disposition - 6);
   if (isMephit()) state.diplomacyEventT = -120;
@@ -1416,7 +1441,7 @@ function trialProgressText() {
     case 'tinkering': return `${Math.floor(tr.daysActive)} / 240 days endured — ${state.jobs.tinkerer || 0} Tinkerer assigned (need at least 1)`;
     case 'wayfinding': return expDone('oldForest') ? 'The Old Forest has been mapped.' : 'The Old Forest expedition must return';
     case 'industrialization': return `${fmt(state.res.goods)} / 100 Industrial Goods — no deadline; coal production 20%`;
-    case 'haste': return `${Math.floor(tr.daysActive)} / 1200 days to reach the Age of Light`;
+    case 'haste': return `${Math.floor(tr.daysActive)} / 20000 days to reach the Age of Light`;
   }
   return '';
 }
@@ -1453,7 +1478,7 @@ function chooseLanding(id) {
 }
 
 function migrationBuy(id) {
-  const def = UPGRADES.find(u => u.id === id);
+  const def = UPGRADE_BY_ID.get(id);
   if (!def || !state.migrating) return;
   if (id === 'farHorizons' && !LINEAGES.some(l => l.id !== 'human' && lineageUnlocked(l.id))) return;
   if (id === 'fearOfTheConqueror' && !fearOfTheConquerorAvailable()) return;
@@ -1467,7 +1492,7 @@ function migrationBuy(id) {
 }
 
 function migrationRefund(id) {
-  const def = UPGRADES.find(u => u.id === id);
+  const def = UPGRADE_BY_ID.get(id);
   if (!def || !state.migrating) return;
   const lvl = upg(id);
   if (lvl <= 0) return;
@@ -1492,7 +1517,7 @@ function setOut(trialId = null) {
     policyChangedAt: state.policyChangedAt,
     governor: state.governor, council: [...state.council],
   } : null;
-  const landing = LANDINGS.find(l => l.id === (trialId ? state.landing : state.pendingLanding)) ||
+  const landing = LANDING_BY_ID.get(trialId ? state.landing : state.pendingLanding) ||
     state.pendingLandings[0] || LANDINGS.find(l => l.id !== state.landing) || LANDINGS[0];
   const ancestralBlessing = !!trialId || !!state.landingsSeen[landing.id];
   const up = { ...state.upgrades };
@@ -1719,7 +1744,7 @@ function tickStep(dt) {
 
 // ---------- actions ----------
 function doBuild(id) {
-  const def = BUILDINGS.find(b => b.id === id);
+  const def = BUILDING_BY_ID.get(id);
   if (!def) return;
   if (!canBuild(id)) {
     if (trialActive('overflow') && Object.values(STORAGE).some(s => s.bld === id)) {
@@ -1744,7 +1769,7 @@ function doBuild(id) {
 }
 
 function doCraft(id) {
-  const def = CRAFTS.find(c => c.id === id);
+  const def = CRAFT_BY_ID.get(id);
   if (!def || !def.req()) return;
   if (id === 'tools' && trialActive('tinkering')) return;
   if (!canAfford(def.cost)) return;
@@ -1760,7 +1785,7 @@ function doCraft(id) {
 }
 
 function doResearch(id) {
-  const def = TECHS.find(t => t.id === id);
+  const def = TECH_BY_ID.get(id);
   if (!def || tech(id)) return;
   if (def.req && !def.req()) return;
   const cost = researchCost(def);
@@ -1783,7 +1808,7 @@ function policyCooldownRemaining() {
   return Math.max(0, policyChangeCooldown() - (Date.now() - state.policyChangedAt) / 1000);
 }
 function choosePolicy(id) {
-  const def = CIVICS.find(c => c.id === id);
+  const def = CIVIC_BY_ID.get(id);
   if (!tech('civics') || !def || (def.req && !def.req())) return;
   if (state.policy === id || policyCooldownRemaining() > 0) return;
   state.policy = id;
@@ -1812,7 +1837,7 @@ function toggleCouncilor(id) {
 }
 
 function doExpedition(id) {
-  const def = EXPEDITIONS.find(e => e.id === id);
+  const def = EXPEDITION_BY_ID.get(id);
   if (!def || expDone(id)) return;
   if (def.landing && def.landing !== state.landing) return;
   if (state.pop < def.reqPop) return;
@@ -1985,7 +2010,7 @@ function doRaid(id, stageId = 'raid') {
       if (gained > 0) {
         state.res[pick] += gained;
         state.seen[pick] = true;
-        loot.push(`${gained} ${RESOURCES.find(r => r.id === pick).name}`);
+        loot.push(`${gained} ${resourceName(pick)}`);
       }
     };
     for (let i = 0; i < stage.rolls; i++) addLoot(common);
@@ -2246,12 +2271,12 @@ function costHtml(cost) {
   const parts = [];
   for (const r in cost) {
     const have = state.res[r] || 0;
-    parts.push(`<span class="${have >= cost[r] ? 'ok' : 'lack'}">${fmt(cost[r])} ${RESOURCES.find(x => x.id === r).name}</span>`);
+    parts.push(`<span class="${have >= cost[r] ? 'ok' : 'lack'}">${fmt(cost[r])} ${resourceName(r)}</span>`);
   }
   return parts.join(', ');
 }
 function costText(cost) {
-  return Object.entries(cost).map(([r, amount]) => `${fmt(amount)} ${RESOURCES.find(x => x.id === r).name}`).join(', ');
+  return Object.entries(cost).map(([r, amount]) => `${fmt(amount)} ${resourceName(r)}`).join(', ');
 }
 
 function lineageAccessCount() { return LINEAGES.filter(lineage => lineageUnlocked(lineage.id)).length; }
@@ -2327,7 +2352,7 @@ function tabUnlocked(id) { return !!TAB_UNLOCKS[id]?.(); }
 
 function renderNextStep() {
   if (state.trial) {
-    const trial = TRIALS.find(t => t.id === state.trial.id);
+    const trial = TRIAL_BY_ID.get(state.trial.id);
     if (trial) {
       return `<div class="next-step card trial-active"><div class="card-head"><span class="card-title">${trial.name}</span><span class="card-count">Active trial</span></div>` +
         `<div class="card-desc"><strong>Goal:</strong> ${trial.goal}</div>` +
@@ -2467,7 +2492,7 @@ function renderVillage() {
     for (const recipe of FACTORY_RECIPES) {
       const unlocked = !recipe.tech || tech(recipe.tech);
       const selected = factoryRecipe().id === recipe.id;
-      const inputs = Object.entries(recipe.inputs).map(([r, n]) => `${n} ${RESOURCES.find(res => res.id === r).name}/s`).join(', ');
+      const inputs = Object.entries(recipe.inputs).map(([r, n]) => `${n} ${resourceName(r)}/s`).join(', ');
       const powerText = `${FACTORY_POWER_REQUIREMENT} Power capacity per factory`;
       h += `<div class="card"><div class="card-head"><span class="card-title">${recipe.name}</span><span class="card-count">${selected ? 'Active' : unlocked ? 'Available' : `Requires ${recipe.unlock}`}</span></div>` +
         `<div class="card-desc">Produces ${recipe.rate}/s; requires ${powerText}${inputs ? ` and consumes ${inputs}` : ''}.</div>` +
@@ -2507,8 +2532,8 @@ function renderVillage() {
     h += `<div class="job-row">` +
       `<span class="job-name has-tooltip" data-tooltip="${attrText(job.desc)}">${job.name}</span>` +
       `<span class="job-assign">${assignment}</span>` +
-      `<span class="job-rate">${fmt(job.base)} ${RESOURCES.find(r => r.id === job.res).name}/s each` +
-      (job.inputs ? ` (uses ${Object.entries(job.inputs).map(([r, v]) => `${fmt(v)} ${RESOURCES.find(x => x.id === r).name.toLowerCase()}/s`).join(' + ')})` : '') +
+      `<span class="job-rate">${fmt(job.base)} ${resourceName(job.res)}/s each` +
+      (job.inputs ? ` (uses ${Object.entries(job.inputs).map(([r, v]) => `${fmt(v)} ${resourceName(r).toLowerCase()}/s`).join(' + ')})` : '') +
       `</span>` +
       `<span class="job-btns">` +
       `<button data-action="job-dec" data-job="${j}" data-repeat title="Hold to repeat" ${n > 0 ? '' : 'disabled'}>−</button>` +
@@ -2578,7 +2603,7 @@ function renderBuild() {
     h += '<div class="res-note">Set how many buildings are enabled. Power is allocated to Living Blocks first, then Quarry, Deep Mine, Coal Seam, and finally Factories; enabled buildings without capacity remain inactive. Forges can be toggled here and do not use Power capacity.</div>';
     const active = powerAllocation();
     for (const id of controllablePowerBuildings) {
-      h += `<div class="card"><div class="card-title">${BUILDINGS.find(b => b.id === id).name}</div>${renderBuildingPower(id, active)}</div>`;
+      h += `<div class="card"><div class="card-title">${BUILDING_BY_ID.get(id).name}</div>${renderBuildingPower(id, active)}</div>`;
     }
     return h;
   }
@@ -2769,7 +2794,7 @@ function renderExpeditions() {
     if (!e.landing && !Object.entries(cost).every(([res, amount]) => capacityOf(res) >= amount && rates[res] > 0)) continue;
     any = true;
     const popOk = state.pop >= e.reqPop;
-    const site = LANDINGS.find(l => l.id === e.landing);
+    const site = LANDING_BY_ID.get(e.landing);
     const queued = state.queues.expedition.some(entry => entry.id === e.id);
     const ok = popOk && (canAfford(cost) || state.queues.expedition.length < queueCapacity('expedition'));
     h += `<div class="card"><div class="card-head"><span class="card-title has-tooltip" data-tooltip="${attrText(e.text)}">${e.name}</span></div>` +
@@ -2971,7 +2996,7 @@ function renderLog() {
 function loadLatestUpdatesTooltip() {
   const button = document.getElementById('btn-updates');
   if (!button || typeof fetch !== 'function' || typeof DOMParser !== 'function') return;
-  fetch('changelog.html?v=publish-20260908m')
+  fetch('changelog.html?v=publish-20260908p')
     .then(response => response.ok ? response.text() : Promise.reject(new Error('changelog unavailable')))
     .then(source => {
       const doc = new DOMParser().parseFromString(source, 'text/html');

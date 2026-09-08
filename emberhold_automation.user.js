@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Emberhold Automation
 // @namespace    https://github.com/emberhold
-// @version      1.25.7
+// @version      1.25.8
 // @description  Configurable automation for Emberhold
 // @updateURL    https://raw.githubusercontent.com/Nuku/Emberhold-Automation/main/emberhold_automation.user.js
 // @downloadURL  https://raw.githubusercontent.com/Nuku/Emberhold-Automation/main/emberhold_automation.user.js
@@ -28,6 +28,8 @@
     migration: false,
     interval: 1000,
   };
+  const INTERVALS = new Set([500, 1000, 2000, 5000]);
+  const definitionIndexes = new WeakMap();
 
   let settings = loadSettings();
   let timer = null;
@@ -36,7 +38,13 @@
 
   function loadSettings() {
     try {
-      return { ...DEFAULTS, ...JSON.parse(localStorage.getItem(SETTINGS_KEY) || '{}') };
+      const saved = JSON.parse(localStorage.getItem(SETTINGS_KEY) || '{}');
+      const settings = { ...DEFAULTS };
+      for (const key of Object.keys(DEFAULTS)) {
+        if (typeof DEFAULTS[key] === 'boolean' && typeof saved[key] === 'boolean') settings[key] = saved[key];
+      }
+      if (INTERVALS.has(saved.interval)) settings.interval = saved.interval;
+      return settings;
     } catch (_) {
       return { ...DEFAULTS };
     }
@@ -56,6 +64,16 @@
 
   function definitions() {
     return api()?.definitions || {};
+  }
+
+  function definitionsById(definitions) {
+    if (!Array.isArray(definitions)) return new Map();
+    let index = definitionIndexes.get(definitions);
+    if (!index) {
+      index = new Map(definitions.map(definition => [definition.id, definition]));
+      definitionIndexes.set(definitions, index);
+    }
+    return index;
   }
 
   function invoke(name, ...args) {
@@ -142,8 +160,14 @@
   function autoJobs(state, demand) {
     const defs = definitions().JOBS || {};
     const effectiveJobRate = api().helpers?.jobProduction;
+    const jobRates = new Map();
+    const jobRate = id => {
+      if (!effectiveJobRate) return null;
+      if (!jobRates.has(id)) jobRates.set(id, effectiveJobRate(id));
+      return jobRates.get(id);
+    };
     const assignable = JOB_ORDER.filter(id => defs[id] && id !== 'guard' && jobUnlocked(defs[id]) &&
-      (!effectiveJobRate || effectiveJobRate(id) > 0));
+      (jobRate(id) === null || jobRate(id) > 0));
     if (!assignable.length) return;
 
     const count = id => Number(state.jobs?.[id] || 0);
@@ -170,7 +194,7 @@
       return stock(resource) < reserve(resource) || (demand[resource] || 0) > 0 || (rates[resource] || 0) < 0;
     };
     const minimum = id => id === 'forager' ? 1 :
-      (!needsWork(id) || (effectiveJobRate && effectiveJobRate(id) <= 0)
+      (!needsWork(id) || (jobRate(id) !== null && jobRate(id) <= 0)
         ? 0 : minimums.find(item => item[0] === id)?.[1] || 0);
     const needs = [
       ['forager', 'food', reserve('food')],
@@ -198,11 +222,11 @@
     const underMinimum = minimums.find(([id, minimumCount]) =>
       minimumCount > 0 && assignable.includes(id) && count(id) < minimum(id));
     const productionJobs = assignable.filter(id => defs[id].res && Number(defs[id].base) > 0 &&
-      (!effectiveJobRate || effectiveJobRate(id) > 0) && needsWork(id));
+      (jobRate(id) === null || jobRate(id) > 0) && needsWork(id));
     const balancedJob = productionJobs.sort((a, b) => count(a) - count(b))[0];
     const target = underMinimum?.[0] || (need && need[0]) || balancedJob;
     const reclaimable = Object.keys(state.jobs || {}).filter(id => {
-      const zeroed = effectiveJobRate && defs[id]?.res && Number(defs[id].base) > 0 && effectiveJobRate(id) <= 0;
+      const zeroed = jobRate(id) !== null && defs[id]?.res && Number(defs[id].base) > 0 && jobRate(id) <= 0;
       return id !== 'guard' && id !== target && count(id) > minimum(id) && (zeroed || !needsWork(id));
     });
     if (reclaimable.length) {
@@ -226,8 +250,8 @@
     const donors = Object.keys(state.jobs || {})
       .filter(id => id !== 'guard' && id !== target && count(id) > minimum(id))
       .sort((a, b) => {
-        const aZeroed = effectiveJobRate && defs[a]?.res && Number(defs[a].base) > 0 && effectiveJobRate(a) <= 0;
-        const bZeroed = effectiveJobRate && defs[b]?.res && Number(defs[b].base) > 0 && effectiveJobRate(b) <= 0;
+        const aZeroed = jobRate(a) !== null && defs[a]?.res && Number(defs[a].base) > 0 && jobRate(a) <= 0;
+        const bZeroed = jobRate(b) !== null && defs[b]?.res && Number(defs[b].base) > 0 && jobRate(b) <= 0;
         const surplus = id => {
           const resource = defs[id]?.res;
           return resource ? Math.max(0, (state.res[resource] || 0) - (demand[resource] || 0)) - reserve(resource) : 0;
@@ -248,8 +272,9 @@
 
   function autoResearch(state, demand) {
     const defs = definitions().TECHS || [];
+    const defsById = definitionsById(defs);
     for (const id of RESEARCH_ORDER) {
-      const def = defs.find(item => item.id === id);
+      const def = defsById.get(id);
       if (!def) continue;
       const cost = typeof api().helpers?.researchCost === 'function'
         ? api().helpers.researchCost(def) : { knowledge: def.cost, ...(def.materials || {}) };
@@ -263,8 +288,9 @@
 
   function autoBuildings(state, demand) {
     const defs = definitions().BUILDINGS || [];
+    const defsById = definitionsById(defs);
     for (const id of BUILD_ORDER) {
-      const def = defs.find(item => item.id === id);
+      const def = defsById.get(id);
       if (!def || state.bld[id] >= def.max || !unlocked(def, state)) continue;
       const canBuild = api().helpers?.canBuild;
       if (canBuild ? !canBuild(id) :
@@ -352,6 +378,7 @@
       console.error('[Emberhold Automation]', lastAction, error);
       updatePanel(snapshot());
     } finally {
+      updatePanel(snapshot());
       busy = false;
     }
   }

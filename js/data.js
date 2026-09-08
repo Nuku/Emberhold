@@ -29,6 +29,7 @@ const RESOURCES = [
   { id: 'goods',     name: 'Industrial Goods', note: 'made only by a powered Factory' },
   { id: 'aether',    name: 'Aether',    note: 'gathered by those who watch the sky' },
 ];
+const RESOURCE_NAMES = new Map(RESOURCES.map(resource => [resource.id, resource.name]));
 
 // Power is capacity, not a stockpile. These baseline values are intentionally
 // separate so research and upgrades can tune generation and demand later.
@@ -605,7 +606,7 @@ const TRIALS = [
 
   { id: 'haste', name: 'Trial of Haste', repeat: 0,
     mod: 'All production reduced by 30%.',
-    goal: 'Reach the Age of Light within 1200 days of starting the trial.',
+    goal: 'Reach the Age of Light within 20,000 days of starting the trial.',
     reward: 'Blueprints: all building costs reduced 15%, permanently.',
     req: () => era() >= 3 },
 
@@ -705,7 +706,7 @@ const ANIMAL_LINEAGES = [
     desc: 'Raccoon salvagers thrive wherever there is work, turning discarded parts into ingenious machines.' },
 ].map(l => ({ ...l, effect: Object.entries(l.mods).map(([res, mod]) => {
   const pct = Math.round((mod - 1) * 100);
-  return `${pct > 0 ? '+' : '−'}${Math.abs(pct)}% ${RESOURCES.find(r => r.id === res).name}`;
+  return `${pct > 0 ? '+' : '−'}${Math.abs(pct)}% ${RESOURCE_NAMES.get(res) || res}`;
 }).concat(l.growthTime && l.growthTime !== 1
   ? [`${Math.round(Math.abs(l.growthTime - 1) * 100)}% ${l.growthTime < 1 ? 'less' : 'more'} time for population growth`]
   : []).join(', ') }));
