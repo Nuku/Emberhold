@@ -2301,6 +2301,15 @@ const TAB_UNLOCKS = {
 function tabUnlocked(id) { return !!TAB_UNLOCKS[id]?.(); }
 
 function renderNextStep() {
+  if (state.trial) {
+    const trial = TRIALS.find(t => t.id === state.trial.id);
+    if (trial) {
+      return `<div class="next-step card trial-active"><div class="card-head"><span class="card-title">${trial.name}</span><span class="card-count">Active trial</span></div>` +
+        `<div class="card-desc"><strong>Goal:</strong> ${trial.goal}</div>` +
+        `<div class="trial-goal"><strong>Progress:</strong> ${trialProgressText()}</div>` +
+        `<div class="card-actions"><button data-action="tab" data-tab="trials">Open Trials</button></div></div>`;
+    }
+  }
   let title = 'Begin the settlement';
   let text = 'Assign your four villagers to Foragers and Woodcutters, then keep enough food coming to grow.';
   let action = 'Village';
@@ -2933,7 +2942,7 @@ function renderLog() {
 function loadLatestUpdatesTooltip() {
   const button = document.getElementById('btn-updates');
   if (!button || typeof fetch !== 'function' || typeof DOMParser !== 'function') return;
-  fetch('changelog.html?v=publish-20260908e')
+  fetch('changelog.html?v=publish-20260908f')
     .then(response => response.ok ? response.text() : Promise.reject(new Error('changelog unavailable')))
     .then(source => {
       const doc = new DOMParser().parseFromString(source, 'text/html');

@@ -978,6 +978,16 @@ test('Overflow uses raised ceilings for progress and completion', () => {
   assert.equal(run('trialCount("overflow")'), 2);
 });
 
+test('front page shows the active trial goal and progress', () => {
+  const { run } = game();
+  run(`state.trial = { id: 'overflow', daysActive: 0, buildings: 0 };
+    state.trialDone.overflow = 1; state.seen = { food: true }; state.res.food = 240;`);
+  const village = run('renderVillage()');
+  assert.match(village, /Trial of the Overflow/);
+  assert.match(village, /Goal:<\/strong> Have every store you have discovered filled to its ceiling at the same moment/);
+  assert.match(village, /Progress:<\/strong> emptiest store: 80% full/);
+});
+
 test('Overflow suppresses non-trial storage bonuses while sworn', () => {
   const { run } = game();
   run(`state.trialDone.overflow = 1; state.upgrades.deepCellars = 3; state.techs.civics = true; state.governor = 'quartermaster';
