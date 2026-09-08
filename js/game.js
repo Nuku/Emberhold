@@ -979,7 +979,7 @@ function renderBuildingPower(id, active = powerAllocation()) {
   const info = POWER_BUILDINGS[id];
   const resource = DIG_SITE_RESOURCES[id] ? RESOURCES.find(r => r.id === DIG_SITE_RESOURCES[id]).name : null;
   const effect = resource ? `, +${active[id] * 10}% ${resource} production` : '';
-  const supply = info.power ? `Power supply: ${count} / ${bld(id)} enabled; ${active[id]} active (${+(active[id] * info.power).toFixed(2)} Power)` :
+  const supply = info.power ? `Power allocation: ${count} / ${bld(id)} enabled; ${active[id]} active (${+(active[id] * info.power).toFixed(2)} capacity)` :
     `Production: ${count} / ${bld(id)} enabled; ${active[id]} active`;
   return `<div class="card-desc">${supply}${effect}.</div>` +
     `<div class="card-actions"><button data-action="power-off" data-id="${id}" ${count ? '' : 'disabled'}>Off</button>` +
@@ -1084,7 +1084,7 @@ function production(dt = 0.25, breakdown = null) {
     add('power', `Steam Plants: ${bld('steamPlant')} × ${POWER_PER_STEAM_PLANT} capacity`, bld('steamPlant') * POWER_PER_STEAM_PLANT);
     add('coal', `Steam Plant fuel: ${bld('steamPlant')} × 0.8/s`, -bld('steamPlant') * 0.8);
   }
-  if (bld('dynamo') > 0) add('power', `Dynamos: ${bld('dynamo')} × 1.5/s`, bld('dynamo') * 1.5);
+  if (bld('dynamo') > 0) add('power', `Dynamos: ${bld('dynamo')} × 1.5 capacity`, bld('dynamo') * 1.5);
   if (power.livingBlock) add('power', `Living Blocks: ${power.livingBlock} × ${LIVING_BLOCK_POWER_REQUIREMENT} capacity`, -power.livingBlock * LIVING_BLOCK_POWER_REQUIREMENT);
   // The land, lineage, and civic choices shape output; population upkeep is
   // applied afterward so food policies do not alter how much villagers eat.
@@ -1171,7 +1171,26 @@ function resourceRateTooltip(resource, rate, entries) {
   const number = value => Number(value.toFixed(4)).toString();
   const signed = value => `${value > 0 ? '+' : ''}${number(value)}/s`;
   const power = resource.id === 'power';
-  const lines = [power ? `${resource.name} — ${number(Math.max(0, rate))} capacity available` : `${resource.name} — net ${signed(rate)}`, power ? 'Capacity is provided by generators and does not drain.' : 'Amounts per second; modifiers multiply in order.'];
+  if (power) {
+    const capacityAmount = value => `${value > 0 ? '+' : ''}${number(value)} capacity`;
+    const generated = entries.filter(entry => entry.base > 0)
+      .reduce((sum, entry) => sum + entry.amount, 0);
+    const allocated = entries.filter(entry => entry.base < 0)
+      .reduce((sum, entry) => sum - entry.amount, 0) +
+      powerAllocation().factory * FACTORY_POWER_REQUIREMENT;
+    const remaining = Math.max(0, generated - allocated);
+    return [
+      `${resource.name} — ${number(remaining)} capacity remaining`,
+      'Capacity is provided by generators and allocated to enabled buildings; it does not drain.',
+      '',
+      `Generated: ${number(generated)} capacity`,
+      `Allocated: ${number(allocated)} capacity`,
+      `Remaining: ${number(remaining)} capacity`,
+      '',
+      ...entries.map(entry => `${entry.base > 0 ? 'Generated' : 'Allocated'}: ${entry.label}: ${capacityAmount(entry.amount)}`),
+    ].join('\n');
+  }
+  const lines = [`${resource.name} — net ${signed(rate)}`, 'Amounts per second; modifiers multiply in order.'];
   for (const [heading, outgoing] of [['Income', false], ['Outgoing', true]]) {
     const group = entries.filter(entry => (entry.base < 0) === outgoing);
     lines.push('', `${heading}: ${signed(group.reduce((sum, entry) => sum + entry.amount, 0))}`);
@@ -2369,6 +2388,7 @@ function renderHeader() {
 function renderStores() {
   const breakdown = {};
   const rates = production(0.25, breakdown);
+  const activePower = powerAllocation();
   let h = '';
   for (const r of RESOURCES) {
     if (!resVisible(r.id)) continue;
@@ -2376,7 +2396,7 @@ function renderStores() {
     const cls = rate > 0.0001 ? 'rate-pos' : (rate < -0.0001 ? 'rate-neg' : '');
     const cap = capacityOf(r.id);
     const amount = r.id === 'power'
-      ? `${fmt(state.res[r.id])} capacity`
+      ? `${fmt(Math.max(0, state.res[r.id] - activePower.factory * FACTORY_POWER_REQUIREMENT))} capacity`
       : cap === Infinity
       ? fmt(state.res[r.id])
       : `${fmt(state.res[r.id])} / ${fmt(cap)}${isFull(r.id) ? ' FULL' : ''}`;
@@ -2916,7 +2936,7 @@ function renderLog() {
 function loadLatestUpdatesTooltip() {
   const button = document.getElementById('btn-updates');
   if (!button || typeof fetch !== 'function' || typeof DOMParser !== 'function') return;
-  fetch('changelog.html?v=ancestral-return-20260907a')
+  fetch('changelog.html?v=power-capacity-20260907b')
     .then(response => response.ok ? response.text() : Promise.reject(new Error('changelog unavailable')))
     .then(source => {
       const doc = new DOMParser().parseFromString(source, 'text/html');
