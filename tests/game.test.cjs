@@ -87,14 +87,20 @@ test('Air of Rage turns accumulated anger into a fading morale bonus after an at
   assert.equal(run('airOfRageMorale()'), -0.02);
 });
 
-test('Atavistic Aura doubles lineage strengths, weaknesses, and event likelihood', () => {
+test('Atavistic Aura raises lineage traits to level 2', () => {
   const { run } = game();
   run(`state.species = 'rabbitfolk'; state.placeTraits = ['atavisticAura'];`);
-  assert.equal(run(`baseLineageMod('food')`), 1.56);
-  assert.equal(run(`baseLineageMod('coal')`), 0.7);
-  assert.equal(run(`popGrowthNeed() / ((20 + state.pop * 4) * 0.67 / moraleMult())`), 0.1);
-  run(`state.randomEventT = 60; state.randomEventNext = 60; Math.random = () => 0.75; updateRandomEvents(0);`);
+  assert.equal(run(`baseLineageMod('food')`), 1.42);
+  assert.ok(Math.abs(run(`baseLineageMod('coal')`) - 0.775) < 1e-12);
+  assert.equal(run(`lineageTraitLevel('warrenGardens', lineageDef('rabbitfolk'))`), 2);
+  assert.equal(run(`lineageTraitScale(2)`), 1.5);
+  assert.equal(run(`lineageTraitModifier(1.2, -1)`), 0.8);
+  assert.ok(Math.abs(run(`lineageTraitModifier(1.2, -2)`) - 0.7) < 1e-12);
+  assert.equal(run(`popGrowthNeed() / ((20 + state.pop * 4) * 0.67 / moraleMult())`), 0.25);
+  run(`state.randomEventT = 60; state.randomEventNext = 60; Math.random = () => 0.7; updateRandomEvents(0);`);
   assert.match(run('state.log[0].t'), /^Rabbitfolk:/);
+  run(`state.placeTraits = []; lineageDef('rabbitfolk').traitLevels = { warrenGardens: 0 };`);
+  assert.equal(run(`lineageTraitLevel('warrenGardens')`), -1);
 });
 
 test('policy changes wait one real-time hour, persist through saves and trials, and reset on migration', () => {
@@ -1370,6 +1376,7 @@ test('returning to a known landing grants the ancestral knowledge blessing', () 
   assert.equal(run('state.ancestralBlessing'), false);
   run(`state.migrating = true; state.pendingLanding = 'emberplain'; setOut()`);
   assert.equal(run('state.ancestralBlessing'), true);
+  run('state.placeTraits = []');
   assert.ok(Math.abs(run('production(0).knowledge') - 0.33) < 1e-10);
   run('state.ancestralBlessing = false; setOut("scarcity")');
   assert.equal(run('state.ancestralBlessing'), true);
@@ -1409,8 +1416,19 @@ test('new tribes can be encountered, allied, inherited, and saved', () => {
     assert.equal(run(`lineageUnlocked('${id}')`), true);
     run(`state.migrating = true; chooseLineage('${id}'); setOut(); saveGame(true); state = loadGame()`);
     assert.equal(run('state.species'), id);
-    assert.match(run('renderDiplomacy()'), new RegExp(run(`lineageDef('${id}').effect`).replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
+    assert.match(run('renderDiplomacy()'), /lineage traits:/);
+    assert.match(run('renderDiplomacy()'), new RegExp(run(`lineageTraits(lineageDef('${id}'))[0].name`).replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
   }
+});
+
+test('lineages group their existing effects into two to four shared traits', () => {
+  const { run } = game();
+  assert.equal(run('LINEAGE_TRAITS.length'), run('new Set(LINEAGE_TRAITS.map(t => t.id)).size'));
+  assert.equal(run('LINEAGES.every(l => l.traits.length >= 2 && l.traits.length <= 4)'), true);
+  assert.equal(run('LINEAGES.every(l => l.traits.every(id => LINEAGE_TRAIT_BY_ID.has(id)))'), true);
+  assert.equal(run('LINEAGE_TRAITS.some(t => LINEAGES.filter(l => l.traits.includes(t.id)).length > 1)'), true);
+  assert.match(run("lineageTraitsHtml(lineageDef('human'))"), /Way of life:/);
+  assert.match(run("lineageTraitsHtml(lineageDef('human'))"), /Adaptable/);
 });
 
 test('Great Migration resets research and research-derived armor', () => {

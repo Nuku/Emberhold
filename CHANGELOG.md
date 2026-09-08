@@ -4,13 +4,15 @@ All notable changes to Emberhold are recorded here, with the newest changes firs
 
 ## 2026-09-08
 
+- Reworked lineage effects into named, grouped traits shared across cultures; diplomacy and migration now show each lineage's trait set, including trait tooltips and special effects.
+- Changed Atavistic Aura to raise the current lineage's traits by one level, scaling positive and negative effects by 1.5× and increasing lineage-happening frequency by the same factor.
 - Added Understanding Home research after Mechanism; settlements with local traits can learn their exact current effects through trait tooltips.
 - Added a population-growth timing tooltip that breaks down settlement, fertility, hospital, lineage, morale, and place-trait modifiers.
 - Fixed queued construction, research, and expedition actions retaining the cost shown when they were added, even if a temporary price modifier changes later.
 - Expanded the Stone Working description with guidance about gathering the newly noticed green mineral.
 - Fixed neighboring-tribe requests so they never ask for generated Power capacity, and repaired legacy saves containing Power requests.
 - Added a persistent option to dismiss the front-page tutorial card; the choice is saved and carried into migrated settlements.
-- Added Air of Rage and Atavistic Aura place traits: rage becomes a fading morale bonus after attacks and a growing penalty when unspent, while Atavistic Aura doubles lineage effects and lineage-event frequency.
+- Added Air of Rage and Atavistic Aura place traits: rage becomes a fading morale bonus after attacks and a growing penalty when unspent, while Atavistic Aura raises lineage traits by one level.
 - Added an optional Tooltips setting for players who prefer a cleaner interface without hover details.
 - Added climate-aware place traits to migration choices and settlements; traits now modify production, morale, growth, exploration, guard recruitment, and occasional population loss.
 - Added Buy and Purchased tabs to the Ancestral Shop so fully learned upgrades are separated from current choices.

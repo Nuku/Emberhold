@@ -42,6 +42,7 @@ const LANDING_BY_ID = indexById(LANDINGS);
 const UPGRADE_BY_ID = indexById(UPGRADES);
 const FACTORY_RECIPE_BY_ID = indexById(FACTORY_RECIPES);
 const PLACE_TRAIT_BY_ID = indexById(PLACE_TRAITS);
+const LINEAGE_TRAIT_BY_ID = indexById(LINEAGE_TRAITS);
 
 function resourceName(id) { return RESOURCE_BY_ID.get(id)?.name || id; }
 
@@ -164,6 +165,55 @@ function governanceDefenseMod() {
 }
 function tribeDef(id) { return TRIBE_BY_ID.get(id) || TRIBES[0]; }
 function lineageDef(id) { return LINEAGE_BY_ID.get(id) || LINEAGES[0]; }
+function lineageTraitDef(id) { return LINEAGE_TRAIT_BY_ID.get(id); }
+function lineageTraits(def) { return (def?.traits || []).map(lineageTraitDef).filter(Boolean); }
+function lineageTraitLevelBonus(id, def = lineageDef(state.species)) {
+  if (!def?.traits?.includes(id) || def.id !== state.species) return 0;
+  return currentPlaceTraits().reduce((bonus, trait) => bonus + (trait.lineageLevelBonus || 0), 0);
+}
+function lineageTraitLevel(id, def = lineageDef(state.species)) {
+  if (!def?.traits?.includes(id)) return 0;
+  const level = (def.traitLevels?.[id] ?? 1) + lineageTraitLevelBonus(id, def);
+  return level === 0 ? -1 : level;
+}
+function lineageTraitScale(level = 1) {
+  return Math.pow(1.5, level >= 1 ? level - 1 : -level - 1);
+}
+function lineageTraitModifier(modifier, level = 1) {
+  if (!level) return 1;
+  const magnitude = (modifier - 1) * lineageTraitScale(level);
+  return level > 0 ? 1 + magnitude : 1 - magnitude;
+}
+function lineageSpecialValue(key, def = lineageDef(state.species)) {
+  const special = Object.values(def?.specials || {}).find(entry => entry.key === key);
+  if (!special) return 1;
+  const traitId = Object.keys(def.specials).find(id => def.specials[id] === special);
+  return lineageTraitModifier(special.value, lineageTraitLevel(traitId, def));
+}
+function activeLineageTraitScale() {
+  const rawLevel = 1 + currentPlaceTraits().reduce((bonus, trait) => bonus + (trait.lineageLevelBonus || 0), 0);
+  const level = rawLevel === 0 ? -1 : rawLevel;
+  const scale = lineageTraitScale(level);
+  return level < 0 ? 1 / scale : scale;
+}
+function lineageTraitsText(def) {
+  return lineageTraits(def).map(trait => {
+    const level = lineageTraitLevel(trait.id, def);
+    return `${trait.name}${level !== 1 ? ` (level ${level})` : ''}: ${trait.effect}`;
+  }).join('; ');
+}
+function lineageTraitsHtml(def) {
+  const groups = new Map();
+  for (const trait of lineageTraits(def)) {
+    const entries = groups.get(trait.group) || [];
+    const level = lineageTraitLevel(trait.id, def);
+    const levelText = level !== 1 ? ` (level ${level})` : '';
+    const scaled = level !== 1 ? `\nAt level ${level}: effect magnitude is ×${lineageTraitScale(level).toFixed(2)}${level < 0 ? ' in the opposite direction' : ''}.` : '';
+    entries.push(`<span class="has-tooltip" data-tooltip="${attrText(`${trait.desc}\n\n${trait.effect}${scaled}`)}">${esc(trait.name + levelText)}</span>`);
+    groups.set(trait.group, entries);
+  }
+  return [...groups.entries()].map(([group, traits]) => `${esc(group)}: ${traits.join(' · ')}`).join(' — ');
+}
 function lineageUnlocked(id) { return !!(state.lineagesUnlocked && state.lineagesUnlocked[id]); }
 function habitatAllows(def, landingId) {
   const landing = LANDING_BY_ID.get(landingId);
@@ -185,11 +235,15 @@ function habitatText(def) {
   return def.habitats ? `Habitat: ${LANDINGS.filter(l => habitatAllows(def, l.id)).map(l => l.name).join(', ')}.` : 'Habitat: any landing.';
 }
 function isMephit() { return state.species === 'mephit'; }
+function mephitTraitScale(id) { return isMephit() ? lineageTraitScale(lineageTraitLevel(id, lineageDef('mephit'))) : 1; }
+function mephitDefenseMod() { return 1 + 0.35 * mephitTraitScale('sulfurWalls'); }
+function mephitRaidDelay() { return 120 * mephitTraitScale('slowProvocation'); }
+function mephitInjuryMod() { return 1 + 0.75 * mephitTraitScale('cruelReprisals'); }
 function armorLevel() { return Math.max(0, Number(state.armor) || 0); }
 function tradeAvailable() { return tech('currency') && localTribeIds().length > 0; }
 function guardCap() { return bld('barracks') * 2; }
 function guardRecruitmentRate() {
-  return 1 / (120 * Math.pow(0.9, bld('trainingYard'))) *
+  return 1 / (120 * Math.pow(0.9, bld('trainingYard'))) * lineageSpecialValue('guardRecruitment') *
     currentPlaceTraits().reduce((rate, trait) => rate * (trait.guardRecruitment || 1), 1);
 }
 function updateGuardRecruitment(dt) {
@@ -626,7 +680,7 @@ function queueTime(entry) {
     if ((rates[resource] || 0) <= 0) return Infinity;
     seconds = Math.max(seconds, missing / rates[resource]);
   }
-  return seconds;
+  return seconds * lineageSpecialValue('queueTime');
 }
 
 function queueLabel(seconds) {
@@ -758,7 +812,7 @@ function placeTraitEffectsText(trait) {
   }
   if (trait.vanishChance) effects.push(`${fmt(trait.vanishChance * 100)}% chance per second for a villager to disappear`);
   if (trait.rage) effects.push(`Current morale: ${airOfRageMorale() >= 0 ? '+' : '−'}${fmt(Math.abs(airOfRageMorale()))}/s; attacks set it to +0.05/s, then it fades to −0.04/s`);
-  if (trait.atavistic) effects.push('Lineage bonuses and penalties are doubled; lineage events are twice as likely');
+  if (trait.atavistic) effects.push('Lineage traits become level 2: positive and negative effects are ×1.5 in magnitude; lineage happenings are ×1.5 as likely');
   return effects;
 }
 function placeTraitTooltip(trait) {
@@ -879,6 +933,7 @@ function settlementProductionFactors(res, outgoing = false) {
 
 function forgeProductionFactors() {
   const factors = [[landingDef().name, landingMod('steel')], [lineageDef(state.species).name, baseLineageMod('steel')]];
+  if (lineageSpecialValue('forgeOutput') !== 1) factors.push(['Banked Heat', lineageSpecialValue('forgeOutput')]);
   const conquered = conqueredLineage();
   if (conquered && conqueredLineageMod('steel') > 1) factors.push([`${conquered.name} (Commonality)`, conqueredLineageMod('steel')]);
   for (const e of EXPEDITIONS) {
@@ -965,7 +1020,7 @@ function updateMorale(dt, foodRate) {
 
 function updateExploration(dt) {
   if (!perm('explorers')) return;
-  const traitMultiplier = currentPlaceTraits().reduce((value, trait) => value * (trait.survey || 1), 1);
+  const traitMultiplier = currentPlaceTraits().reduce((value, trait) => value * (trait.survey || 1), 1) * lineageSpecialValue('survey');
   state.surveyPoints = (state.surveyPoints || 0) + explorerCount() * 0.025 * traitMultiplier * dt;
   discoverTradePartners();
 }
@@ -993,7 +1048,7 @@ function updateRandomEvents(dt) {
     return;
   }
   const lineageEvents = LINEAGE_EVENTS[state.species] || [];
-  const lineageEventChance = currentPlaceTraits().some(trait => trait.atavistic) ? 1 : 0.5;
+  const lineageEventChance = 0.5 * activeLineageTraitScale();
   const local = lineageEvents.length > 0 && Math.random() < lineageEventChance;
   const pool = local ? lineageEvents : RANDOM_EVENTS;
   const event = pool[Math.floor(Math.random() * pool.length)];
@@ -1024,9 +1079,9 @@ function updateRandomEvents(dt) {
   }
   for (const { id: resource, name } of RESOURCES) {
     if (!event[resource] || !state.seen[resource]) continue;
-    const amount = event.timeReward
+    const amount = (event.timeReward
       ? Math.max(randomRange(event[resource]), Math.round(Math.max(0, timeRates[resource] || 0) * timeSeconds))
-      : randomEventResourceAmount(resource, event[resource]);
+      : randomEventResourceAmount(resource, event[resource])) * (local ? lineageSpecialValue('eventReward') : 1);
     const before = state.res[resource];
     // Rewards never discard an existing over-cap stockpile.
     state.res[resource] = amount > 0 ? before + Math.min(amount, Math.max(0, capacityOf(resource) - before)) : Math.max(0, before + amount);
@@ -1040,7 +1095,8 @@ function updateRandomEvents(dt) {
 function baseLineageMod(res) {
   const lineage = lineageDef(state.species);
   const modifier = (lineage.mods[res] === undefined ? 1 : lineage.mods[res]) * (lineage.all || 1);
-  return currentPlaceTraits().some(trait => trait.atavistic) ? 1 + (modifier - 1) * 2 : modifier;
+  const traitId = lineage.traitEffects?.[res];
+  return lineageTraitModifier(modifier, traitId ? lineageTraitLevel(traitId, lineage) : 1);
 }
 function lineageMod(res) {
   return baseLineageMod(res) * conqueredLineageMod(res);
@@ -1141,6 +1197,9 @@ function production(dt = 0.25, breakdown = null) {
     const active = poweredBonusByResource[res];
     if (base > 0 && active) factors = [...factors, ['Awaken Ancients', 1 + 0.10 * active]];
     if (base > 0 && weather.mods[res]) factors = [...factors, [`Weather (${weather.name}, ${weather.temperature}°C)`, weather.mods[res]]];
+    if (base > 0 && res === 'food' && (weather.id === 'rain' || weather.id === 'fog')) {
+      factors = [...factors, ['Floodwise', lineageSpecialValue('weatherFood')]];
+    }
     const amount = factors.reduce((value, [, factor]) => value * factor, base);
     rates[res] += amount;
     if (base < 0) outgoingRates[res] += amount;
@@ -1345,8 +1404,8 @@ function resourceRateTooltip(resource, rate, entries) {
 function hospitalTimeMod() { return Math.pow(0.9, bld('hospital')); }
 function popGrowthNeed() {
   const lineageGrowth = lineageDef(state.species).growthTime || 1;
-  const atavisticGrowth = currentPlaceTraits().some(trait => trait.atavistic)
-    ? Math.max(0.1, 1 + (lineageGrowth - 1) * 2) : lineageGrowth;
+  const growthTrait = lineageDef(state.species).growthTrait;
+  const atavisticGrowth = lineageTraitModifier(lineageGrowth, growthTrait ? lineageTraitLevel(growthTrait) : 1) * lineageSpecialValue('growthTime');
   return (20 + state.pop * 4) * 0.67 * (tech('aphrodisiac') ? 0.75 : 1) * hospitalTimeMod() * atavisticGrowth / moraleMult();
 }
 function populationGrowthTime() {
@@ -1355,8 +1414,9 @@ function populationGrowthTime() {
 function populationGrowthTooltip() {
   const base = 20 + state.pop * 4;
   const lineageGrowth = lineageDef(state.species).growthTime || 1;
-  const atavistic = currentPlaceTraits().some(trait => trait.atavistic);
-  const effectiveLineageGrowth = atavistic ? Math.max(0.1, 1 + (lineageGrowth - 1) * 2) : lineageGrowth;
+  const growthTrait = lineageDef(state.species).growthTrait;
+  const effectiveLineageGrowth = lineageTraitModifier(lineageGrowth, growthTrait ? lineageTraitLevel(growthTrait) : 1);
+  const atavistic = growthTrait && effectiveLineageGrowth !== lineageGrowth;
   const growthTraits = currentPlaceTraits().filter(trait => trait.growth && trait.growth !== 1);
   const lines = [
     `Population growth — ${fmt(populationGrowthTime())} seconds per new villager`,
@@ -1509,14 +1569,14 @@ function resolveTribeRaid(id) {
   const armed = tech('weaponry') ? able : 0;
   // Armor keeps a bad fight from becoming fatal; it does not make the
   // settlement more likely to win the engagement.
-  const defense = (able + wounded * 0.5 + armed * 0.9) * governanceDefenseMod() * (isMephit() ? 1.35 : 1);
+  const defense = (able + wounded * 0.5 + armed * 0.9) * governanceDefenseMod() * (isMephit() ? mephitDefenseMod() : 1);
   // Incoming raids should create pressure without deleting a settlement's
   // entire military investment.  Hostility still matters, but the old power
   // curve made a merely adequate garrison pay an outsized price on a loss.
   const raidPower = (militaryStrength(entry) / 20 + (50 - entry.disposition) / 20 + Math.random() * 4) * 0.8;
   if (defense >= raidPower) {
     entry.disposition = Math.max(-100, entry.disposition - 2);
-    if (isMephit()) state.diplomacyEventT = -120;
+    if (isMephit()) state.diplomacyEventT = -mephitRaidDelay();
     addLog(`The ${tribe.name} test Emberhold's walls, but ${able} able Guard${able === 1 ? '' : 's'} drive them off.`, 'log-good');
     return;
   }
@@ -1540,7 +1600,7 @@ function resolveTribeRaid(id) {
     loot.push(`${fmt(amount)} ${resourceName(pick)}`);
   }
   entry.disposition = Math.max(-100, entry.disposition - 6);
-  if (isMephit()) state.diplomacyEventT = -120;
+  if (isMephit()) state.diplomacyEventT = -mephitRaidDelay();
   addLog(`The ${tribe.name} raid Emberhold! ${deaths} Guard${deaths === 1 ? '' : 's'} die${deaths === 1 ? 's' : ''}, ${injuries} suffer injuries, and they make off with ${loot.join(' and ') || 'nothing'}.`, 'log-bad');
 }
 
@@ -1788,7 +1848,7 @@ function startGameClock() {
   // lose time; it only wakes the simulation to account for elapsed time.
   if (typeof Worker === 'function') {
     try {
-      gameClockWorker = new Worker('js/game-clock.worker.js?v=publish-20260908s');
+      gameClockWorker = new Worker('js/game-clock.worker.js?v=publish-20260908t');
       gameClockWorker.addEventListener('message', () => {
         updateGameClock(true);
         renderBonusTimer();
@@ -2873,7 +2933,7 @@ function renderDiplomacy() {
       `<div class="card-desc">${tribe.text}</div>` +
       `<div class="res-note">${habitatText(tribe)}</div>` +
       `<div class="res-note">Military strength: ${entry.militaryKnown ? Math.round(militaryStrength(entry)) : 'unknown'} · Economic strength: ${entry.economicKnown ? Math.round(economicStrength(entry)) : 'unknown'}</div>` +
-      `<div class="trial-reward">${lineageDef(id).name} lineage: ${lineageDef(id).effect}. ${lineageUnlocked(id) ? 'Unlocked for future migrations.' : 'Migrate with disposition 80+ to unlock for future migrations.'}</div>` +
+      `<div class="trial-reward">${lineageDef(id).name} lineage traits: ${lineageTraitsHtml(lineageDef(id))}. ${lineageUnlocked(id) ? 'Unlocked for future migrations.' : 'Migrate with disposition 80+ to unlock for future migrations.'}</div>` +
       (local && (entry.disposition >= 80 || entry.conquered) ? `<div class="trial-reward">Active ally: +${Math.round(alliedIncomeBonus() * 1000) / 10}% to all village incomes.</div>` : '') +
       (local && entry.disposition < 0 ? `<div class="trial-mod">Relations are strained: the ${tribe.name} may raid the village.</div>` : '') +
       (local ? `<div class="trial-goal">${diplomacyRequestText(tribe, entry)}</div>` : '<div class="res-note">Only a few nice letters can reach them for now.</div>') +
@@ -3063,9 +3123,8 @@ function renderMigration() {
     const selected = (state.pendingSpecies || state.species) === l.id;
     const allowed = lineageSelectable(l.id);
     h += `<div class="card ${selected ? 'lineage-selected' : ''} ${allowed ? '' : 'dimmed'}"><div class="card-head">` +
-      `<span class="card-title has-tooltip" data-tooltip="${attrText(l.desc)}">${l.name}</span>` +
-      `<span class="card-effect">${l.effect}</span></div>` +
-      `<div class="card-desc">${l.desc}</div><div class="res-note">${habitatText(l)}</div>` +
+      `<span class="card-title has-tooltip" data-tooltip="${attrText(l.desc)}">${l.name}</span></div>` +
+      `<div class="card-desc">${l.desc}</div><div class="res-note">Traits: ${lineageTraitsHtml(l)}</div>` +
       `<div class="card-actions"><button data-action="lineage" data-id="${l.id}" ${selected || !allowed ? 'disabled' : ''}>${!allowed ? 'Requires a suitable landing' : selected ? 'Chosen' : 'Choose this lineage'}</button></div></div>`;
   }
   h += renderShop();
@@ -3140,7 +3199,7 @@ function renderStats() {
     ['Population', fmt(state.pop), `${fmt(popCap())} housing capacity`],
     ['Buildings raised', fmt(buildings), `${Object.keys(state.bld || {}).length} types`],
     ['Research completed', fmt(research), `${Object.keys(state.techs || {}).length} discoveries`],
-    ['Current lineage', lineageDef(state.species).name, lineageDef(state.species).effect],
+    ['Current lineage', lineageDef(state.species).name, lineageTraitsText(lineageDef(state.species))],
     ['Completion bonus', `+${(completed * 0.1).toFixed(1)}%`, `${completed} of ${ACHIEVEMENTS.length} achievements completed`],
   ].map(([label, value, note]) => `<div class="stat-card"><div class="stat-label">${label}</div><div class="stat-value">${value}</div><div class="stat-note">${note}</div></div>`).join('') + '</div>';
   h += '<h2 class="section">Lifetime marks</h2><div class="res-note">Completed trials: ' + fmt(totalTrialsCompleted()) + ' · Sites established: ' + Object.keys(state.expeditions || {}).length + ' · Echoes held: ' + fmt(state.echoes) + '</div>';
@@ -3208,7 +3267,7 @@ function renderLog() {
 function loadLatestUpdatesTooltip() {
   const button = document.getElementById('btn-updates');
   if (!button || typeof fetch !== 'function' || typeof DOMParser !== 'function') return;
-  fetch('changelog.html?v=publish-20260908u3')
+  fetch('changelog.html?v=publish-20260908u5')
     .then(response => response.ok ? response.text() : Promise.reject(new Error('changelog unavailable')))
     .then(source => {
       const doc = new DOMParser().parseFromString(source, 'text/html');
