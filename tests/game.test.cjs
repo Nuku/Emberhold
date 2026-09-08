@@ -34,6 +34,16 @@ test('paused real-time clock does not advance or bank time', () => {
   assert.equal(run('lastGameAt'), 6000);
 });
 
+test('tutorial next-step card can be dismissed permanently', () => {
+  const { run } = game();
+  run('state.jobs.forager = state.pop');
+  assert.match(run('renderNextStep()'), /data-action="tutorial-dismiss"/);
+  run('state.tutorialDismissed = true; saveGame(true); state = loadGame()');
+  assert.equal(run('renderNextStep()'), '');
+  run('state.migrating = true; setOut()');
+  assert.equal(run('state.tutorialDismissed'), true);
+});
+
 test('place traits are climate-aware and affect settlement behavior', () => {
   const { run } = game();
   assert.ok(run('PLACE_TRAITS.length') >= 30);

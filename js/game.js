@@ -113,6 +113,7 @@ function defaultState() {
     won: false,
     achievements: {},
     commonalityLineages: {},
+    tutorialDismissed: false,
     settings: { autosave: true, reducedMotion: false, compactStores: false, strictQueueOrder: false, tooltips: true },
     log: [],
   };
@@ -1604,6 +1605,7 @@ function setOut(trialId = null) {
     diplomacy: state.diplomacy,
     achievements: state.achievements,
     commonalityLineages: state.commonalityLineages,
+    tutorialDismissed: state.tutorialDismissed,
     placeTraits: state.placeTraits,
     won: state.won, savedAt: state.savedAt, bonusTime: state.bonusTime, log: state.log,
   };
@@ -1621,6 +1623,7 @@ function setOut(trialId = null) {
   state.diplomacy = keep.diplomacy;
   state.achievements = keep.achievements;
   state.commonalityLineages = keep.commonalityLineages;
+  state.tutorialDismissed = keep.tutorialDismissed;
   state.won = keep.won;
   state.savedAt = keep.savedAt;
   state.bonusTime = keep.bonusTime;
@@ -2477,6 +2480,7 @@ function renderNextStep() {
         `<div class="card-actions"><button data-action="tab" data-tab="trials">Open Trials</button></div></div>`;
     }
   }
+  if (state.tutorialDismissed) return '';
   let title = 'Begin the settlement';
   let text = 'Assign your four villagers to Foragers and Woodcutters, then keep enough food coming to grow.';
   let action = 'Village';
@@ -2510,7 +2514,7 @@ function renderNextStep() {
     return '';
   }
   return `<div class="next-step card"><div class="card-head"><span class="card-title">${title}</span><span class="card-count">Next step</span></div>` +
-    `<div class="card-desc">${text}</div><div class="card-actions"><button data-action="tab" data-tab="${tab}">${action}</button></div></div>`;
+    `<div class="card-desc">${text}</div><div class="card-actions"><button data-action="tab" data-tab="${tab}">${action}</button><button data-action="tutorial-dismiss">Dismiss tutorial</button></div></div>`;
 }
 
 function resVisible(id) {
@@ -3354,6 +3358,7 @@ function runAction(btn) {
     case 'shop-tab': state.shopTab = btn.dataset.shopTab === 'purchased' ? 'purchased' : 'buy'; render(); break;
     case 'stats-tab': state.statsTab = btn.dataset.statsTab; render(); break;
     case 'setting-toggle': setSetting(btn.dataset.setting); render(); break;
+    case 'tutorial-dismiss': state.tutorialDismissed = true; saveGame(true); render(); break;
     case 'save': saveGame(); render(); break;
     case 'export': exportSave(); break;
     case 'import': importSave(); break;
