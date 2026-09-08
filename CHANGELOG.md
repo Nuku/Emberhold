@@ -4,6 +4,7 @@ All notable changes to Emberhold are recorded here, with the newest changes firs
 
 ## 2026-09-08
 
+- Improved background-tab timekeeping with a dedicated worker clock, while preserving safe delayed-time banking for suspended or sleeping sessions.
 - Improved game and automation performance by indexing immutable definitions and caching repeated lookups.
 - Hardened automation settings loading, cached production-rate checks, and refreshed its status panel after each step; userscript v1.25.8.
 - Removed the construction cap on Factories, allowing additional factories to be built as long as their costs and Power capacity are available.

@@ -4,6 +4,7 @@
 'use strict';
 
 const OFFLINE_CAP = 24 * 3600;  // maximum banked seconds of double-speed play
+const BACKGROUND_CATCH_UP_CAP = 60; // simulate at most one delayed minute at once
 const SPY_TRAINING_TIME = 180;
 const ESPIONAGE_TIME = 20 * 60;
 const SPY_CAPTURE_CHANCE = 0.0001;
@@ -14,6 +15,7 @@ let state = null;
 let lastStoredSave = null;
 let saveConflict = false;
 let lastGameAt = null;
+let gameClockWorker = null;
 let activeTab = 'village';
 let buildFilter = 'incomplete';
 const raidSelections = {};
@@ -1623,10 +1625,11 @@ function chooseLineage(id) {
 }
 
 // ---------- core tick ----------
-function advanceRealTime(elapsed) {
+function advanceRealTime(elapsed, allowBackgroundCatchUp = false) {
   if (saveConflict || state.paused || elapsed <= 0) return;
-  // A suspended browser or sleeping computer banks time instead of catching up.
-  if (elapsed > 5) {
+  // The regular timer is unreliable in a background tab, so it banks delayed
+  // time. The dedicated Worker can safely catch up short timer delays.
+  if (elapsed > 5 && (!allowBackgroundCatchUp || elapsed > BACKGROUND_CATCH_UP_CAP)) {
     state.bonusTime = Math.min(OFFLINE_CAP, state.bonusTime + elapsed);
     return;
   }
@@ -1635,14 +1638,37 @@ function advanceRealTime(elapsed) {
   tick(elapsed + bonus);
 }
 
-function updateGameClock() {
+function updateGameClock(allowBackgroundCatchUp = false) {
   const now = Date.now();
   if (state.paused) {
     lastGameAt = now;
     return;
   }
-  if (lastGameAt !== null) advanceRealTime((now - lastGameAt) / 1000);
+  if (lastGameAt !== null) advanceRealTime((now - lastGameAt) / 1000, allowBackgroundCatchUp);
   lastGameAt = now;
+}
+
+function startGameClock() {
+  // Workers are scheduled more reliably than window timers in background tabs.
+  // Date.now() remains authoritative, so a delayed worker message cannot add or
+  // lose time; it only wakes the simulation to account for elapsed time.
+  if (typeof Worker === 'function') {
+    try {
+      gameClockWorker = new Worker('js/game-clock.worker.js?v=publish-20260908q');
+      gameClockWorker.addEventListener('message', () => {
+        updateGameClock(true);
+        renderBonusTimer();
+      });
+      gameClockWorker.postMessage({ type: 'start', interval: 250 });
+      return;
+    } catch (_) {
+      gameClockWorker = null;
+    }
+  }
+  setInterval(() => {
+    updateGameClock();
+    renderBonusTimer();
+  }, 250);
 }
 
 function togglePause() {
@@ -3402,10 +3428,7 @@ function boot() {
 
   lastGameAt = Date.now();
   saveGame(true);
-  setInterval(() => {
-    updateGameClock();
-    renderBonusTimer();
-  }, 250);
+  startGameClock();
   setInterval(() => { if (!tooltipHover && !pointerDown && !document.activeElement?.closest('.has-tooltip')) render(); }, 500);
   setInterval(() => { if (state.settings.autosave) saveGame(true); }, 15000);
   window.addEventListener('beforeunload', () => saveGame(true));

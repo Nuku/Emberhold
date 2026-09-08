@@ -1243,6 +1243,16 @@ test('bonus time doubles play and expires precisely, while suspended time is ban
   assert.equal(run('state.bonusTime'), 120);
 });
 
+test('worker clock catches up a short background delay but banks a long suspension', () => {
+  const { run } = game();
+  run('advanceRealTime(30, true)');
+  assert.equal(run('state.day'), 60);
+  assert.equal(run('state.bonusTime'), 0);
+  run('advanceRealTime(61, true)');
+  assert.equal(run('state.day'), 60);
+  assert.equal(run('state.bonusTime'), 61);
+});
+
 test('bonus time survives saves and migration and older saves default to zero', () => {
   const { run } = game();
   run('delete state.bonusTime; state = normalizeSave(state)');
