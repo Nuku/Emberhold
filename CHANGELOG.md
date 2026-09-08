@@ -4,6 +4,9 @@ All notable changes to Emberhold are recorded here, with the newest changes firs
 
 ## 2026-09-08
 
+- Added the Wonder reset layer: beacon-guided, landing-specific Wonder expeditions; five dangerous interior sections; persistent section progress; outside research; temporary interior expeditions; escalating calamities; guard rescues; and a dedicated Wonders tab.
+- Added six starting Wonders for Emberplain, Greenfold, Grayrocks, Floodmeadows, Ashfen, and Windmere, each with its own five-section narrative, calamity, research, expeditions, and ending text.
+- Completing a Wonder now forces migration, grants Hope, and records one of three repeatable outcomes. The Sunwell outcomes add Solar Arrays and milder hot days, improved Steam Plant output, or Ancient points.
 - Updated every queued construction, research, and expedition item to show its own missing resources and estimated wait time in parallel queue mode.
 - Added atmospheric narrative descriptions to every trial and expedition, shown directly in their cards, including after an expedition has been established.
 - Expanded expedition and trial flavor text to better describe the risks, places, and promises behind each undertaking.

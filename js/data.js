@@ -35,6 +35,7 @@ const RESOURCE_NAMES = new Map(RESOURCES.map(resource => [resource.id, resource.
 // separate so research and upgrades can tune generation and demand later.
 const POWER_PER_STEAM_PLANT = 3;
 const POWER_PER_WIND_DEVICE = 1;
+const POWER_PER_SOLAR_ARRAY = 5;
 const FACTORY_POWER_REQUIREMENT = 1.5;
 const LIVING_BLOCK_POWER_REQUIREMENT = 1;
 const INDUSTRIALIZATION_COAL_MULTIPLIER = 0.2;
@@ -221,8 +222,13 @@ const BUILDINGS = [
 
   { id: 'steamPlant', name: 'Steam Plant', max: 3, scale: 1.8,
     cost: { steel: 60, coal: 100, tools: 25, currency: 50 },
-    effect: () => `+${POWER_PER_STEAM_PLANT} Power capacity, consumes 0.8 Coal/s`,
+    effect: () => `+${POWER_PER_STEAM_PLANT + (wonderChoice('emberplain', 'silence') ? 1 : 0)} Power capacity, consumes 0.8 Coal/s`,
     req: () => tech('metallurgy'), desc: 'boilers and turbines make a new kind of work possible' },
+
+  { id: 'solarArray', name: 'Solar Array', max: Infinity, scale: 1.9,
+    cost: { steel: 140, copper: 180, machinery: 35, goods: 30 },
+    effect: () => `+${POWER_PER_SOLAR_ARRAY} Power capacity, no fuel required`,
+    req: () => solarPowerAvailable(), desc: 'mirrors and collectors pointed at the sun, carrying on an ancient habit' },
 
   { id: 'dynamo', name: 'Dynamo', max: 1, scale: 1,
     cost: { copper: 140, steel: 50, machinery: 25, tools: 60, currency: 120, goods: 25 },
@@ -1059,6 +1065,181 @@ const EXPEDITIONS = [
     cost: { machinery: 90, aether: 30 },
     effect: '+0.1 aether/s gathered passively, +10% to all production',
     text: 'Above the cloud line, the air is thin enough to hurt and clear enough to see forever. The stars hang close above the ice, as if the old world left them there for whoever climbs high enough.' },
+];
+
+// --- Wonders: the dangerous second reset layer. A Wonder belongs to one
+// landing, is rediscovered through a costly Survey expedition, and is explored
+// section by section. The content here deliberately carries the narrative,
+// while the simulation in game.js supplies the shared danger rules.
+const WONDERS = [
+  { id: 'emberplain', name: 'The Sunwell', short: 'a buried mouth that drinks the sun',
+    findCost: { survey: 320, steel: 220, machinery: 90, food: 1200 },
+    findText: 'Beyond the ash-grass, the old roads converge on a bowl of black glass. At its center, something beneath the sand opens one mirrored eyelid toward the sun.',
+    calamity: { resource: 'power', name: 'The Sunwell draws power away', values: [0.5, 1.2, 2.3, 4.0, 6.5],
+      text: 'The buried collectors wake hungry. Every deeper chamber draws more of Emberhold’s power into the sand.' },
+    sections: [
+      ['The Mirror Gate', 'A ring of mirrored stone descends beneath the dunes. Your lamps appear in its surface before anyone has lit them.'],
+      ['The Helioform Galleries', 'Hall after hall turns with the sun overhead, though no opening admits daylight. The walls are warm enough to blister a hand.'],
+      ['The Black Reservoir', 'Light has pooled here for centuries, heavy as water. The expedition walks beneath a false noon that casts shadows upward.'],
+      ['The Furnace of Noon', 'A lattice wider than a city hums above a depth without floor. Something in the mechanism notices every living body below it.'],
+      ['The Crown Aperture', 'At the heart of the Sunwell, a small star hangs behind sealed glass, patient and impossibly old.'],
+    ],
+    researches: [
+      { name: 'Shade Calculations', cost: { knowledge: 1800, tools: 50 }, effect: 'Progress inside the Sunwell is 25% faster.', progress: 1.25 },
+      { name: 'The Sunblind Oath', cost: { knowledge: 3800, machinery: 45, citizens: 1 }, effect: 'Sunwell danger is reduced by 20%.', danger: 0.8 },
+      { name: 'Borrowed Reflections', cost: { knowledge: 7000, aether: 35, citizens: 2 }, effect: 'The Sunwell’s power drain is reduced by 30%.', calamity: 0.7 },
+    ],
+    expeditions: [
+      { name: 'Follow the Cooling Veins', cost: { steel: 100, tools: 45 }, effect: 'Sunwell danger is reduced by 15%.', danger: 0.85 },
+      { name: 'The Ashen Observatory', cost: { knowledge: 2400, machinery: 30 }, effect: 'Progress inside the Sunwell is 20% faster.', progress: 1.2 },
+    ],
+    decisionText: 'The small star turns behind the glass. It has waited for an instruction longer than anyone can measure.',
+    aftermath: {
+      restore: 'The Sunwell opens to the sky and begins drinking light again. The heat over the Emberplain softens, and every clear morning feels watched.',
+      silence: 'The mirrors go dark one by one. You turn your back on the Ancient answer and begin building a power of your own.',
+      become: 'Your leader steps into the light. When the chamber speaks again, it is with a voice that knows your name but no longer uses it quite right.',
+    },
+  },
+  { id: 'greenfold', name: 'The Worldroot Conservatory', short: 'a forest grown around a buried intelligence',
+    findCost: { survey: 320, wood: 1500, tools: 100, knowledge: 1800 },
+    findText: 'The oldest trees of the Greenfold grow in a perfect ring. Beneath their roots lies a door of living bark, breathing slowly in time with the forest.',
+    calamity: { resource: 'food', name: 'The roots grow hungry', values: [0.18, 0.4, 0.75, 1.2, 1.8],
+      text: 'As the Conservatory wakes, roots seek the settlement’s stores. The forest remembers feeding something much larger than a village.' },
+    sections: [
+      ['The Breathing Door', 'The bark parts around the expedition like lips around a remembered word. Sap runs upward along the walls, against gravity.'],
+      ['The Seed Vaults', 'Millions of seeds sleep in glass cells, each large as a house. Some have names. Some have only instructions.'],
+      ['The Canopy Engine', 'Branches form gears above a void full of green light. They turn only when no one is looking directly at them.'],
+      ['The Orchard of Unmade Things', 'Fruit hangs from silver boughs, each one containing the outline of an animal that was never allowed to be born.'],
+      ['The Root Heart', 'A heart of wood and amber beats beneath the entire Greenfold. Its roots vanish into every horizon.'],
+    ],
+    researches: [
+      { name: 'Graft-Language', cost: { knowledge: 1600, wood: 220 }, effect: 'Conservatory progress is 25% faster.', progress: 1.25 },
+      { name: 'Mercy Pruning', cost: { knowledge: 3600, tools: 60, citizens: 1 }, effect: 'Conservatory danger is reduced by 20%.', danger: 0.8 },
+      { name: 'The Root Census', cost: { knowledge: 6600, aether: 30, citizens: 2 }, effect: 'The root hunger is reduced by 30%.', calamity: 0.7 },
+    ],
+    expeditions: [
+      { name: 'Map the Mycelial Roads', cost: { food: 550, tools: 40 }, effect: 'Conservatory danger is reduced by 15%.', danger: 0.85 },
+      { name: 'Recover the Pollinators', cost: { wood: 500, knowledge: 1800 }, effect: 'Conservatory progress is 20% faster.', progress: 1.2 },
+    ],
+    decisionText: 'The Root Heart waits with a patience older than soil. It can be given a keeper, a purpose, or an ending.',
+    aftermath: {
+      restore: 'The Conservatory exhales, and the Greenfold’s canopy shifts as if making room for a future it once cultivated.',
+      silence: 'The roots loosen their hold. The forest becomes merely a forest again, vast and alive and answerable to no buried will.',
+      become: 'Your leader enters the amber heart. Leaves all across the Greenfold turn toward the same invisible point.',
+    },
+  },
+  { id: 'grayrocks', name: 'The World Anvil', short: 'a forge sunk into the bones of a mountain',
+    findCost: { survey: 320, stone: 1600, steel: 240, tools: 110 },
+    findText: 'High above the last pass, the mountain face bears a seam too straight to be natural. When struck, it opens like a forge door and breathes out a wind of iron.',
+    calamity: { resource: 'stone', name: 'The mountain demands stone', values: [0.2, 0.45, 0.85, 1.4, 2.1],
+      text: 'The Anvil shifts under the Grayrocks. Supporting rock fractures, and the settlement feeds its braces with stone.' },
+    sections: [
+      ['The Haulway', 'A chain thicker than a road rises into the mountain, carrying empty hooks toward a ceiling lost in smoke.'],
+      ['The Pattern Mills', 'Metal plates stamp themselves into shapes that fit no human hand. The discarded failures whisper as they cool.'],
+      ['The Suspended Foundry', 'An entire forge hangs over magma on chains of blue metal. Every hammer blow lands a moment before it is struck.'],
+      ['The Measure of Iron', 'The walls display every alloy the Ancients ever named, including several that have begun to crawl away from their labels.'],
+      ['The Anvil Face', 'At the summit chamber rests an anvil the size of a town square, waiting beneath a hammer that has not fallen in an age.'],
+    ],
+    researches: [
+      { name: 'Load-Bearing Cant', cost: { knowledge: 1800, stone: 260 }, effect: 'Anvil progress is 25% faster.', progress: 1.25 },
+      { name: 'Cold-Hammer Doctrine', cost: { knowledge: 4000, steel: 70, citizens: 1 }, effect: 'Anvil danger is reduced by 20%.', danger: 0.8 },
+      { name: 'The Weight of Names', cost: { knowledge: 7200, machinery: 50, citizens: 2 }, effect: 'The stone demand is reduced by 30%.', calamity: 0.7 },
+    ],
+    expeditions: [
+      { name: 'Secure the Counterweights', cost: { stone: 700, steel: 80 }, effect: 'Anvil danger is reduced by 15%.', danger: 0.85 },
+      { name: 'Trace the Old Crane', cost: { machinery: 45, tools: 45 }, effect: 'Anvil progress is 20% faster.', progress: 1.2 },
+    ],
+    decisionText: 'The hammer waits over the Anvil Face. Its next strike could make a servant, a legacy, or a ruin.',
+    aftermath: {
+      restore: 'The World Anvil strikes once. The sound travels through every peak, and the mountain begins its old work.',
+      silence: 'The hammer is lowered and wedged in place. For the first time in an age, the Grayrocks are allowed to be still.',
+      become: 'Your leader takes the place beneath the hammer. The forge’s fire adopts a new rhythm, disturbingly close to a pulse.',
+    },
+  },
+  { id: 'floodmeadows', name: 'The River Crown', short: 'a drowned machine that once told water where to go',
+    findCost: { survey: 320, food: 1700, wood: 700, tools: 100 },
+    findText: 'When the Floodmeadows recede, a circle of black towers rises from the mud. Their doors open only during the brief hour when the river holds its breath.',
+    calamity: { resource: 'wood', name: 'The flood takes the timber', values: [0.16, 0.35, 0.65, 1.0, 1.5],
+      text: 'The River Crown calls water through forgotten channels. Flooding swells at the edges of Emberhold and carries timber away.' },
+    sections: [
+      ['The Low Gate', 'Water climbs the stairs ahead of the expedition, then pauses at each landing as though waiting to be introduced.'],
+      ['The Sluice Choir', 'Thousands of valves sing beneath the current. Their voices combine into a language that sounds almost like weather.'],
+      ['The Drowned Map Room', 'Rivers of light flow across the ceiling, redrawing the world as it might have been before people gave names to its banks.'],
+      ['The Tide Engine', 'A wheel the width of a valley turns in total silence. Each spoke carries a sea that never reaches the floor.'],
+      ['The Crown Chamber', 'At the center of the flood, a small dry room holds the lever that once decided where every river should go.'],
+    ],
+    researches: [
+      { name: 'River Grammar', cost: { knowledge: 1700, wood: 200 }, effect: 'River Crown progress is 25% faster.', progress: 1.25 },
+      { name: 'Drowning Protocol', cost: { knowledge: 3600, tools: 65, citizens: 1 }, effect: 'River Crown danger is reduced by 20%.', danger: 0.8 },
+      { name: 'The Levee Compact', cost: { knowledge: 6800, stone: 420, citizens: 2 }, effect: 'The timber loss is reduced by 30%.', calamity: 0.7 },
+    ],
+    expeditions: [
+      { name: 'Sound the Silent Locks', cost: { food: 600, tools: 40 }, effect: 'River Crown danger is reduced by 15%.', danger: 0.85 },
+      { name: 'Chart the Returning Water', cost: { knowledge: 2200, wood: 350 }, effect: 'River Crown progress is 20% faster.', progress: 1.2 },
+    ],
+    decisionText: 'The lever waits above the waterline. The Crown offers to remember every shore, if someone will tell it what a shore is for.',
+    aftermath: {
+      restore: 'The River Crown turns, and the floodwaters withdraw into ordered paths. The meadows breathe easier beneath an old command.',
+      silence: 'The lever breaks under your hands. Water keeps its own counsel, and the river forgets that it was ever ruled.',
+      become: 'Your leader wades into the map of light. Every channel in the Floodmeadows begins carrying a second reflection.',
+    },
+  },
+  { id: 'ashfen', name: 'The Renewal Basin', short: 'a marsh reactor that makes life from what is discarded',
+    findCost: { survey: 320, coal: 900, stone: 900, steel: 160 },
+    findText: 'The Ashfen exhales around a basin of pale ceramic, broad enough to swallow a village. Warm mist rises from its cracks, carrying the scent of rain on old graves.',
+    calamity: { resource: 'tools', name: 'The fen corrodes every tool', values: [0.04, 0.09, 0.16, 0.26, 0.4],
+      text: 'The Basin breathes a salt vapor through the marsh. Metal pits, leather softens, and every repair takes more tools.' },
+    sections: [
+      ['The Filter Marsh', 'Reeds of white glass bend around the expedition. They drink foul water and exhale a sweetness that makes the lungs ache.'],
+      ['The Compost Vaults', 'Whole forests have been reduced to orderly layers beneath transparent floors. Something below is still deciding what should grow next.'],
+      ['The Skin Forges', 'Membranes pulse in warm frames, knitting waste, mineral, and light into forms too clean to have been born.'],
+      ['The Living Crucible', 'A lake of green fire separates into cells whenever someone speaks. Each cell briefly shows a face from the expedition.'],
+      ['The Renewal Seat', 'A single chair waits at the lip of the basin, surrounded by pipes that carry death in and possibility out.'],
+    ],
+    researches: [
+      { name: 'Marsh Sterility', cost: { knowledge: 1700, tools: 45 }, effect: 'Renewal Basin progress is 25% faster.', progress: 1.25 },
+      { name: 'The Clean-Hand Vow', cost: { knowledge: 3800, steel: 65, citizens: 1 }, effect: 'Renewal Basin danger is reduced by 20%.', danger: 0.8 },
+      { name: 'Accounting for Rot', cost: { knowledge: 7000, aether: 35, citizens: 2 }, effect: 'The corrosion is reduced by 30%.', calamity: 0.7 },
+    ],
+    expeditions: [
+      { name: 'Harvest the White Reeds', cost: { food: 500, tools: 45 }, effect: 'Renewal Basin danger is reduced by 15%.', danger: 0.85 },
+      { name: 'Recover the Sterile Masks', cost: { steel: 90, machinery: 25 }, effect: 'Renewal Basin progress is 20% faster.', progress: 1.2 },
+    ],
+    decisionText: 'The Basin has prepared a place for a caretaker. Around it, discarded matter waits to learn whether it is still allowed to become.',
+    aftermath: {
+      restore: 'The Basin begins its ancient work again. The Ashfen’s breath changes from rot to rain, though nobody can say where the old waste has gone.',
+      silence: 'The valves close forever. The marsh keeps its decay, its danger, and its right to be imperfectly alive.',
+      become: 'Your leader enters the Renewal Seat. The basin accepts them gently, and the mist begins carrying their voice.',
+    },
+  },
+  { id: 'windmere', name: 'The Mirrored Orrery', short: 'a lakebound observatory that turns the sky beneath the water',
+    findCost: { survey: 320, knowledge: 3200, aether: 90, machinery: 70 },
+    findText: 'On a windless night, the stars below Windmere rearrange themselves into a door. The lake opens without rippling, and a stairway descends into reflected sky.',
+    calamity: { resource: 'knowledge', name: 'The false sky consumes thought', values: [0.18, 0.4, 0.75, 1.2, 1.9],
+      text: 'The Orrery’s reflected constellations pull at every unfinished thought. Knowledge drains away into the water as the expedition goes deeper.' },
+    sections: [
+      ['The Reflected Stair', 'The stair descends beneath the lake while the surface remains overhead. Fish drift through constellations that do not belong to the sky.'],
+      ['The Moon Libraries', 'Books orbit a black pool in slow rings. Each opens to a page describing the reader’s next mistake.'],
+      ['The Lens Sea', 'A sea of polished lenses extends beyond sight. Every step shows a different world standing where yours should be.'],
+      ['The Astral Gearwork', 'Planets no larger than carts turn between brass teeth. Their moons are engraved with names your researchers refuse to repeat.'],
+      ['The Unnamed Zenith', 'At the Orrery’s center, a dark star hangs beneath the water, waiting for someone to decide which sky deserves to be real.'],
+    ],
+    researches: [
+      { name: 'Refraction Discipline', cost: { knowledge: 2200, aether: 25 }, effect: 'Mirrored Orrery progress is 25% faster.', progress: 1.25 },
+      { name: 'The Closed Eye Method', cost: { knowledge: 4600, machinery: 40, citizens: 1 }, effect: 'Mirrored Orrery danger is reduced by 20%.', danger: 0.8 },
+      { name: 'A Map That Refuses Us', cost: { knowledge: 8000, aether: 55, citizens: 2 }, effect: 'The knowledge drain is reduced by 30%.', calamity: 0.7 },
+    ],
+    expeditions: [
+      { name: 'Anchor the Moon Libraries', cost: { knowledge: 2600, tools: 55 }, effect: 'Mirrored Orrery danger is reduced by 15%.', danger: 0.85 },
+      { name: 'Measure the Black Star', cost: { machinery: 40, aether: 30 }, effect: 'Mirrored Orrery progress is 20% faster.', progress: 1.2 },
+    ],
+    decisionText: 'The dark star waits below the water. The reflected heavens have room for a new mind, an old instruction, or a merciful silence.',
+    aftermath: {
+      restore: 'The Orrery resumes its turning. Above Windmere, the true stars seem briefly uncertain of their places.',
+      silence: 'The reflected constellations fade. The lake gives back a simple, honest darkness.',
+      become: 'Your leader steps beneath the dark star. For a moment, everyone near Windmere sees two horizons looking back.',
+    },
+  },
 ];
 
 // --- season food multipliers ---

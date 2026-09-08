@@ -344,7 +344,7 @@ test('queue items show each missing resource with its own estimate', () => {
   run(`state.queues.build = [{ type: 'build', id: 'stoneWorks' }, { type: 'build', id: 'lumberYard' }];
     state.res.wood = 0; state.res.stone = 0;`);
   const html = run("renderQueue('build')");
-  assert.equal((html.match(/queue-waiting-item/g) || []).length, 3);
+  assert.equal((html.match(/queue-waiting-item/g) || []).length, 4);
   assert.match(html, /queue-waiting-item[\s\S]*queue-time/);
   assert.match(html, /lumberCamp|Lumber/);
   assert.equal((html.match(/queue-needs/g) || []).length, 0);
@@ -1676,6 +1676,62 @@ test('factories switch outputs and consume recipe materials without multiplying 
     if (input) assert.equal(run(`rates['${input}']`), -cost);
     if (id !== 'goods') assert.equal(run('rates.goods'), 0);
   }
+});
+
+test('Wonders require beacon hints, scale their search by distinct beacons, and expose six landing-specific definitions', () => {
+  const { run } = game();
+  assert.equal(run('WONDERS.length'), 6);
+  assert.equal(run('new Set(WONDERS.map(w => w.id)).size'), 6);
+  assert.equal(run('findWonder()'), false);
+  run(`state.beaconsLit = { emberplain: true };
+    state.surveyPoints = 10000; state.res.steel = 10000; state.res.machinery = 10000; state.res.food = 10000;`);
+  const oneBeacon = run(`wonderFindCost(wonderDef()).survey`);
+  run(`state.beaconsLit = Object.fromEntries(LANDINGS.map(l => [l.id, true]));`);
+  const sixBeacons = run(`wonderFindCost(wonderDef()).survey`);
+  assert.ok(sixBeacons < oneBeacon);
+  assert.equal(run('findWonder()'), true);
+  assert.equal(run('state.wonders.emberplain.found'), true);
+});
+
+test('Rapture work opens the Wonder tab, resets only an emptied active section, and retains completed sections', () => {
+  const { run } = game();
+  run(`state.beaconsLit = { emberplain: true }; state.surveyPoints = 10000;
+    state.res.steel = 10000; state.res.machinery = 10000; state.res.food = 10000;
+    findWonder(); state.pop = 12;`);
+  assert.equal(run('assignRapture(2)'), true);
+  assert.equal(run('state.rapture.tabSeen'), true);
+  assert.equal(run(`tabUnlocked('wonders')`), true);
+  assert.match(run('renderWonder()'), /The Sunwell/);
+  assert.match(run('renderWonder()'), /The Mirror Gate/);
+  run(`state.wonders.emberplain.sections[0] = true; state.wonders.emberplain.progress = 6; assignRapture(-2);`);
+  assert.equal(run('state.wonders.emberplain.sections[0]'), true);
+  assert.equal(run('state.wonders.emberplain.progress'), 0);
+});
+
+test('Wonder guards can save workers, wounded-only guards face doubled death weight, and fate rewards persist through forced migration', () => {
+  const { run } = game();
+  run(`state.beaconsLit = { emberplain: true }; state.surveyPoints = 10000;
+    state.res.steel = 10000; state.res.machinery = 10000; state.res.food = 10000;
+    findWonder(); state.pop = 12; state.techs.guards = true; state.bld.barracks = 2;
+    state.jobs.guard = 2; assignRapture(1); Math.random = () => 0; resolveWonderIncident();`);
+  assert.equal(run('state.pop'), 12);
+  assert.equal(run('state.guardInjuries'), 1);
+  assert.ok(run(`resolveWonderGuardOutcome.toString().includes('weights.death *= 2')`));
+  run(`state.wonders.emberplain.sections = [true, true, true, true, true]; chooseWonderFate('silence');`);
+  assert.equal(run('state.hope'), 1);
+  assert.equal(run(`state.wonders.emberplain.outcomes.silence`), true);
+  assert.notEqual(run('state.landing'), 'emberplain');
+  run(`state.bld.steamPlant = 1;`);
+  assert.equal(run('production(0).power'), 4);
+  run(`state.landing = 'emberplain'; state.wonders.emberplain.found = true;
+    state.wonders.emberplain.sections = [true, true, true, true, true]; chooseWonderFate('become');`);
+  assert.equal(run('state.ancient'), 1);
+  run(`state.landing = 'emberplain'; state.wonders.emberplain.found = true;
+    state.wonders.emberplain.sections = [true, true, true, true, true]; chooseWonderFate('restore');
+    state.bld.steamPlant = 1;`);
+  assert.equal(run('state.hope'), 3);
+  assert.equal(run('solarPowerAvailable()'), true);
+  assert.equal(run(`BUILDING_BY_ID.get('solarArray').req()`), true);
 });
 
 test('factories throttle to available materials and storage and stop without Power capacity', () => {

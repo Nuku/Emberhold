@@ -40,6 +40,7 @@ const TRIBE_BY_ID = indexById(TRIBES);
 const LINEAGE_BY_ID = indexById(LINEAGES);
 const LANDING_BY_ID = indexById(LANDINGS);
 const UPGRADE_BY_ID = indexById(UPGRADES);
+const WONDER_BY_ID = indexById(WONDERS);
 const FACTORY_RECIPE_BY_ID = indexById(FACTORY_RECIPES);
 const PLACE_TRAIT_BY_ID = indexById(PLACE_TRAITS);
 const LINEAGE_TRAIT_BY_ID = indexById(LINEAGE_TRAITS);
@@ -74,6 +75,11 @@ function defaultState() {
     trialDone: {},
     trial: null,
     expeditions: {},
+    beaconsLit: {},
+    wonders: {},
+    rapture: { landing: null, workers: 0, tabSeen: false },
+    hope: 0,
+    ancient: 0,
     echoes: 0,
     upgrades: {},
     landing: 'emberplain',
@@ -130,6 +136,16 @@ function tech(id) { return !!state.techs[id]; }
 function bld(id) { return state.bld[id] || 0; }
 function era() { return state.era; }
 function expDone(id) { return !!state.expeditions[id]; }
+function wonderDef(id = state.landing) { return WONDER_BY_ID.get(id); }
+function wonderRecord(id = state.landing) {
+  state.wonders = state.wonders || {};
+  if (!state.wonders[id]) state.wonders[id] = { found: false, sections: [false, false, false, false, false], progress: 0, researches: {}, expeditions: {}, outcomes: {} };
+  return state.wonders[id];
+}
+function beaconsLitCount() { return Object.keys(state.beaconsLit || {}).filter(id => state.beaconsLit[id]).length; }
+function wonderChoice(id, choice) { return !!state.wonders?.[id]?.outcomes?.[choice]; }
+function solarPowerAvailable() { return wonderChoice('emberplain', 'restore') &&
+  ['steamPlant', 'dynamo', 'windDevice', 'livingBlock', 'factory'].some(id => bld(id) > 0); }
 function trialCount(id) { return state.trialDone[id] || 0; }
 function upg(id) { return state.upgrades[id] || 0; }
 function civicDef(id) { return CIVIC_BY_ID.get(id) || CIVICS[0]; }
@@ -474,6 +490,231 @@ function siteExpeditionsComplete() {
 }
 function practicedMigratorAvailable() { return siteExpeditionsComplete(); }
 
+// ---------- Wonders ----------
+const WONDER_SECTION_PROGRESS = 12;
+const WONDER_PROGRESS_PER_WORKER = 0.02;
+const WONDER_BASE_DANGER = 0.0012;
+
+function wonderSectionIndex(record = wonderRecord()) {
+  return record.sections.findIndex(done => !done);
+}
+function wonderReadyForDecision(record = wonderRecord()) { return wonderSectionIndex(record) < 0; }
+function wonderFindCost(def = wonderDef()) {
+  if (!def) return {};
+  // Every distinct beacon gives the expedition a clearer set of clues. The
+  // sixth beacon is the cheapest possible route, but never a cheap route.
+  const multiplier = Math.max(1.05, 1.80 - 0.15 * Math.max(0, beaconsLitCount() - 1));
+  return Object.fromEntries(Object.entries(def.findCost).map(([id, amount]) => [id, Math.ceil(amount * multiplier)]));
+}
+function canAffordWonderCost(cost) {
+  const survey = cost.survey || 0;
+  const physical = { ...cost };
+  delete physical.survey;
+  return (state.surveyPoints || 0) >= survey && canAfford(physical);
+}
+function payWonderCost(cost) {
+  const physical = { ...cost };
+  const survey = physical.survey || 0;
+  delete physical.survey;
+  if (!canAffordWonderCost(cost)) return false;
+  state.surveyPoints -= survey;
+  payCost(physical);
+  return true;
+}
+function remainingWonderChoices(record = wonderRecord()) {
+  return ['restore', 'silence', 'become'].filter(choice => !record.outcomes?.[choice]);
+}
+function findWonder() {
+  const def = wonderDef();
+  if (!def || beaconsLitCount() < 1) return false;
+  const record = wonderRecord(def.id);
+  if (record.found || !remainingWonderChoices(record).length) return false;
+  const cost = wonderFindCost(def);
+  if (!payWonderCost(cost)) return false;
+  record.found = true;
+  record.sections = [false, false, false, false, false];
+  record.progress = 0;
+  record.researches = {};
+  record.expeditions = {};
+  addLog(`The expedition finds ${def.name}. ${def.findText}`, 'log-important');
+  return true;
+}
+function currentWonderSection(record = wonderRecord(), def = wonderDef()) {
+  const index = wonderSectionIndex(record);
+  return index < 0 ? null : { index, name: def.sections[index][0], text: def.sections[index][1] };
+}
+function wonderProgressMultiplier(record = wonderRecord(), def = wonderDef()) {
+  let multiplier = 1;
+  def.researches.forEach((research, index) => { if (record.researches?.[index]) multiplier *= research.progress || 1; });
+  def.expeditions.forEach((expedition, index) => { if (record.expeditions?.[index]) multiplier *= expedition.progress || 1; });
+  return multiplier;
+}
+function wonderDangerMultiplier(record = wonderRecord(), def = wonderDef()) {
+  let multiplier = Math.pow(1.25, Math.max(0, wonderSectionIndex(record)));
+  def.researches.forEach((research, index) => { if (record.researches?.[index]) multiplier *= research.danger || 1; });
+  def.expeditions.forEach((expedition, index) => { if (record.expeditions?.[index]) multiplier *= expedition.danger || 1; });
+  return multiplier;
+}
+function wonderCalamityMultiplier(record = wonderRecord(), def = wonderDef()) {
+  let multiplier = 1;
+  def.researches.forEach((research, index) => { if (record.researches?.[index]) multiplier *= research.calamity || 1; });
+  return multiplier;
+}
+function activeWonderCalamity() {
+  const def = wonderDef();
+  const record = state.wonders?.[state.landing];
+  if (!def || !record?.found || wonderReadyForDecision(record)) return null;
+  const section = Math.max(0, wonderSectionIndex(record));
+  return { ...def.calamity, amount: def.calamity.values[section] * wonderCalamityMultiplier(record, def), section };
+}
+function assignRapture(delta) {
+  const def = wonderDef();
+  const record = state.wonders?.[state.landing];
+  if (!def || !record?.found || wonderReadyForDecision(record) || !Number.isInteger(delta) || !delta) return false;
+  state.rapture = state.rapture || { landing: null, workers: 0, tabSeen: false };
+  if (state.rapture.landing && state.rapture.landing !== state.landing) return false;
+  const next = raptureWorkers() + delta;
+  if (next < 0 || (delta > 0 && delta > unassigned())) return false;
+  state.rapture.landing = state.landing;
+  state.rapture.workers = next;
+  if (next > 0) state.rapture.tabSeen = true;
+  if (next === 0) resetWonderSection('The last worker leaves the section. The foothold is lost.');
+  return true;
+}
+function resetWonderSection(message) {
+  const record = state.wonders?.[state.landing];
+  if (!record?.found || wonderReadyForDecision(record) || raptureWorkers() > 0) return;
+  if (record.progress > 0) {
+    record.progress = 0;
+    addLog(message, 'log-bad');
+  }
+}
+function wonderDefenseMultiplier() {
+  return governanceDefenseMod() * (tech('weaponry') ? 1.20 : 1) * (isMephit() ? mephitDefenseMod() : 1);
+}
+function resolveWonderGuardOutcome(woundedOnly) {
+  const armor = Math.pow(1.10, armorLevel());
+  const weights = { injury: 40, death: 40 / armor, hero: 20 * armor };
+  if (woundedOnly) weights.death *= 2;
+  const total = weights.injury + weights.death + weights.hero;
+  let roll = Math.random() * total;
+  const healthy = ableGuards();
+  if ((roll -= weights.injury) < 0) {
+    if (!woundedOnly) state.guardInjuries = Math.min(state.jobs.guard || 0, (state.guardInjuries || 0) + 1);
+    addLog('A Guard drags a Rapture worker clear, but is injured in the attempt.', 'log-bad');
+    return 'injury';
+  }
+  if ((roll -= weights.death) < 0) {
+    state.jobs.guard = Math.max(0, (state.jobs.guard || 0) - 1);
+    if (woundedOnly) state.guardInjuries = Math.max(0, (state.guardInjuries || 0) - 1);
+    state.migrationGuardDeaths = (state.migrationGuardDeaths || 0) + 1;
+    addLog('A Guard saves a Rapture worker and does not return.', 'log-bad');
+    return 'death';
+  }
+  addLog('A Guard finds a way through the impossible. Everyone in the incident gets out.', 'log-good');
+  return 'hero';
+}
+function resolveWonderIncident() {
+  const total = state.jobs.guard || 0;
+  const healthy = ableGuards();
+  const woundedOnly = healthy <= 0 && total > 0;
+  if (total > 0) {
+    const saveChance = Math.min(0.98, 0.60 * wonderDefenseMultiplier() * Math.pow(1.10, armorLevel()));
+    if (Math.random() < saveChance) {
+      resolveWonderGuardOutcome(woundedOnly);
+      return;
+    }
+  }
+  state.pop = Math.max(1, state.pop - 1);
+  state.rapture.workers = Math.max(0, raptureWorkers() - 1);
+  addLog('A Rapture worker is lost inside the Wonder.', 'log-bad');
+  reconcileWorkers();
+  resetWonderSection('The last worker is gone. The section closes behind them.');
+}
+function completeWonderSection() {
+  const def = wonderDef();
+  const record = wonderRecord();
+  const section = currentWonderSection(record, def);
+  if (!section) return;
+  record.sections[section.index] = true;
+  record.progress = 0;
+  if (wonderReadyForDecision(record)) {
+    state.rapture.workers = 0;
+    addLog(`The expedition reaches the heart of ${def.name}. ${def.decisionText}`, 'log-important');
+  } else {
+    addLog(`Section secured: ${section.name}. The expedition presses deeper into ${def.name}.`, 'log-good');
+  }
+}
+function updateWonder(dt) {
+  if (!raptureActiveHere() || raptureWorkers() <= 0) return;
+  const record = wonderRecord();
+  const def = wonderDef();
+  record.progress += raptureWorkers() * WONDER_PROGRESS_PER_WORKER * wonderProgressMultiplier(record, def) * dt;
+  const danger = WONDER_BASE_DANGER * wonderDangerMultiplier(record, def);
+  const incidentChance = 1 - Math.pow(1 - danger, raptureWorkers() * dt);
+  if (Math.random() < incidentChance) resolveWonderIncident();
+  if (record.progress >= WONDER_SECTION_PROGRESS) completeWonderSection();
+}
+function canBuyWonderResearch(index) {
+  const def = wonderDef(); const record = wonderRecord(); const research = def?.researches[index];
+  const section = wonderSectionIndex(record);
+  if (!research || record.researches?.[index] || !record.found || section < 0 || index > section) return false;
+  const citizens = research.cost.citizens || 0;
+  const cost = { ...research.cost }; delete cost.citizens;
+  return unassigned() >= citizens && canAfford(cost);
+}
+function buyWonderResearch(index) {
+  if (!canBuyWonderResearch(index)) return false;
+  const def = wonderDef(); const record = wonderRecord(); const research = def.researches[index];
+  const cost = { ...research.cost }; const citizens = cost.citizens || 0; delete cost.citizens;
+  payCost(cost);
+  if (citizens) { state.pop = Math.max(1, state.pop - citizens); reconcileWorkers(); }
+  record.researches[index] = true;
+  addLog(`Wonder research completed: ${research.name}. ${research.effect}`, 'log-good');
+  return true;
+}
+function buyWonderExpedition(index) {
+  const def = wonderDef(); const record = wonderRecord(); const expedition = def?.expeditions[index];
+  if (!expedition || !record.found || record.expeditions?.[index] || !canAfford(expedition.cost)) return false;
+  payCost(expedition.cost);
+  record.expeditions[index] = true;
+  addLog(`Interior expedition returned: ${expedition.name}. ${expedition.effect}`, 'log-good');
+  return true;
+}
+function chooseWonderFate(choice) {
+  const def = wonderDef(); const record = wonderRecord();
+  if (!def || !wonderReadyForDecision(record) || !remainingWonderChoices(record).includes(choice)) return false;
+  record.outcomes[choice] = true;
+  state.hope = (state.hope || 0) + 1;
+  if (choice === 'become') state.ancient = (state.ancient || 0) + 1;
+  addLog(def.aftermath[choice], 'log-important');
+  addLog(`Hope gained. The Wonder has touched Emberhold, and the road opens without asking.`, 'log-good');
+  record.found = false;
+  record.sections = [false, false, false, false, false];
+  record.progress = 0;
+  record.researches = {};
+  record.expeditions = {};
+  state.rapture.workers = 0;
+  state.rapture.landing = null;
+  beginForcedWonderMigration();
+  return true;
+}
+function beginForcedWonderMigration() {
+  const compatible = LANDINGS.filter(landing => lineageSelectable(state.species, landing.id));
+  const choices = compatible.filter(landing => landing.id !== state.landing);
+  // A habitat specialist can occasionally have only one viable homeland. The
+  // Wonder still forces the reset in that case; it simply carries them back
+  // to the same country rather than producing an impossible landing choice.
+  const landing = choices[Math.floor(Math.random() * choices.length)] || compatible[0] || LANDINGS[0];
+  state.pendingSpecies = state.species;
+  state.pendingLandings = [{ ...landing, traits: traitsForLanding(landing.id) }];
+  state.pendingLanding = landing.id;
+  state.migrating = true;
+  state.pendingEchoes = 0;
+  addLog(`The Wonder has been decided. There is no vote on the road ahead; it carries Emberhold toward ${landing.name}.`, 'log-important');
+  setOut();
+}
+
 // ---------- landings ----------
 function landingDef() { return LANDING_BY_ID.get(state.landing) || LANDINGS[0]; }
 function landingMod(res) {
@@ -564,9 +805,14 @@ function popCap() {
 function assignedWorkers() {
   let n = 0;
   for (const j in state.jobs) if (JOBS[j] && !JOBS[j].targeted && j !== 'guard') n += state.jobs[j];
-  return n + totalDiplomats() + performerCount() + explorerCount();
+  return n + totalDiplomats() + performerCount() + explorerCount() + raptureWorkers();
 }
 function unassigned() { return state.pop - assignedWorkers(); }
+function raptureWorkers() { return Math.max(0, Math.floor(state.rapture?.workers || 0)); }
+function raptureActiveHere() {
+  const record = state.wonders?.[state.landing];
+  return !!record?.found && !wonderReadyForDecision(record) && state.rapture?.landing === state.landing;
+}
 function jobCapacity(job) {
   const j = JOBS[job];
   if (!j) return 0;
@@ -596,6 +842,12 @@ function reconcileWorkers() {
     if (n) state.diplomats[id] = n;
     else delete state.diplomats[id];
     remaining -= n;
+  }
+  if (state.rapture && state.rapture.landing === state.landing && raptureActiveHere()) {
+    state.rapture.workers = Math.min(count(state.rapture.workers), remaining);
+  } else if (state.rapture) {
+    state.rapture.workers = 0;
+    state.rapture.landing = null;
   }
   state.guardInjuries = Math.min(count(state.guardInjuries), state.jobs.guard || 0);
   state.guardRecruitment = JOBS.guard.unlock() && (state.jobs.guard || 0) < guardCap()
@@ -867,7 +1119,10 @@ function dailyWeather(day = state.day, landing = state.landing) {
     if (pick < 0) { sky = WEATHER[i]; break; }
   }
   const season = seasonIndex(date);
-  const temperature = [12, 24, 11, -2][season] + climate.offset + Math.floor(roll('temperature') * 13) - 6;
+  let temperature = [12, 24, 11, -2][season] + climate.offset + Math.floor(roll('temperature') * 13) - 6;
+  // A restored Sunwell catches half of the days that would otherwise become
+  // dangerously hot, without making the rest of the climate deterministic.
+  if (wonderChoice('emberplain', 'restore') && temperature >= 30 && roll('sunwell-shade') < 0.5) temperature = 29;
   const warmth = temperature <= 0 ? 'Freezing' : temperature < 10 ? 'Cold' : temperature < 20 ? 'Mild' : temperature < 30 ? 'Warm' : 'Hot';
   const mods = { ...sky.mods };
   if (temperature <= 0) mods.food = (mods.food || 1) * 0.90;
@@ -1276,11 +1531,13 @@ function production(dt = 0.25, breakdown = null) {
   }
 
   if (bld('steamPlant') > 0) {
-    add('power', `Steam Plants: ${bld('steamPlant')} × ${POWER_PER_STEAM_PLANT} capacity`, bld('steamPlant') * POWER_PER_STEAM_PLANT);
+    const steamPower = POWER_PER_STEAM_PLANT + (wonderChoice('emberplain', 'silence') ? 1 : 0);
+    add('power', `Steam Plants: ${bld('steamPlant')} × ${steamPower} capacity`, bld('steamPlant') * steamPower);
     add('coal', `Steam Plant fuel: ${bld('steamPlant')} × 0.8/s`, -bld('steamPlant') * 0.8);
   }
   if (bld('dynamo') > 0) add('power', `Dynamos: ${bld('dynamo')} × 1.5 capacity`, bld('dynamo') * 1.5);
   if (bld('windDevice') > 0) add('power', `Wind Devices: ${bld('windDevice')} × ${POWER_PER_WIND_DEVICE} capacity`, bld('windDevice') * POWER_PER_WIND_DEVICE);
+  if (bld('solarArray') > 0) add('power', `Solar Arrays: ${bld('solarArray')} × ${POWER_PER_SOLAR_ARRAY} capacity`, bld('solarArray') * POWER_PER_SOLAR_ARRAY);
   if (power.livingBlock) add('power', `Living Blocks: ${power.livingBlock} × ${LIVING_BLOCK_POWER_REQUIREMENT} capacity`, -power.livingBlock * LIVING_BLOCK_POWER_REQUIREMENT);
   // The land, lineage, and civic choices shape output; population upkeep is
   // applied afterward so food policies do not alter how much villagers eat.
@@ -1296,6 +1553,8 @@ function production(dt = 0.25, breakdown = null) {
       entry.factors.push(...factors.filter(([, factor]) => factor !== 1));
     }
   }
+  const calamity = activeWonderCalamity();
+  if (calamity?.amount) add(calamity.resource, calamity.name, -calamity.amount);
   for (const [id, active] of Object.entries(poweredSites)) {
     if (active) add('power', `${BUILDING_BY_ID.get(id).name}: ${active} × ${DIG_SITE_POWER} capacity`, -active * DIG_SITE_POWER);
   }
@@ -1701,6 +1960,10 @@ function totalMigrationEchoes() {
 
 function setOut(trialId = null) {
   if (!state.migrating && !trialId) return;
+  if (!trialId && state.rapture?.landing === state.landing && raptureWorkers() > 0) {
+    state.rapture.workers = 0;
+    resetWonderSection('The migration recalls the last Rapture workers. The active section closes behind them.');
+  }
   const settings = trialId ? {
     tradePartner: state.tradePartner,
     tradePartners: [...(state.tradePartners || [state.tradePartner])],
@@ -1734,6 +1997,8 @@ function setOut(trialId = null) {
     day: state.day,
     echoes: state.echoes, upgrades: state.upgrades,
     trialDone: state.trialDone, expeditions: state.expeditions,
+    beaconsLit: state.beaconsLit, wonders: state.wonders,
+    hope: state.hope, ancient: state.ancient,
     landingsSeen: state.landingsSeen,
     species: state.species, tribesSeen: state.tribesSeen,
     diplomacy: state.diplomacy,
@@ -1749,6 +2014,10 @@ function setOut(trialId = null) {
   state.upgrades = keep.upgrades;
   state.trialDone = keep.trialDone;
   state.expeditions = keep.expeditions;
+  state.beaconsLit = keep.beaconsLit;
+  state.wonders = keep.wonders;
+  state.hope = keep.hope;
+  state.ancient = keep.ancient;
   state.landingsSeen = keep.landingsSeen;
   state.species = keep.species;
   state.species = newSpecies;
@@ -1944,6 +2213,8 @@ function tickStep(dt) {
   updateDiplomacy(dt);
   updateRandomEvents(dt);
   updateExploration(dt);
+  if (raptureActiveHere() && raptureWorkers() === 0) resetWonderSection('No one remains in the active section. The foothold is lost.');
+  updateWonder(dt);
   updateQueues();
 
   // seasons
@@ -2002,6 +2273,8 @@ function doBuild(id) {
 
   if (id === 'beacon') {
     state.won = true;
+    state.beaconsLit = state.beaconsLit || {};
+    state.beaconsLit[state.landing] = true;
     addLog('THE BEACON BURNS. A light on the horizon that no darkness in the chronicle can name. The story of Emberhold is told — and it is not over.', 'log-important');
     document.getElementById('banner').textContent =
       '✦ THE BEACON BURNS — Emberhold endures. You may keep playing. ✦';
@@ -2390,6 +2663,29 @@ function normalizeSave(s) {
         throw new Error(`Invalid ${type} queue`);
   }
   for (const r of RESOURCES) if (s.res[r.id] === undefined) s.res[r.id] = 0;
+  s.beaconsLit = Object.fromEntries(Object.entries(s.beaconsLit || {})
+    .filter(([id, lit]) => LANDING_BY_ID.has(id) && lit === true));
+  // Older saves that reached the Beacon predate the per-landing record. They
+  // still qualify for the first Wonder hint.
+  if (s.won && !Object.keys(s.beaconsLit).length) s.beaconsLit[s.landing] = true;
+  s.hope = Math.max(0, Number(s.hope) || 0);
+  s.ancient = Math.max(0, Number(s.ancient) || 0);
+  s.wonders = Object.fromEntries(Object.entries(s.wonders || {})
+    .filter(([id, record]) => LANDING_BY_ID.has(id) && object(record))
+    .map(([id, record]) => {
+      record.found = !!record.found;
+      record.sections = Array.isArray(record.sections) ? record.sections.slice(0, 5).map(Boolean) : [false, false, false, false, false];
+      while (record.sections.length < 5) record.sections.push(false);
+      record.progress = Math.max(0, Number(record.progress) || 0);
+      record.researches = object(record.researches) ? record.researches : {};
+      record.expeditions = object(record.expeditions) ? record.expeditions : {};
+      record.outcomes = object(record.outcomes) ? record.outcomes : {};
+      return [id, record];
+    }));
+  if (!object(s.rapture)) s.rapture = { landing: null, workers: 0, tabSeen: false };
+  s.rapture.landing = LANDING_BY_ID.has(s.rapture.landing) ? s.rapture.landing : null;
+  s.rapture.workers = Math.max(0, Math.floor(Number(s.rapture.workers) || 0));
+  s.rapture.tabSeen = !!s.rapture.tabSeen;
   // Power visibility belongs to the current settlement. Older saves could
   // carry the discovery flag across a migration even after all power-related
   // buildings had been left behind.
@@ -2599,6 +2895,7 @@ const TAB_UNLOCKS = {
   governance: () => tech('civics'),
   trials: () => bld('monument') > 0,
   expeditions: () => era() >= 2 && bld('quarry') > 0,
+  wonders: () => !!state.rapture?.tabSeen,
   migration: () => bld('monument') > 0,
   stats: () => state.day >= 1 || state.migrating || state.won,
   settings: () => true,
@@ -2654,7 +2951,7 @@ function renderNextStep() {
 }
 
 function resVisible(id) {
-  if (id === 'power' && !['steamPlant', 'dynamo', 'windDevice', 'livingBlock', 'factory']
+  if (id === 'power' && !['steamPlant', 'dynamo', 'windDevice', 'solarArray', 'livingBlock', 'factory']
     .some(building => bld(building) > 0)) return false;
   return !!state.seen?.[id];
 }
@@ -2699,6 +2996,13 @@ function renderHeader() {
       : `${state.echoes} Echo${state.echoes === 1 ? '' : 'es'} in the pouch — next migration at this size: ${echoesEarned()}`;
   } else {
     echoEl.classList.add('hidden');
+  }
+  const wonderEl = document.getElementById('wonder-line');
+  if ((state.hope || 0) > 0 || (state.ancient || 0) > 0 || beaconsLitCount() > 0) {
+    wonderEl.classList.remove('hidden');
+    wonderEl.textContent = `Beacons lit: ${beaconsLitCount()} · Hope: ${state.hope || 0} · Ancient: ${state.ancient || 0}`;
+  } else {
+    wonderEl.classList.add('hidden');
   }
 }
 
@@ -2764,6 +3068,7 @@ function renderVillage() {
     h += `<div class="card"><div class="card-head"><span class="card-title">Steel</span><span class="card-count">${bld('forge')} Forge${bld('forge') === 1 ? '' : 's'}</span></div>` +
       `<div class="card-desc">Produces ${fmt(0.04 * bld('forge'))}/s; consumes ${fmt(0.6 * bld('forge'))} Iron/s and ${fmt(0.4 * bld('forge'))} Coal/s.</div></div>`;
   }
+  h += renderWonderAssignment();
   h += '<h2 class="section">Crafting</h2>';
   for (const c of CRAFTS) {
     if (!c.req()) continue;
@@ -3035,10 +3340,103 @@ function renderTrials() {
   return h;
 }
 
+function wonderCostHtml(cost) {
+  return Object.entries(cost).map(([id, amount]) => {
+    const have = id === 'survey' ? state.surveyPoints || 0 : id === 'citizens' ? unassigned() : state.res[id] || 0;
+    const label = id === 'survey' ? 'Survey' : id === 'citizens' ? 'unassigned citizens' : resourceName(id);
+    return `<span class="${have >= amount ? 'ok' : 'lack'}">${fmt(amount)} ${label}</span>`;
+  }).join(', ');
+}
+function renderWonderDiscovery() {
+  const def = wonderDef();
+  if (!def) return '';
+  const record = wonderRecord(def.id);
+  if (record.found) return '';
+  if (beaconsLitCount() < 1) {
+    return '<div class="res-note">A beacon must burn somewhere before its hints can lead to a Wonder.</div>';
+  }
+  const remaining = remainingWonderChoices(record);
+  if (!remaining.length) return `<div class="card done"><div class="card-head"><span class="card-title">${def.name}</span><span class="card-effect">Every known fate has been faced</span></div><div class="card-desc">${def.short}</div></div>`;
+  const cost = wonderFindCost(def);
+  const ok = canAffordWonderCost(cost);
+  return `<div class="card wonder-card"><div class="card-head"><span class="card-title">Find ${def.name}</span><span class="card-count">${beaconsLitCount()} distinct beacon${beaconsLitCount() === 1 ? '' : 's'} guide the search</span></div>` +
+    `<div class="card-desc">${def.short}. ${def.findText}</div><div class="card-cost">cost: ${wonderCostHtml(cost)}</div>` +
+    `<div class="card-actions"><button data-action="wonder-find" ${ok ? '' : 'disabled'}>Send the Wonder expedition</button></div></div>`;
+}
+function renderWonderAssignment() {
+  const def = wonderDef(); const record = state.wonders?.[state.landing];
+  if (!def || !record?.found || wonderReadyForDecision(record)) return '';
+  const section = currentWonderSection(record, def);
+  const workers = raptureWorkers();
+  return `<h2 class="section">The Wonder</h2><div class="card wonder-card"><div class="card-head"><span class="card-title">${def.name}</span><span class="card-count">${section.name}</span></div>` +
+    `<div class="card-desc">${section.text}</div><div class="res-note">Assign people to Rapture work. This is dangerous. Once someone is assigned, the Wonders tab will track the expedition.</div>` +
+    `<div class="job-row"><span class="job-name">Rapture workers</span><span class="job-assign">${workers}</span><span class="job-rate">${fmt(record.progress)} / ${WONDER_SECTION_PROGRESS} foothold progress</span>` +
+    `<span class="job-btns"><button data-action="rapture-dec" ${workers > 0 ? '' : 'disabled'}>−</button><button data-action="rapture-inc" ${unassigned() > 0 ? '' : 'disabled'}>+</button></span></div></div>`;
+}
+function renderWonder() {
+  const def = wonderDef();
+  if (!def) return '<h2 class="section">Wonders</h2>';
+  const record = wonderRecord(def.id);
+  let h = '<h2 class="section">Wonders</h2>';
+  if (!record.found) {
+    h += `<div class="res-note">The current landing is ${landingDef().name}. A beacon’s clues may reveal something grander than a ruin.</div>` + renderWonderDiscovery();
+    return h;
+  }
+  const section = currentWonderSection(record, def);
+  h += `<div class="card wonder-card"><div class="card-head"><span class="card-title">${def.name}</span><span class="card-count">${section ? `Section ${section.index + 1} of 5` : 'The heart is open'}</span></div>` +
+    `<div class="card-desc">${section ? section.text : def.decisionText}</div></div>`;
+  h += '<h2 class="section">Sections</h2><div class="wonder-sections">' + def.sections.map(([name], index) =>
+    `<div class="wonder-section ${record.sections[index] ? 'done' : index === section?.index ? 'active' : ''}"><span>${index + 1}</span>${name}</div>`).join('') + '</div>';
+  if (section) {
+    const calamity = activeWonderCalamity();
+    const workers = raptureWorkers();
+    const healthy = ableGuards(); const total = state.jobs.guard || 0;
+    const woundedOnly = healthy <= 0 && total > 0;
+    const armor = Math.pow(1.10, armorLevel());
+    const guardWeights = { injury: 40, death: (40 / armor) * (woundedOnly ? 2 : 1), hero: 20 * armor };
+    const sum = guardWeights.injury + guardWeights.death + guardWeights.hero;
+    h += `<div class="wonder-progress"><div><strong>${section.name}</strong><span>${fmt(record.progress)} / ${WONDER_SECTION_PROGRESS} progress</span></div><progress value="${record.progress}" max="${WONDER_SECTION_PROGRESS}"></progress></div>`;
+    h += `<div class="card wonder-calamity"><div class="card-head"><span class="card-title">Calamity: ${calamity.name}</span><span class="card-count">Section ${section.index + 1}</span></div>` +
+      `<div class="card-desc">${calamity.text}</div><div class="trial-mod">−${fmt(calamity.amount)} ${resourceName(calamity.resource)}/s while this attempt continues.</div></div>`;
+    h += `<div class="card"><div class="card-head"><span class="card-title">Rapture work</span><span class="card-count">${workers} assigned</span></div>` +
+      `<div class="res-note">Section danger: ${fmt(wonderDangerMultiplier(record, def))}×. Each section is 25% deadlier than the last. Guards intervene on a lethal incident with a ${Math.round(Math.min(0.98, 0.60 * wonderDefenseMultiplier() * armor) * 100)}% citizen-survival chance.</div>` +
+      `<div class="res-note">${healthy} healthy Guard${healthy === 1 ? '' : 's'}${woundedOnly ? `; only injured Guards remain, so guard death is ${Math.round(guardWeights.death / sum * 100)}%` : ''}. Guard outcomes after a save: ${Math.round(guardWeights.injury / sum * 100)}% injury, ${Math.round(guardWeights.death / sum * 100)}% death, ${Math.round(guardWeights.hero / sum * 100)}% hero.</div>` +
+      `<div class="job-row"><span class="job-name">Rapture workers</span><span class="job-assign">${workers}</span><span class="job-rate">${fmt(WONDER_PROGRESS_PER_WORKER * wonderProgressMultiplier(record, def))} progress/s each</span>` +
+      `<span class="job-btns"><button data-action="rapture-dec" ${workers > 0 ? '' : 'disabled'}>−</button><button data-action="rapture-inc" ${unassigned() > 0 ? '' : 'disabled'}>+</button></span></div></div>`;
+    h += '<h2 class="section">Research outside</h2><div class="res-note">Researchers remain outside the Wonder. Some answers ask for people who will not come back.</div>';
+    def.researches.forEach((research, index) => {
+      if (index > section.index) return;
+      const done = !!record.researches?.[index]; const ok = canBuyWonderResearch(index);
+      h += `<div class="card ${done ? 'done' : ''}"><div class="card-head"><span class="card-title">${research.name}</span><span class="card-effect">${done ? 'Completed' : research.effect}</span></div>` +
+        `<div class="card-cost">cost: ${wonderCostHtml(research.cost)}</div><div class="card-actions"><button data-action="wonder-research" data-id="${index}" ${done || !ok ? 'disabled' : ''}>${done ? 'Completed' : 'Research'}</button></div></div>`;
+    });
+    h += '<h2 class="section">Interior expeditions</h2><div class="res-note">These preparations help only this attempt. They do not endure as ordinary expeditions do.</div>';
+    def.expeditions.forEach((expedition, index) => {
+      const done = !!record.expeditions?.[index]; const ok = canAfford(expedition.cost);
+      h += `<div class="card ${done ? 'done' : ''}"><div class="card-head"><span class="card-title">${expedition.name}</span><span class="card-effect">${done ? 'Completed' : expedition.effect}</span></div>` +
+        `<div class="card-cost">cost: ${wonderCostHtml(expedition.cost)}</div><div class="card-actions"><button data-action="wonder-expedition" data-id="${index}" ${done || !ok ? 'disabled' : ''}>${done ? 'Returned' : 'Send expedition'}</button></div></div>`;
+    });
+  } else {
+    h += '<h2 class="section">The decision</h2><div class="res-note">The fifth section is complete. Whatever happens next, Emberhold will be carried into a migration without choosing the road.</div>';
+    const fates = [
+      ['become', 'Become One with the Wonder', 'Send the leader into it. Gain Ancient points, and nothing else. Let us pray.'],
+      ['restore', 'Restore Its Old Purpose', 'Turn it on and let it do the work for which the Ancient Ones built it.'],
+      ['silence', 'Silence the Wonder', 'Turn away from its answers and make sure it troubles nobody ever again.'],
+    ];
+    fates.forEach(([id, name, text]) => {
+      const done = !!record.outcomes?.[id];
+      h += `<div class="card ${done ? 'done' : ''}"><div class="card-head"><span class="card-title">${name}</span><span class="card-count">${done ? 'Already faced' : 'Ends this attempt'}</span></div><div class="card-desc">${text}</div>` +
+        `<div class="card-actions"><button data-action="wonder-fate" data-id="${id}" ${done ? 'disabled' : ''}>${done ? 'Completed previously' : 'Choose this fate'}</button></div></div>`;
+    });
+  }
+  return h;
+}
+
 function renderExpeditions() {
   let h = '<h2 class="section">Expeditions — widen the world</h2>';
   h += `<div class="queue"><div class="queue-label">Expedition queue</div>${renderQueue('expedition')}</div>`;
   h += '<div class="res-note">Each expedition is sent once. What it finds stays with Emberhold forever.</div>';
+  if (beaconsLitCount() > 0) h += '<h2 class="section">Beacon hints</h2>' + renderWonderDiscovery();
   const sitesDone = EXPEDITIONS.filter(e => e.landing && expDone(e.id)).length;
   h += `<div class="res-note">Site expeditions: ${sitesDone}/${LANDINGS.length} established. Develop a settlement at each landing to send its unique expedition. Rewards endure at every landing. Complete all six for +5% to all production${siteExpeditionsComplete() ? ' — earned!' : ' forever.'}</div>`;
   const rates = production();
@@ -3270,7 +3668,7 @@ function renderLog() {
 function loadLatestUpdatesTooltip() {
   const button = document.getElementById('btn-updates');
   if (!button || typeof fetch !== 'function' || typeof DOMParser !== 'function') return;
-  fetch('changelog.html?v=publish-20260908u5')
+  fetch('changelog.html?v=publish-20260908u8')
     .then(response => response.ok ? response.text() : Promise.reject(new Error('changelog unavailable')))
     .then(source => {
       const doc = new DOMParser().parseFromString(source, 'text/html');
@@ -3305,6 +3703,7 @@ function render() {
     governance: renderGovernance,
     trials: renderTrials,
     expeditions: renderExpeditions,
+    wonders: renderWonder,
     migration: renderMigration,
     stats: renderStats,
     settings: renderSettings,
@@ -3364,6 +3763,9 @@ function emitAutomationEvent(type, detail = {}) {
 const automationActionFns = {
   assign: doAssign,
   setJob,
+  assignRapture,
+  findWonder,
+  chooseWonderFate,
   setBuildingPower,
   assignDiplomat: doAssignDiplomat,
   assignExplorer: doAssignExplorer,
@@ -3436,11 +3838,14 @@ window.emberhold = {
     trialActive,
     unassigned,
     setJob,
+    assignRapture,
+    findWonder,
+    chooseWonderFate,
   },
   render,
   switchTab,
   definitions: { RESOURCES, JOBS, BUILDINGS, CRAFTS, TECHS, CIVICS, GOVERNORS,
-    COUNCILORS, TRIALS, EXPEDITIONS, LANDINGS, LINEAGES, UPGRADES, FACTORY_RECIPES },
+    COUNCILORS, TRIALS, EXPEDITIONS, WONDERS, LANDINGS, LINEAGES, UPGRADES, FACTORY_RECIPES },
 };
 
 // ---------- events ----------
@@ -3481,6 +3886,12 @@ function runAction(btn) {
     case 'performer-dec': doAssignPerformer(-1); render(); break;
     case 'explorer-inc': doAssignExplorer(+1); render(); break;
     case 'explorer-dec': doAssignExplorer(-1); render(); break;
+    case 'rapture-inc': assignRapture(+1); render(); break;
+    case 'rapture-dec': assignRapture(-1); render(); break;
+    case 'wonder-find': findWonder(); render(); break;
+    case 'wonder-research': buyWonderResearch(+btn.dataset.id); render(); break;
+    case 'wonder-expedition': buyWonderExpedition(+btn.dataset.id); render(); break;
+    case 'wonder-fate': chooseWonderFate(btn.dataset.id); render(); break;
     case 'policy': choosePolicy(btn.dataset.id); render(); break;
     case 'governor': appointGovernor(btn.dataset.id); render(); break;
     case 'councilor': toggleCouncilor(btn.dataset.id); render(); break;
