@@ -1320,6 +1320,43 @@ function popGrowthNeed() {
     ? Math.max(0.1, 1 + (lineageGrowth - 1) * 2) : lineageGrowth;
   return (20 + state.pop * 4) * 0.67 * (tech('aphrodisiac') ? 0.75 : 1) * hospitalTimeMod() * atavisticGrowth / moraleMult();
 }
+function populationGrowthTime() {
+  return popGrowthNeed() * currentPlaceTraits().reduce((time, trait) => time * (trait.growth || 1), 1);
+}
+function populationGrowthTooltip() {
+  const base = 20 + state.pop * 4;
+  const lineageGrowth = lineageDef(state.species).growthTime || 1;
+  const atavistic = currentPlaceTraits().some(trait => trait.atavistic);
+  const effectiveLineageGrowth = atavistic ? Math.max(0.1, 1 + (lineageGrowth - 1) * 2) : lineageGrowth;
+  const growthTraits = currentPlaceTraits().filter(trait => trait.growth && trait.growth !== 1);
+  const lines = [
+    `Population growth — ${fmt(populationGrowthTime())} seconds per new villager`,
+    'Time modifiers multiply in order.',
+    '',
+    `Base: 20 + ${state.pop} villagers × 4 = ${fmt(base)} seconds`,
+    `Settlement pace: ×0.67 → ${fmt(base * 0.67)} seconds`,
+  ];
+  let time = base * 0.67;
+  if (tech('aphrodisiac')) {
+    time *= 0.75;
+    lines.push(`Fertility Rites: ×0.75 → ${fmt(time)} seconds`);
+  }
+  if (bld('hospital')) {
+    time *= hospitalTimeMod();
+    lines.push(`Hospitals (${bld('hospital')}): ×${fmt(hospitalTimeMod())} → ${fmt(time)} seconds`);
+  }
+  if (effectiveLineageGrowth !== 1) {
+    time *= effectiveLineageGrowth;
+    lines.push(`${lineageDef(state.species).name}${atavistic ? ' with Atavistic Aura' : ''}: ×${fmt(effectiveLineageGrowth)} → ${fmt(time)} seconds`);
+  }
+  time /= moraleMult();
+  lines.push(`Morale growth speed: ÷${fmt(moraleMult())} → ${fmt(time)} seconds`);
+  for (const trait of growthTraits) {
+    time *= trait.growth;
+    lines.push(`${trait.name}: ×${fmt(trait.growth)} → ${fmt(time)} seconds`);
+  }
+  return lines.join('\n');
+}
 function guardHealingNeed() { return 90 * hospitalTimeMod(); }
 
 // ---------- log ----------
@@ -1805,8 +1842,7 @@ function tickStep(dt) {
   // growth
   if (state.res.food > 0 && state.pop < popCap()) {
     state.growthT += dt;
-    const traitGrowth = currentPlaceTraits().reduce((value, trait) => value * (trait.growth || 1), 1);
-    if (state.growthT >= popGrowthNeed() * traitGrowth) {
+    if (state.growthT >= populationGrowthTime()) {
       state.growthT = 0;
       state.pop++;
       if (state.pop % 5 === 0) addLog(`The village has grown to ${state.pop} souls.`, 'log-good');
@@ -2618,7 +2654,7 @@ function renderVillage() {
     `<div class="res-note">Climate: ${climateDef().name} — ${climateDef().text} Freezing days reduce food production by 10%; hot days by 5%.</div>` +
     `<div class="res-note">Place traits: ${traitsHtml(state.placeTraits)}</div>` +
     renderNextStep() +
-    `<div class="res-note">Population growth: ${fmt(popGrowthNeed())} seconds per new villager while food and housing are available. Guard healing: ${fmt(guardHealingNeed())} seconds per injury.</div>` +
+    `<div class="res-note">Population growth: <span class="has-tooltip" tabindex="0" data-tooltip="${attrText(populationGrowthTooltip())}">${fmt(populationGrowthTime())} seconds</span> per new villager while food and housing are available. Guard healing: ${fmt(guardHealingNeed())} seconds per injury.</div>` +
     `<div class="res-note" style="margin:2px 0 6px">The land gives: ${modsHtml(L)}</div>` +
     `<div class="res-note" style="margin:2px 0 6px">Guard armor: level ${fmt(armorLevel())} — each level reduces death odds by 8% (minimum 15%).</div>`;
 
@@ -3143,7 +3179,7 @@ function renderLog() {
 function loadLatestUpdatesTooltip() {
   const button = document.getElementById('btn-updates');
   if (!button || typeof fetch !== 'function' || typeof DOMParser !== 'function') return;
-  fetch('changelog.html?v=publish-20260908u2')
+  fetch('changelog.html?v=publish-20260908u3')
     .then(response => response.ok ? response.text() : Promise.reject(new Error('changelog unavailable')))
     .then(source => {
       const doc = new DOMParser().parseFromString(source, 'text/html');

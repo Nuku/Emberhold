@@ -750,6 +750,16 @@ test('morale speeds or slows population growth and stacks with fertility bonuses
   assert.match(run('renderVillage()'), /Population growth:/);
 });
 
+test('population growth timing tooltip explains every active modifier', () => {
+  const { run } = game();
+  run(`state.pop = 12; state.morale = 80; state.techs.aphrodisiac = true;
+    state.bld.hospital = 2; state.species = 'rabbitfolk'; state.placeTraits = ['wildOrchards'];`);
+  const tooltip = run('populationGrowthTooltip()');
+  for (const label of ['Base:', 'Settlement pace:', 'Fertility Rites:', 'Hospitals (2):', 'Rabbitfolk:', 'Morale growth speed:', 'Wild Orchards:']) assert.ok(tooltip.includes(label), label);
+  assert.ok(Math.abs(run('populationGrowthTime() - popGrowthNeed() * 0.94') < 1e-10));
+  assert.match(run('renderVillage()'), /has-tooltip[^>]*Population growth|Population growth: <span class="has-tooltip"/);
+});
+
 test('Rabbitfolk population growth takes half the usual time', () => {
   const { run } = game();
   const humanGrowth = run('popGrowthNeed()');
