@@ -945,6 +945,16 @@ test('Long Night keeps the whole trial in winter', () => {
   assert.equal(run('seasonIndex()'), 1);
 });
 
+test('Long Night lasts ten full years', () => {
+  const { run } = game();
+  run(`state.trial = { id: 'longnight', daysActive: LONG_NIGHT_DURATION - 1, buildings: 0 }`);
+  run('updateTrial(0)');
+  assert.equal(run('state.trial.id'), 'longnight');
+  assert.match(run('renderTrials()'), /2,000 days endured/);
+  run('state.trial.daysActive = LONG_NIGHT_DURATION; updateTrial(0)');
+  assert.equal(run('state.trial'), null);
+});
+
 test('Overflow uses raised ceilings for progress and completion', () => {
   const { run } = game();
   run(`state.trialDone.overflow = 1; state.seen = { food: true };

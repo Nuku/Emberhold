@@ -10,6 +10,7 @@ const SAVE_KEY = 'emberhold_save_v1';
 const DAY_RATE = 2;        // days per real second
 const DAYS_PER_SEASON = 50;
 const DAYS_PER_YEAR = 200; // one year = 100 real seconds
+const LONG_NIGHT_DURATION = DAYS_PER_YEAR * 10;
 
 // --- resources ---
 const RESOURCES = [
@@ -582,7 +583,7 @@ const TRIALS = [
 
   { id: 'longnight', name: 'Trial of the Long Night', repeat: 0,
     mod: 'The entire trial is winter, with food production x0.25.',
-    goal: 'Survive a full year under the trial (200 days).',
+    goal: 'Survive ten full years under the trial (2,000 days).',
     reward: 'Everwarm: winter food penalty halved (x0.75) and +5% to all production, permanently.' },
 
   { id: 'solitude', name: 'Trial of Solitude', repeat: 0,

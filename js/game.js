@@ -1268,7 +1268,7 @@ function updateTrial(dt) {
       if ((tr.steelProduced || 0) >= 100) { endTrial(true); return; }
       break;
     case 'longnight':
-      if (tr.daysActive >= DAYS_PER_YEAR) { endTrial(true); return; }
+      if (tr.daysActive >= LONG_NIGHT_DURATION) { endTrial(true); return; }
       break;
     case 'solitude':
       if (state.res.knowledge >= 800) { endTrial(true); return; }
@@ -1375,7 +1375,7 @@ function trialProgressText() {
   const tr = state.trial;
   switch (tr.id) {
     case 'scarcity': case 'longnight':
-      return `${Math.floor(tr.daysActive)} / ${tr.id === 'scarcity' ? 240 : DAYS_PER_YEAR} days endured`;
+      return `${Math.floor(tr.daysActive)} / ${tr.id === 'scarcity' ? 240 : tr.id === 'longnight' ? LONG_NIGHT_DURATION : DAYS_PER_YEAR} days endured`;
     case 'frugality': return `${tr.buildings} / 12 buildings raised`;
     case 'expansion': return `${tr.buildings} / 8 buildings raised`;
     case 'scholarship': return `${tr.researches || 0} / 5 research projects completed`;
@@ -2935,7 +2935,7 @@ function renderLog() {
 function loadLatestUpdatesTooltip() {
   const button = document.getElementById('btn-updates');
   if (!button || typeof fetch !== 'function' || typeof DOMParser !== 'function') return;
-  fetch('changelog.html?v=publish-20260908b')
+  fetch('changelog.html?v=publish-20260908d')
     .then(response => response.ok ? response.text() : Promise.reject(new Error('changelog unavailable')))
     .then(source => {
       const doc = new DOMParser().parseFromString(source, 'text/html');

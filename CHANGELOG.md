@@ -4,6 +4,7 @@ All notable changes to Emberhold are recorded here, with the newest changes firs
 
 ## 2026-09-08
 
+- Extended the Trial of the Long Night from one year to ten full years (2,000 days).
 - Fixed controllable buildings loading disabled when their saved toggle was missing; owned buildings now start enabled by default while explicit off settings are preserved.
 
 ## 2026-09-07
