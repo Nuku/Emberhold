@@ -3017,6 +3017,7 @@ function renderTrials() {
     h += `<div class="card ${active ? 'trial-active' : ''} ${maxed ? 'done' : ''}">` +
       `<div class="card-head"><span class="card-title">${t.name}</span>` +
       `<span class="trial-count">${t.repeat > 0 ? `completed ${done} / ${max}` : (done ? 'completed' : 'sworn once only')}</span></div>` +
+      `<div class="card-desc">${t.text}</div>` +
       `<div class="trial-mod">While sworn: ${trialModifierText(t)}</div>` +
       `<div class="trial-goal">Goal: ${t.goal}</div>` +
       `<div class="trial-reward">Reward: ${t.reward}</div>`;
@@ -3047,7 +3048,8 @@ function renderExpeditions() {
     if (expDone(e.id)) {
       any = true;
       h += `<div class="card done"><div class="card-head"><span class="card-title">${e.name}</span>` +
-        `<span class="card-effect">Established — ${e.effect}</span></div></div>`;
+        `<span class="card-effect">Established — ${e.effect}</span></div>` +
+        `<div class="card-desc">${e.text}</div></div>`;
       continue;
     }
     const cost = expeditionCost(e);
@@ -3058,6 +3060,7 @@ function renderExpeditions() {
     const queued = state.queues.expedition.some(entry => entry.id === e.id);
     const ok = popOk && (canAfford(cost) || state.queues.expedition.length < queueCapacity('expedition'));
     h += `<div class="card"><div class="card-head"><span class="card-title has-tooltip" data-tooltip="${attrText(e.text)}">${e.name}</span></div>` +
+      `<div class="card-desc">${e.text}</div>` +
       `<div class="card-effect">Grants: ${e.effect}</div>` +
       (site ? `<div class="res-note">Requires settlement at ${site.name} — you are here.</div>` : '') +
       `<div class="card-cost">cost: ${costHtml(cost)} — needs ${e.reqPop} villagers</div>` +

@@ -4,6 +4,8 @@ All notable changes to Emberhold are recorded here, with the newest changes firs
 
 ## 2026-09-08
 
+- Added atmospheric narrative descriptions to every trial and expedition, shown directly in their cards, including after an expedition has been established.
+- Expanded expedition and trial flavor text to better describe the risks, places, and promises behind each undertaking.
 - Reworked lineage effects into named, grouped traits shared across cultures; diplomacy and migration now show each lineage's trait set, including trait tooltips and special effects.
 - Changed Atavistic Aura to raise the current lineage's traits by one level, scaling positive and negative effects by 1.5× and increasing lineage-happening frequency by the same factor.
 - Added Understanding Home research after Mechanism; settlements with local traits can learn their exact current effects through trait tooltips.
