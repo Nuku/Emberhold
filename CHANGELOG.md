@@ -4,6 +4,8 @@ All notable changes to Emberhold are recorded here, with the newest changes firs
 
 ## 2026-09-08
 
+- Fixed queued construction, research, and expedition actions retaining the cost shown when they were added, even if a temporary price modifier changes later.
+- Expanded the Stone Working description with guidance about gathering the newly noticed green mineral.
 - Fixed neighboring-tribe requests so they never ask for generated Power capacity, and repaired legacy saves containing Power requests.
 - Added a persistent option to dismiss the front-page tutorial card; the choice is saved and carried into migrated settlements.
 - Added Air of Rage and Atavistic Aura place traits: rage becomes a fading morale bonus after attacks and a growing penalty when unspent, while Atavistic Aura doubles lineage effects and lineage-event frequency.

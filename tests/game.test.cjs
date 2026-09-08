@@ -299,6 +299,16 @@ test('physical research requires its material inputs in addition to Knowledge', 
   assert.equal(run('state.res.tools'), 0);
 });
 
+test('queued actions keep their displayed cost when price modifiers change', () => {
+  const { run } = game();
+  run(`state.trial = { id: 'frugality', buildings: 0 }; state.res.wood = 0;
+    attemptBuild('hut'); state.trial = null; state.res.wood = 30;
+    updateQueues();`);
+  assert.equal(run("bld('hut')"), 0);
+  assert.equal(run('state.queues.build.length'), 1);
+  assert.equal(run('state.queues.build[0].cost.wood'), 45);
+});
+
 test('stores display Survey after Explorers are unlocked', () => {
   const { run } = game();
   run(`state.trialDone.wayfinding = 1; state.surveyPoints = 12.5; state.jobs.explorer = 2`);

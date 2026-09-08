@@ -579,6 +579,10 @@ function queueDef(entry) {
 }
 
 function queueCost(entry) {
+  // A queued action keeps the price the player saw when they added it. Without
+  // this, a temporary price modifier ending can make it dispatch immediately
+  // at a lower recalculated cost.
+  if (entry?.cost) return entry.cost;
   const def = queueDef(entry);
   if (!def) return null;
   if (entry.type === 'build') return buildingCost(def);
@@ -659,7 +663,7 @@ function queueEntry(type, id) {
   }
   const cost = queueCost({ type, id });
   if (canAfford(cost)) return false;
-  state.queues[type].push({ type, id });
+  state.queues[type].push({ type, id, cost: { ...cost } });
   return true;
 }
 
@@ -710,14 +714,11 @@ function updateQueues() {
     for (let i = start; strict ? i < end : i >= end; i += step) {
       const entry = state.queues[type][i];
       const def = queueDef(entry);
-      if (!def) { state.queues[type].splice(i, 1); continue; }
+      if (!def) continue;
       if (!canAfford(queueCost(entry))) continue;
-      const before = type === 'build' ? bld(entry.id) : type === 'research' ? tech(entry.id) : expDone(entry.id);
-      if (type === 'build') doBuild(entry.id);
-      else if (type === 'research') doResearch(entry.id);
-      else doExpedition(entry.id);
-      const after = type === 'build' ? bld(entry.id) : type === 'research' ? tech(entry.id) : expDone(entry.id);
-      if (after !== before) state.queues[type].splice(i, 1);
+      const completed = type === 'build' ? doBuild(entry.id) :
+        type === 'research' ? doResearch(entry.id) : doExpedition(entry.id);
+      if (completed) state.queues[type].splice(i, 1);
     }
   }
 }
@@ -1852,15 +1853,15 @@ function tickStep(dt) {
 // ---------- actions ----------
 function doBuild(id) {
   const def = BUILDING_BY_ID.get(id);
-  if (!def) return;
+  if (!def) return false;
   if (!canBuild(id)) {
     if (trialActive('overflow') && Object.values(STORAGE).some(s => s.bld === id)) {
     addLog('The oath of the Overflow forbids new storage.', 'log-bad');
     }
-    return;
+    return false;
   }
   const cost = buildingCost(def);
-  if (!canAfford(cost)) return;
+  if (!canAfford(cost)) return false;
   payCost(cost);
   const previousCount = bld(id);
   const previousEnabled = state.buildingPower[id];
@@ -1881,6 +1882,7 @@ function doBuild(id) {
       '✦ THE BEACON BURNS — Emberhold endures. You may keep playing. ✦';
     document.getElementById('banner').classList.remove('hidden');
   }
+  return true;
 }
 
 function doCraft(id) {
@@ -1901,10 +1903,10 @@ function doCraft(id) {
 
 function doResearch(id) {
   const def = TECH_BY_ID.get(id);
-  if (!def || tech(id)) return;
-  if (def.req && !def.req()) return;
+  if (!def || tech(id)) return false;
+  if (def.req && !def.req()) return false;
   const cost = researchCost(def);
-  if (!canAfford(cost)) return;
+  if (!canAfford(cost)) return false;
   payCost(cost);
   state.techs[id] = true;
   if (state.trial && state.trial.id === 'scholarship') state.trial.researches = (state.trial.researches || 0) + 1;
@@ -1915,6 +1917,7 @@ function doResearch(id) {
     addLog(`The village enters the ${ERAS[state.era - 1].name}.`, 'log-important');
     discoverTradePartners();
   }
+  return true;
 }
 
 function policyChangeCooldown() { return POLICY_CHANGE_COOLDOWN; }
@@ -1953,15 +1956,16 @@ function toggleCouncilor(id) {
 
 function doExpedition(id) {
   const def = EXPEDITION_BY_ID.get(id);
-  if (!def || expDone(id)) return;
-  if (def.landing && def.landing !== state.landing) return;
-  if (state.pop < def.reqPop) return;
+  if (!def || expDone(id)) return false;
+  if (def.landing && def.landing !== state.landing) return false;
+  if (state.pop < def.reqPop) return false;
   const cost = expeditionCost(def);
-  if (!canAfford(cost)) return;
+  if (!canAfford(cost)) return false;
   payCost(cost);
   state.expeditions[id] = true;
   addLog(`Expedition returned: ${def.name} is now part of Emberhold's world. ${def.effect}`, 'log-good');
   if (def.landing && siteExpeditionsComplete()) addLog('All six sites explored! Emberhold gains +5% to all production forever.', 'log-good');
+  return true;
 }
 
 function doAssign(job, delta) {
@@ -3139,7 +3143,7 @@ function renderLog() {
 function loadLatestUpdatesTooltip() {
   const button = document.getElementById('btn-updates');
   if (!button || typeof fetch !== 'function' || typeof DOMParser !== 'function') return;
-  fetch('changelog.html?v=publish-20260908u1')
+  fetch('changelog.html?v=publish-20260908u2')
     .then(response => response.ok ? response.text() : Promise.reject(new Error('changelog unavailable')))
     .then(source => {
       const doc = new DOMParser().parseFromString(source, 'text/html');

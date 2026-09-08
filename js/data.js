@@ -274,7 +274,7 @@ const TECHS = [
     desc: 'A clean ward is a small rebellion against the old world’s cruelties. Unlocks Hospitals; each level reduces Guard healing and population growth time by 10%, compounding.',
     req: () => tech('stoneWorking') && tech('craftsmanship') },
   { id: 'stoneWorking', name: 'Stone Working', cost: 15,
-    desc: 'The first walls are laid where the ash-grass gives way to rock. Unlocks the Quarry. Enters the Age of Stone.' },
+    desc: 'The first walls are laid where the ash-grass gives way to rock. Unlocks the Quarry. Enters the Age of Stone. Your people have noticed an odd green mineral. Let\'s gather it for now until we know better what to do with it.' },
   { id: 'currency', name: 'Currency', cost: 100,
     desc: 'A shared measure lets strangers trust a promise made on the old roads. Unlocks trade with neighboring tribes and the Currency resource.',
     req: () => tech('stoneWorking') },
