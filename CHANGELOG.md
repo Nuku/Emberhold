@@ -4,6 +4,7 @@ All notable changes to Emberhold are recorded here, with the newest changes firs
 
 ## 2026-09-08
 
+- Added physical material costs to research alongside Knowledge; the game and automation now wait for and pay all required research inputs (userscript v1.25.7).
 - Added Wind Harness research and uncapped Wind Devices, which provide 1 Power capacity each without fuel; automation now researches and builds them when available (userscript v1.25.6).
 - Added Iron Mites research, which unlocks after building a Forge and increases Iron Miner production by 30%; automation now researches it when available (userscript v1.25.5).
 - Fixed affordable construction, research, and expedition actions starting immediately even when their queue is full; unaffordable actions continue to use the available queue space.

@@ -230,6 +230,23 @@ test('every queue item lists the resources it needs', () => {
   }
 });
 
+test('physical research requires its material inputs in addition to Knowledge', () => {
+  const { run } = game();
+  assert.deepEqual(JSON.parse(run("JSON.stringify(researchCost(TECHS.find(t => t.id === 'metallurgy')))")),
+    { knowledge: 600, iron: 180, coal: 120, tools: 30 });
+  run(`state.techs.seamMining = true; state.res.knowledge = 600;
+    state.res.iron = 180; state.res.coal = 119; state.res.tools = 30;
+    attemptResearch('metallurgy');`);
+  assert.equal(run('state.techs.metallurgy'), undefined);
+  assert.equal(run('state.queues.research[0].id'), 'metallurgy');
+  run('state.res.coal = 120; updateQueues()');
+  assert.equal(run('state.techs.metallurgy'), true);
+  assert.equal(run('state.res.knowledge'), 0);
+  assert.equal(run('state.res.iron'), 0);
+  assert.equal(run('state.res.coal'), 0);
+  assert.equal(run('state.res.tools'), 0);
+});
+
 test('stores display Survey after Explorers are unlocked', () => {
   const { run } = game();
   run(`state.trialDone.wayfinding = 1; state.surveyPoints = 12.5; state.jobs.explorer = 2`);
@@ -624,8 +641,8 @@ test('Fertility Rites and Hospitals unlock, compound timers, and persist through
   run("doResearch('aphrodisiac')");
   assert.equal(run('popGrowthNeed()'), 18.09);
   assert.equal(run('guardHealingNeed()'), 90);
-  run(`doResearch('stoneWorking'); doResearch('craftsmanship'); doResearch('hospital');
-    state.res.wood = 10000; state.res.stone = 10000; state.res.tools = 1000`);
+  run(`state.res.wood = 10000; state.res.stone = 10000; state.res.tools = 1000;
+    doResearch('stoneWorking'); doResearch('craftsmanship'); doResearch('hospital');`);
   for (let level = 1; level <= 5; level++) {
     run("doBuild('hospital')");
     assert.equal(run("bld('hospital')"), level);
@@ -919,6 +936,7 @@ test('thinkers are limited to one more than the number of libraries', () => {
 test('advanced science unlocks uncapped instrument halls and hall-limited experimentalists', () => {
   const { run } = game();
   run(`state.techs.machineryTech = true; state.techs.writing = true; state.res.knowledge = 2200;
+    state.res.copper = 180; state.res.steel = 100; state.res.machinery = 40;
     doResearch('advancedScience')`);
   assert.equal(run('tech("advancedScience")'), true);
   assert.equal(run('BUILDINGS.find(b => b.id === "instrumentHall").max'), Infinity);
@@ -1129,8 +1147,8 @@ test('guards recruit slowly through ticks, cap without banking recruits, and rep
 test('Training Yards compound replacement Guard recruitment time without a cap', () => {
   const { run } = game();
   run(`state.techs.guards = true; state.bld.barracks = 1;
-    state.res.knowledge = 1000; doResearch('trainingYard');
-    state.res.wood = 10000; state.res.stone = 10000; state.res.tools = 10000`);
+    state.res.knowledge = 1000; state.res.wood = 10000; state.res.stone = 10000; state.res.tools = 10000;
+    doResearch('trainingYard')`);
   assert.equal(run("tech('trainingYard')"), true);
   assert.equal(run("bld('trainingYard')"), 0);
   assert.equal(run('1 / guardRecruitmentRate()'), 120);

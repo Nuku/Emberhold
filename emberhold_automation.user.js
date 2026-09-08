@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Emberhold Automation
 // @namespace    https://github.com/emberhold
-// @version      1.25.6
+// @version      1.25.7
 // @description  Configurable automation for Emberhold
 // @updateURL    https://raw.githubusercontent.com/Nuku/Emberhold-Automation/main/emberhold_automation.user.js
 // @downloadURL  https://raw.githubusercontent.com/Nuku/Emberhold-Automation/main/emberhold_automation.user.js
@@ -250,8 +250,11 @@
     const defs = definitions().TECHS || [];
     for (const id of RESEARCH_ORDER) {
       const def = defs.find(item => item.id === id);
-      if (def && !state.techs[id] && unlocked(def, state) &&
-          affordable({ knowledge: def.cost }, state, demand)) {
+      if (!def) continue;
+      const cost = typeof api().helpers?.researchCost === 'function'
+        ? api().helpers.researchCost(def) : { knowledge: def.cost, ...(def.materials || {}) };
+      if (!state.techs[id] && unlocked(def, state) &&
+          affordable(cost, state, demand)) {
         invoke('research', id);
         return;
       }

@@ -543,8 +543,12 @@ function queueCost(entry) {
   const def = queueDef(entry);
   if (!def) return null;
   if (entry.type === 'build') return buildingCost(def);
-  if (entry.type === 'research') return { knowledge: def.cost };
+  if (entry.type === 'research') return researchCost(def);
   return expeditionCost(def);
+}
+
+function researchCost(def) {
+  return { knowledge: def.cost, ...(def.materials || {}) };
 }
 
 function queueDemand() {
@@ -646,7 +650,7 @@ function attemptBuild(id) {
 function attemptResearch(id) {
   const def = TECHS.find(t => t.id === id);
   if (!def) return;
-  if (state.res.knowledge >= def.cost) doResearch(id);
+  if (canAfford(researchCost(def))) doResearch(id);
   else if (state.queues.research.length < queueCapacity('research')) queueEntry('research', id);
 }
 
@@ -1759,8 +1763,9 @@ function doResearch(id) {
   const def = TECHS.find(t => t.id === id);
   if (!def || tech(id)) return;
   if (def.req && !def.req()) return;
-  if (state.res.knowledge < def.cost) return;
-  state.res.knowledge -= def.cost;
+  const cost = researchCost(def);
+  if (!canAfford(cost)) return;
+  payCost(cost);
   state.techs[id] = true;
   if (state.trial && state.trial.id === 'scholarship') state.trial.researches = (state.trial.researches || 0) + 1;
   if (id === 'leatherArmor') state.armor = Math.max(armorLevel(), 1);
@@ -2611,11 +2616,13 @@ function renderResearch() {
     if (tech(t.id)) continue;
     any = true;
     const queued = state.queues.research.some(entry => entry.id === t.id);
-    const ok = state.res.knowledge >= t.cost || state.queues.research.length < queueCapacity('research');
+    const cost = researchCost(t);
+    const ready = canAfford(cost);
+    const ok = ready || state.queues.research.length < queueCapacity('research');
     h += `<div class="card"><div class="card-head">` +
       `<span class="card-title has-tooltip" data-tooltip="${attrText(t.desc)}">${t.name}</span>` +
-      `<span class="card-count">${fmt(t.cost)} Knowledge</span></div>` +
-      `<div class="card-actions"><button data-action="research" data-id="${t.id}" ${ok ? '' : 'disabled'}>${queued ? 'Queued' : state.res.knowledge >= t.cost ? 'Research' : 'Queue'}</button></div>` +
+      `<span class="card-count">${costHtml(cost)}</span></div>` +
+      `<div class="card-actions"><button data-action="research" data-id="${t.id}" ${ok ? '' : 'disabled'}>${queued ? 'Queued' : ready ? 'Research' : 'Queue'}</button></div>` +
       `</div>`;
   }
   if (!any) h += '<div class="res-note">The wise have nothing left to learn here.</div>';
@@ -2964,7 +2971,7 @@ function renderLog() {
 function loadLatestUpdatesTooltip() {
   const button = document.getElementById('btn-updates');
   if (!button || typeof fetch !== 'function' || typeof DOMParser !== 'function') return;
-  fetch('changelog.html?v=publish-20260908k')
+  fetch('changelog.html?v=publish-20260908l')
     .then(response => response.ok ? response.text() : Promise.reject(new Error('changelog unavailable')))
     .then(source => {
       const doc = new DOMParser().parseFromString(source, 'text/html');
@@ -3125,6 +3132,7 @@ window.emberhold = {
     jobProduction,
     jobCapacity,
     queueDemand,
+    researchCost,
     tech,
     trialActive,
     unassigned,
