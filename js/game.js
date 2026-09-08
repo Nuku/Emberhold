@@ -77,6 +77,7 @@ function defaultState() {
     upgrades: {},
     landing: 'emberplain',
     placeTraits: [],
+    traitEffects: {},
     // The starting settlement is already a known landing, even before the
     // player completes their first migration.
     landingsSeen: { emberplain: true },
@@ -112,7 +113,7 @@ function defaultState() {
     won: false,
     achievements: {},
     commonalityLineages: {},
-    settings: { autosave: true, reducedMotion: false, compactStores: false, strictQueueOrder: false },
+    settings: { autosave: true, reducedMotion: false, compactStores: false, strictQueueOrder: false, tooltips: true },
     log: [],
   };
   s.res.food = 60;
@@ -731,6 +732,23 @@ function traitsHtml(traitIds) {
   const traits = (traitIds || []).map(placeTraitDef).filter(Boolean);
   return traits.length ? traits.map(trait => `<span class="has-tooltip" data-tooltip="${attrText(trait.desc)}">${trait.name}</span>`).join(' · ') : 'Unmarked ground';
 }
+function airOfRageMorale() {
+  return currentPlaceTraits().some(trait => trait.rage) ? (state.traitEffects?.airOfRage || 0) : 0;
+}
+function advancePlaceTraitEffects(dt) {
+  if (!currentPlaceTraits().some(trait => trait.rage)) return;
+  state.traitEffects = state.traitEffects || {};
+  // Rage drains through neutral after an attack, then builds toward a
+  // sustained malus when the settlement has no outlet for it.
+  state.traitEffects.airOfRage = Math.max(-0.04, Math.min(0.05,
+    (state.traitEffects.airOfRage || 0) - 0.0002 * dt));
+}
+function triggerAirOfRage() {
+  if (!currentPlaceTraits().some(trait => trait.rage)) return;
+  state.traitEffects = state.traitEffects || {};
+  state.traitEffects.airOfRage = 0.05;
+  addLog('The anger in the air howls with the departing attack, then begins to spend itself.', 'log-good');
+}
 
 // Each 45-day span has two weather patterns, each lasting 15–30 days.
 // Date and place determine the schedule, including after reloads and offline
@@ -875,6 +893,7 @@ function moraleTooltip(foodRate = production(0.25).food) {
   add(-activeLivingBlocks * 0.1, `${activeLivingBlocks} Living Block${activeLivingBlocks === 1 ? '' : 's'}`);
   add(-crowdMoralePenalty(), `${Math.max(0, state.pop - 20)} villager${Math.max(0, state.pop - 20) === 1 ? '' : 's'} beyond 20`);
   for (const trait of currentPlaceTraits()) add(trait.morale || 0, trait.name);
+  add(airOfRageMorale(), 'Air of Rage');
   const conquered = localTribeIds().filter(id => state.diplomacy?.[id]?.conquered && !commonalityActive()).length;
   add(-conquered, conquered === 1 ? 'conquered town' : `${conquered} conquered towns`);
   const weatherNote = weather.morale ? `${weather.name} weather` : `${weather.name} weather — no morale pressure`;
@@ -895,6 +914,7 @@ function updateMorale(dt, foodRate) {
   delta -= crowdMoralePenalty();
   delta -= localTribeIds().filter(id => state.diplomacy?.[id]?.conquered && !commonalityActive()).length;
   delta += currentPlaceTraits().reduce((sum, trait) => sum + (trait.morale || 0), 0);
+  delta += airOfRageMorale();
   const before = moraleBand(state.morale);
   state.morale = Math.max(0, Math.min(moraleCap(), state.morale + delta * dt));
   const after = moraleBand(state.morale);
@@ -935,7 +955,8 @@ function updateRandomEvents(dt) {
     return;
   }
   const lineageEvents = LINEAGE_EVENTS[state.species] || [];
-  const local = lineageEvents.length > 0 && Math.random() < 0.5;
+  const lineageEventChance = currentPlaceTraits().some(trait => trait.atavistic) ? 1 : 0.5;
+  const local = lineageEvents.length > 0 && Math.random() < lineageEventChance;
   const pool = local ? lineageEvents : RANDOM_EVENTS;
   const event = pool[Math.floor(Math.random() * pool.length)];
   const changes = [];
@@ -980,7 +1001,8 @@ function updateRandomEvents(dt) {
 
 function baseLineageMod(res) {
   const lineage = lineageDef(state.species);
-  return (lineage.mods[res] === undefined ? 1 : lineage.mods[res]) * (lineage.all || 1);
+  const modifier = (lineage.mods[res] === undefined ? 1 : lineage.mods[res]) * (lineage.all || 1);
+  return currentPlaceTraits().some(trait => trait.atavistic) ? 1 + (modifier - 1) * 2 : modifier;
 }
 function lineageMod(res) {
   return baseLineageMod(res) * conqueredLineageMod(res);
@@ -1284,7 +1306,10 @@ function resourceRateTooltip(resource, rate, entries) {
 
 function hospitalTimeMod() { return Math.pow(0.9, bld('hospital')); }
 function popGrowthNeed() {
-  return (20 + state.pop * 4) * 0.67 * (tech('aphrodisiac') ? 0.75 : 1) * hospitalTimeMod() * (lineageDef(state.species).growthTime || 1) / moraleMult();
+  const lineageGrowth = lineageDef(state.species).growthTime || 1;
+  const atavisticGrowth = currentPlaceTraits().some(trait => trait.atavistic)
+    ? Math.max(0.1, 1 + (lineageGrowth - 1) * 2) : lineageGrowth;
+  return (20 + state.pop * 4) * 0.67 * (tech('aphrodisiac') ? 0.75 : 1) * hospitalTimeMod() * atavisticGrowth / moraleMult();
 }
 function guardHealingNeed() { return 90 * hospitalTimeMod(); }
 
@@ -1749,6 +1774,7 @@ function tickStep(dt) {
       Math.max(0, state.res.steel - steelBefore);
   }
 
+  advancePlaceTraitEffects(dt);
   updateMorale(dt, rates.food);
 
   // starvation
@@ -2038,6 +2064,7 @@ function doRaid(id, stageId = 'raid') {
   if (able < 1 || !canAfford(cost)) return;
   payCost(cost);
   state.migrationRaids = (state.migrationRaids || 0) + 1;
+  triggerAirOfRage();
 
   const targetIsMephit = id === 'mephit';
   // Weapons improve the attack; armor only protects troops who come home.
@@ -2415,6 +2442,7 @@ function applySettings() {
   if (typeof document === 'undefined' || !document.body) return;
   document.body.classList.toggle('reduced-motion', !!state.settings?.reducedMotion);
   document.body.classList.toggle('compact-stores', !!state.settings?.compactStores);
+  document.body.classList.toggle('tooltips-off', !state.settings?.tooltips);
 }
 
 // ---------- UI ----------
@@ -3047,6 +3075,7 @@ function renderSettings() {
     ['reducedMotion', 'Reduced motion', 'Remove hover lifts and animated transitions.'],
     ['compactStores', 'Compact stores', 'Use a tighter resource list in the persistent sidebar.'],
     ['strictQueueOrder', 'Strict queue order', 'Process queued items one at a time from first to last.'],
+    ['tooltips', 'Tooltips', 'Show helpful details when hovering over labeled elements.'],
   ];
   h += options.map(([id, name, desc]) => `<div class="setting-row"><div><div class="setting-name">${name}</div><div class="setting-desc">${desc}</div></div><button class="setting-toggle ${settings[id] ? 'enabled' : ''}" data-action="setting-toggle" data-setting="${id}" aria-pressed="${!!settings[id]}">${settings[id] ? 'On' : 'Off'}</button></div>`).join('');
   h += '<h2 class="section">Chronicle tools</h2><div class="settings-actions"><button data-action="save">Save now</button><button data-action="export">Export save</button><button data-action="import">Import save</button><button data-action="reset" class="danger-button">Reset Emberhold</button></div>';
@@ -3468,7 +3497,7 @@ function boot() {
   state.diplomats = state.diplomats || {};
   state.policy = state.policy || 'commons';
   state.council = Array.isArray(state.council) ? state.council : [];
-  state.settings = { autosave: true, reducedMotion: false, compactStores: false, strictQueueOrder: false, ...(state.settings || {}) };
+  state.settings = { autosave: true, reducedMotion: false, compactStores: false, strictQueueOrder: false, tooltips: true, ...(state.settings || {}) };
   state.achievements = state.achievements || {};
   state.shopTab = ['buy', 'purchased'].includes(state.shopTab) ? state.shopTab : 'buy';
   state.statsTab = ['stats', 'achievements', 'perks'].includes(state.statsTab) ? state.statsTab : 'stats';

@@ -658,6 +658,8 @@ const PLACE_TRAITS = [
   { id: 'copperBloom', name: 'Copper Bloom', mods: { copper: 1.18 }, desc: 'Green stains on the rocks point to shallow, generous ore.' },
   { id: 'boneFields', name: 'Bone Fields', mods: { food: 1.05 }, morale: -0.010, desc: 'Old battles fed the soil, but never quite left it.' },
   { id: 'fireflyGroves', name: 'Firefly Groves', mods: { aether: 1.14 }, morale: 0.005, desc: 'At dusk, living lights gather between the trunks.' },
+  { id: 'airOfRage', name: 'Air of Rage', rage: true, desc: 'Even the anger of the Ancient Ones gathers here. Unspent fury deepens into a morale penalty; an attack turns it into a fading morale bonus before the anger slowly returns.' },
+  { id: 'atavisticAura', name: 'Atavistic Aura', atavistic: true, desc: 'The pull of cruder things yanks at those who live here. A lineage’s bonuses and penalties are both doubled, and its happenings are twice as likely.' },
   { id: 'blackSoil', name: 'Black Soil', climates: ['emberplain', 'ashfen'], mods: { food: 1.12, coal: 1.06 }, desc: 'Ash and loam have argued here for generations, to the farmer\'s benefit.' },
   { id: 'glassWastes', name: 'Glass Wastes', climates: ['emberplain', 'ashfen'], mods: { aether: 1.16 }, morale: -0.006, desc: 'Fused earth catches the sun in sheets too bright to look at long.' },
   { id: 'smokingVents', name: 'Smoking Vents', climates: ['ashfen'], mods: { coal: 1.20, iron: 1.08 }, morale: -0.008, desc: 'Warm breath rises from below, carrying sulfur and opportunity.' },

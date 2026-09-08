@@ -51,6 +51,27 @@ test('place traits are climate-aware and affect settlement behavior', () => {
   assert.match(run('state.log.map(entry => entry.t).join("\\n")'), /simply vanishes/);
 });
 
+test('Air of Rage turns accumulated anger into a fading morale bonus after an attack', () => {
+  const { run } = game();
+  run(`state.placeTraits = ['airOfRage']; state.traitEffects.airOfRage = -0.02;
+    triggerAirOfRage();`);
+  assert.equal(run('airOfRageMorale()'), 0.05);
+  run('advancePlaceTraitEffects(250)');
+  assert.equal(run('airOfRageMorale()'), 0);
+  run('advancePlaceTraitEffects(100)');
+  assert.equal(run('airOfRageMorale()'), -0.02);
+});
+
+test('Atavistic Aura doubles lineage strengths, weaknesses, and event likelihood', () => {
+  const { run } = game();
+  run(`state.species = 'rabbitfolk'; state.placeTraits = ['atavisticAura'];`);
+  assert.equal(run(`baseLineageMod('food')`), 1.56);
+  assert.equal(run(`baseLineageMod('coal')`), 0.7);
+  assert.equal(run(`popGrowthNeed() / ((20 + state.pop * 4) * 0.67 / moraleMult())`), 0.1);
+  run(`state.randomEventT = 60; state.randomEventNext = 60; Math.random = () => 0.75; updateRandomEvents(0);`);
+  assert.match(run('state.log[0].t'), /^Rabbitfolk:/);
+});
+
 test('policy changes wait one real-time hour, persist through saves and trials, and reset on migration', () => {
   const { run } = game();
   run(`let now = 10000000; Date.now = () => now;

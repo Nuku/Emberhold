@@ -4,6 +4,8 @@ All notable changes to Emberhold are recorded here, with the newest changes firs
 
 ## 2026-09-08
 
+- Added Air of Rage and Atavistic Aura place traits: rage becomes a fading morale bonus after attacks and a growing penalty when unspent, while Atavistic Aura doubles lineage effects and lineage-event frequency.
+- Added an optional Tooltips setting for players who prefer a cleaner interface without hover details.
 - Added climate-aware place traits to migration choices and settlements; traits now modify production, morale, growth, exploration, guard recruitment, and occasional population loss.
 - Added Buy and Purchased tabs to the Ancestral Shop so fully learned upgrades are separated from current choices.
 - Preserved partial power allocations when adding a new controllable building; new copies join automatically only when all existing copies were enabled.
