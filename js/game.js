@@ -935,6 +935,10 @@ function canAfford(cost) {
   for (const r in cost) if (state.res[r] < cost[r]) return false;
   return true;
 }
+function wonderObstacleQueueId(obstacle) {
+  return `wonderObstacle:${state.landing}:${obstacle.sectionIndex}:${obstacle.index}`;
+}
+function isWonderObstacleQueueId(id) { return typeof id === 'string' && id.startsWith('wonderObstacle:'); }
 function canBuild(id) {
   const def = BUILDING_BY_ID.get(id);
   if (!def || bld(id) >= def.max || (def.req && !def.req())) return false;
@@ -946,7 +950,14 @@ function payCost(cost) {
 
 function queueDef(entry) {
   if (!entry || !['build', 'research', 'expedition'].includes(entry.type)) return null;
-  if (entry.type === 'build') return BUILDING_BY_ID.get(entry.id);
+  if (entry.type === 'build') {
+    if (isWonderObstacleQueueId(entry.id)) {
+      const parts = entry.id.split(':');
+      const obstacle = WONDER_OBSTACLES[Number(parts[3])];
+      return parts.length === 4 && Number.isInteger(Number(parts[2])) && obstacle ? obstacle : null;
+    }
+    return BUILDING_BY_ID.get(entry.id);
+  }
   if (entry.type === 'research') return TECH_BY_ID.get(entry.id);
   return EXPEDITION_BY_ID.get(entry.id);
 }
@@ -1061,6 +1072,22 @@ function attemptBuild(id) {
   const cost = buildingCost(def);
   if (canAfford(cost)) doBuild(id);
   else if (state.queues.build.length < queueCapacity('build')) queueEntry('build', id);
+}
+function attemptWonderObstacle() {
+  const record = wonderRecord();
+  const obstacle = currentWonderObstacle(record);
+  if (!obstacle || !record.found || record.obstacles?.[obstacle.key]) return false;
+  const id = wonderObstacleQueueId(obstacle);
+  if (state.queues.build.some(entry => entry.id === id)) {
+    state.paused = false;
+    return true;
+  }
+  if (canAfford(obstacle.cost)) return buildWonderObstacle();
+  if (state.queues.build.length >= queueCapacity('build')) return false;
+  state.queues.build.push({ type: 'build', id, cost: { ...obstacle.cost } });
+  state.paused = false;
+  addLog(`${obstacle.name} added to the Construction queue.`, 'log-important');
+  return true;
 }
 
 function attemptResearch(id) {
@@ -2191,7 +2218,7 @@ function startGameClock() {
   // lose time; it only wakes the simulation to account for elapsed time.
   if (typeof Worker === 'function') {
     try {
-      gameClockWorker = new Worker('js/game-clock.worker.js?v=publish-20260908u16');
+      gameClockWorker = new Worker('js/game-clock.worker.js?v=publish-20260908u17');
       gameClockWorker.addEventListener('message', () => {
         updateGameClock(true);
         renderBonusTimer();
@@ -2322,6 +2349,7 @@ function tickStep(dt) {
 
 // ---------- actions ----------
 function doBuild(id) {
+  if (isWonderObstacleQueueId(id)) return buildWonderObstacle();
   const def = BUILDING_BY_ID.get(id);
   if (!def) return false;
   if (!canBuild(id)) {
@@ -3489,9 +3517,10 @@ function renderWonder() {
       `<div class="card-desc">${calamity.text}</div><div class="trial-mod">−${fmt(calamity.amount)} ${resourceName(calamity.resource)}/s while this attempt continues.</div></div>`;
     if (obstacleBlocked) {
       const canBuild = canAfford(obstacle.cost);
+      const queued = state.queues.build.some(entry => entry.id === wonderObstacleQueueId(obstacle));
       h += `<div class="card wonder-calamity"><div class="card-head"><span class="card-title">Path blocked: ${obstacle.name}</span><span class="card-count">Obstruction ${obstacle.index + 1} of 5</span></div>` +
         `<div class="card-desc">${obstacle.text}</div><div class="card-cost">build cost: ${wonderCostHtml(obstacle.cost)}</div>` +
-        `<div class="card-actions"><button data-action="wonder-obstacle" ${canBuild ? '' : 'disabled'}>Build ${obstacle.name}</button></div></div>`;
+        `<div class="card-actions"><button data-action="wonder-obstacle" ${queued || canBuild || state.queues.build.length < queueCapacity('build') ? '' : 'disabled'}>${queued ? 'Queued' : canBuild ? `Build ${obstacle.name}` : `Queue ${obstacle.name}`}</button></div></div>`;
     }
     h += `<div class="card"><div class="card-head"><span class="card-title">Rapture work</span><span class="card-count">${workers} assigned</span></div>` +
       `<div class="res-note">Section danger: ${fmt(wonderDangerMultiplier(record, def))}×. Each section is 25% deadlier than the last. Guards intervene on a lethal incident with a ${Math.round(Math.min(0.98, 0.60 * wonderDefenseMultiplier() * armor) * 100)}% citizen-survival chance.</div>` +
@@ -3763,7 +3792,7 @@ function renderLog() {
 function loadLatestUpdatesTooltip() {
   const button = document.getElementById('btn-updates');
   if (!button || typeof fetch !== 'function' || typeof DOMParser !== 'function') return;
-  fetch('changelog.html?v=publish-20260908u16')
+  fetch('changelog.html?v=publish-20260908u17')
     .then(response => response.ok ? response.text() : Promise.reject(new Error('changelog unavailable')))
     .then(source => {
       const doc = new DOMParser().parseFromString(source, 'text/html');
@@ -3860,6 +3889,9 @@ const automationActionFns = {
   setJob,
   assignRapture,
   findWonder,
+  wonderResearch: buyWonderResearch,
+  wonderObstacle: attemptWonderObstacle,
+  wonderExpedition: buyWonderExpedition,
   chooseWonderFate,
   setBuildingPower,
   assignDiplomat: doAssignDiplomat,
@@ -3935,6 +3967,9 @@ window.emberhold = {
     setJob,
     assignRapture,
     findWonder,
+    wonderResearch: buyWonderResearch,
+    wonderObstacle: attemptWonderObstacle,
+    wonderExpedition: buyWonderExpedition,
     chooseWonderFate,
   },
   render,
@@ -3985,7 +4020,7 @@ function runAction(btn) {
     case 'rapture-dec': assignRapture(-1); render(); break;
     case 'wonder-find': findWonder(); render(); break;
     case 'wonder-research': buyWonderResearch(+btn.dataset.id); render(); break;
-    case 'wonder-obstacle': buildWonderObstacle(); render(); break;
+    case 'wonder-obstacle': attemptWonderObstacle(); render(); break;
     case 'wonder-expedition': buyWonderExpedition(+btn.dataset.id); render(); break;
     case 'wonder-fate': chooseWonderFate(btn.dataset.id); render(); break;
     case 'policy': choosePolicy(btn.dataset.id); render(); break;

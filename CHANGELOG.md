@@ -4,6 +4,8 @@ All notable changes to Emberhold are recorded here, with the newest changes firs
 
 ## 2026-09-08
 
+- Wonder obstacle construction can now be queued when materials are not yet available, and queued obstacles resume safely after loading.
+- Exposed Wonder research, obstacle, and expedition actions through the automation API.
 - Fixed Wonder obstacles so each of the five sections tracks its own obstruction sequence and older obstacle state remains safely normalized.
 - Rebalanced the Grayrocks calamity costs to match the sustained Wonder pacing.
 - Clarified the Rapture assignment display with the two-workers-per-Guard capacity limit.
