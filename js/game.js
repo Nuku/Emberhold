@@ -564,7 +564,7 @@ function queueDemand() {
 function queueCapacity(type) {
   if (type === 'expedition') return 1;
   const upgrade = type === 'build' ? 'buildingQueue' : 'researchQueue';
-  const trial = type === 'build' ? 'buildingQueueTrial' : 'researchQueueTrial';
+  const trial = type === 'build' ? 'expansion' : 'scholarship';
   return 1 + upg(upgrade) + trialCount(trial);
 }
 
@@ -2937,7 +2937,7 @@ function renderLog() {
 function loadLatestUpdatesTooltip() {
   const button = document.getElementById('btn-updates');
   if (!button || typeof fetch !== 'function' || typeof DOMParser !== 'function') return;
-  fetch('changelog.html?v=publish-20260908a')
+  fetch('changelog.html?v=publish-20260908b')
     .then(response => response.ok ? response.text() : Promise.reject(new Error('changelog unavailable')))
     .then(source => {
       const doc = new DOMParser().parseFromString(source, 'text/html');

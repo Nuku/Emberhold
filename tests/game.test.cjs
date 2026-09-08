@@ -922,6 +922,15 @@ test('construction trials count completed buildings for Frugality and Expansion'
   assert.equal(run('state.trial.buildings'), 1);
 });
 
+test('Expansion and Scholarship trials unlock their extra queue slots', () => {
+  const { run } = game();
+  assert.equal(run("queueCapacity('build')"), 1);
+  assert.equal(run("queueCapacity('research')"), 1);
+  run('state.trialDone.expansion = 1; state.trialDone.scholarship = 1');
+  assert.equal(run("queueCapacity('build')"), 2);
+  assert.equal(run("queueCapacity('research')"), 2);
+});
+
 test('Long Night keeps the whole trial in winter', () => {
   const { run } = game();
   run(`state.day = DAYS_PER_SEASON + 1;
