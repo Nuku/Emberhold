@@ -637,6 +637,44 @@ const CLIMATES = {
   ashfen: { name: 'Warm veiled marsh', offset: 5, weights: [15, 30, 20, 15, 20], text: 'Warmer, cloudier days with frequent fog that slows trade income.' },
   windmere: { name: 'Aurora waters', offset: -3, weights: [30, 20, 15, 20, 5, 10], text: 'Cool and changeable; occasional auroras lift morale and aid knowledge and aether production.' },
 };
+// A landing is never just its broad climate. Each scout report is marked with
+// two local traits, drawn from this catalogue when it is discovered. Climate
+// restrictions make a bog feel unlike a high pass even when their basic
+// landing modifiers happen to overlap.
+const PLACE_TRAITS = [
+  { id: 'relicLittered', name: 'Relic Littered', mods: { knowledge: 1.10 }, vanishChance: 0.001, desc: 'The bones of the old world are thick here. Investigating them may bring delights, or horrors.' },
+  { id: 'oldRoads', name: 'Old Roads', mods: { currency: 1.12, goods: 1.08 }, desc: 'Cracked causeways still lead, improbably, where people need to go.' },
+  { id: 'richTopsoil', name: 'Rich Topsoil', mods: { food: 1.14 }, desc: 'Dark earth rewards patient hands and remembered seeds.' },
+  { id: 'flintRidges', name: 'Flint Ridges', mods: { stone: 1.14, tools: 1.06 }, desc: 'Sharp stone lies close to the surface in long, workable seams.' },
+  { id: 'quietHollows', name: 'Quiet Hollows', morale: 0.008, desc: 'The wind barely reaches the sheltered folds of this country.' },
+  { id: 'restlessGround', name: 'Restless Ground', morale: -0.009, desc: 'Small tremors keep cups rattling and sleep shallow.' },
+  { id: 'clearSprings', name: 'Clear Springs', mods: { food: 1.07 }, morale: 0.006, desc: 'Cold, clean water rises from the ground without asking a price.' },
+  { id: 'buriedWorkshops', name: 'Buried Workshops', mods: { tools: 1.15, knowledge: 1.05 }, desc: 'Collapsed workrooms offer patterns, parts, and dangerous examples.' },
+  { id: 'watchfulStones', name: 'Watchful Stones', mods: { stone: 1.08 }, guardRecruitment: 1.10, desc: 'Standing stones make good landmarks, and better watch posts.' },
+  { id: 'wildOrchards', name: 'Wild Orchards', mods: { food: 1.12 }, growth: 0.94, desc: 'Half-tamed fruit trees return each year without being asked.' },
+  { id: 'echoingCaves', name: 'Echoing Caves', mods: { stone: 1.10, aether: 1.10 }, morale: -0.004, desc: 'Voices travel too far underground, and sometimes return changed.' },
+  { id: 'tradingCrossroads', name: 'Trading Crossroads', mods: { currency: 1.18 }, survey: 1.10, desc: 'Paths converge here; news and small necessities do as well.' },
+  { id: 'sunkenArchives', name: 'Sunken Archives', mods: { knowledge: 1.16 }, desc: 'Waterlogged shelves still keep fragments of a more orderly age.' },
+  { id: 'copperBloom', name: 'Copper Bloom', mods: { copper: 1.18 }, desc: 'Green stains on the rocks point to shallow, generous ore.' },
+  { id: 'boneFields', name: 'Bone Fields', mods: { food: 1.05 }, morale: -0.010, desc: 'Old battles fed the soil, but never quite left it.' },
+  { id: 'fireflyGroves', name: 'Firefly Groves', mods: { aether: 1.14 }, morale: 0.005, desc: 'At dusk, living lights gather between the trunks.' },
+  { id: 'blackSoil', name: 'Black Soil', climates: ['emberplain', 'ashfen'], mods: { food: 1.12, coal: 1.06 }, desc: 'Ash and loam have argued here for generations, to the farmer\'s benefit.' },
+  { id: 'glassWastes', name: 'Glass Wastes', climates: ['emberplain', 'ashfen'], mods: { aether: 1.16 }, morale: -0.006, desc: 'Fused earth catches the sun in sheets too bright to look at long.' },
+  { id: 'smokingVents', name: 'Smoking Vents', climates: ['ashfen'], mods: { coal: 1.20, iron: 1.08 }, morale: -0.008, desc: 'Warm breath rises from below, carrying sulfur and opportunity.' },
+  { id: 'reedLabyrinth', name: 'Reed Labyrinth', climates: ['floodmeadows', 'ashfen', 'windmere'], mods: { food: 1.10, aether: 1.07 }, survey: 0.90, desc: 'The channels feed the village and hide the way through.' },
+  { id: 'mistShrines', name: 'Mist Shrines', climates: ['floodmeadows', 'ashfen'], morale: 0.012, mods: { knowledge: 1.06 }, desc: 'Offerings disappear into the mist; comfort does not.' },
+  { id: 'floodedRuins', name: 'Flooded Ruins', climates: ['floodmeadows', 'windmere'], mods: { knowledge: 1.12, food: 1.05 }, vanishChance: 0.0003, desc: 'Streets lie beneath still water, with doors opening where no house remains.' },
+  { id: 'rainwardCanopy', name: 'Rainward Canopy', climates: ['greenfold'], mods: { wood: 1.18, food: 1.06 }, desc: 'The oldest boughs turn hard rain aside before it reaches the ground.' },
+  { id: 'mossboundStones', name: 'Mossbound Stones', climates: ['greenfold'], mods: { stone: 1.10, aether: 1.08 }, desc: 'Green-covered markers make the forest feel curated by patient hands.' },
+  { id: 'whisperingPines', name: 'Whispering Pines', climates: ['greenfold'], mods: { knowledge: 1.08, wood: 1.08 }, morale: 0.004, desc: 'The trees make a language of the wind, if anyone can bear to listen.' },
+  { id: 'highPasses', name: 'High Passes', climates: ['grayrocks'], mods: { stone: 1.16, iron: 1.12 }, survey: 1.15, desc: 'A hard climb buys a view of the roads, valleys, and threats beyond.' },
+  { id: 'frostveins', name: 'Frostveins', climates: ['grayrocks'], mods: { aether: 1.16, iron: 1.07 }, morale: -0.006, desc: 'Blue ice threads the rock and sings when struck.' },
+  { id: 'eaglesRest', name: 'Eagle\'s Rest', climates: ['grayrocks'], guardRecruitment: 1.18, morale: 0.005, desc: 'From this height, no approach is truly unseen.' },
+  { id: 'mirrorLake', name: 'Mirror Lake', climates: ['windmere'], mods: { knowledge: 1.12, aether: 1.12 }, desc: 'The water reflects stars that no longer have names.' },
+  { id: 'auroraReeds', name: 'Aurora Reeds', climates: ['windmere'], mods: { aether: 1.18 }, morale: 0.008, desc: 'Pale lights collect in the reeds even on nights without an aurora.' },
+  { id: 'tidalGardens', name: 'Tidal Gardens', climates: ['windmere', 'floodmeadows'], mods: { food: 1.13, goods: 1.06 }, growth: 0.95, desc: 'The water leaves fertile beds behind, then returns to collect its due.' },
+  { id: 'stormScoured', name: 'Storm-Scoured', climates: ['grayrocks', 'windmere'], mods: { stone: 1.07, aether: 1.10 }, morale: -0.005, desc: 'Nothing loose survives the weather; what remains is strong.' },
+];
 // Weights follow this order. Effects multiply positive production, never consumption.
 const WEATHER = [
   { id: 'clear', name: 'Clear', morale: 0.025, mods: {} },

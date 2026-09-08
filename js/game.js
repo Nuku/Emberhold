@@ -41,6 +41,7 @@ const LINEAGE_BY_ID = indexById(LINEAGES);
 const LANDING_BY_ID = indexById(LANDINGS);
 const UPGRADE_BY_ID = indexById(UPGRADES);
 const FACTORY_RECIPE_BY_ID = indexById(FACTORY_RECIPES);
+const PLACE_TRAIT_BY_ID = indexById(PLACE_TRAITS);
 
 function resourceName(id) { return RESOURCE_BY_ID.get(id)?.name || id; }
 
@@ -75,6 +76,7 @@ function defaultState() {
     echoes: 0,
     upgrades: {},
     landing: 'emberplain',
+    placeTraits: [],
     // The starting settlement is already a known landing, even before the
     // player completes their first migration.
     landingsSeen: { emberplain: true },
@@ -184,7 +186,10 @@ function isMephit() { return state.species === 'mephit'; }
 function armorLevel() { return Math.max(0, Number(state.armor) || 0); }
 function tradeAvailable() { return tech('currency') && localTribeIds().length > 0; }
 function guardCap() { return bld('barracks') * 2; }
-function guardRecruitmentRate() { return 1 / (120 * Math.pow(0.9, bld('trainingYard'))); }
+function guardRecruitmentRate() {
+  return 1 / (120 * Math.pow(0.9, bld('trainingYard'))) *
+    currentPlaceTraits().reduce((rate, trait) => rate * (trait.guardRecruitment || 1), 1);
+}
 function updateGuardRecruitment(dt) {
   const total = state.jobs.guard || 0;
   const cap = guardCap();
@@ -714,6 +719,18 @@ function seasonIndex(day = state.day) {
   return Math.floor((day % DAYS_PER_YEAR) / DAYS_PER_SEASON);
 }
 function climateDef(landing = state.landing) { return CLIMATES[landing] || CLIMATES.emberplain; }
+function placeTraitDef(id) { return PLACE_TRAIT_BY_ID.get(id); }
+function currentPlaceTraits() { return (state.placeTraits || []).map(placeTraitDef).filter(Boolean); }
+function traitsForLanding(landingId, count = 2) {
+  const eligible = PLACE_TRAITS.filter(trait => !trait.climates || trait.climates.includes(landingId));
+  const picked = [];
+  while (eligible.length && picked.length < count) picked.push(eligible.splice(Math.floor(Math.random() * eligible.length), 1)[0].id);
+  return picked;
+}
+function traitsHtml(traitIds) {
+  const traits = (traitIds || []).map(placeTraitDef).filter(Boolean);
+  return traits.length ? traits.map(trait => `<span class="has-tooltip" data-tooltip="${attrText(trait.desc)}">${trait.name}</span>`).join(' · ') : 'Unmarked ground';
+}
 
 // Each 45-day span has two weather patterns, each lasting 15–30 days.
 // Date and place determine the schedule, including after reloads and offline
@@ -786,6 +803,10 @@ function globalProductionFactors() {
 
 function settlementProductionFactors(res, outgoing = false) {
   const factors = [[landingDef().name, landingMod(res)], [lineageDef(state.species).name, baseLineageMod(res)]];
+  if (!outgoing) for (const trait of currentPlaceTraits()) {
+    const modifier = trait.mods?.[res];
+    if (modifier) factors.push([trait.name, modifier]);
+  }
   const conquered = conqueredLineage();
   if (conquered && conqueredLineageMod(res) > 1) factors.push([`${conquered.name} (Commonality)`, conqueredLineageMod(res)]);
   for (const e of EXPEDITIONS) {
@@ -853,6 +874,7 @@ function moraleTooltip(foodRate = production(0.25).food) {
   const activeLivingBlocks = powerAllocation().livingBlock;
   add(-activeLivingBlocks * 0.1, `${activeLivingBlocks} Living Block${activeLivingBlocks === 1 ? '' : 's'}`);
   add(-crowdMoralePenalty(), `${Math.max(0, state.pop - 20)} villager${Math.max(0, state.pop - 20) === 1 ? '' : 's'} beyond 20`);
+  for (const trait of currentPlaceTraits()) add(trait.morale || 0, trait.name);
   const conquered = localTribeIds().filter(id => state.diplomacy?.[id]?.conquered && !commonalityActive()).length;
   add(-conquered, conquered === 1 ? 'conquered town' : `${conquered} conquered towns`);
   const weatherNote = weather.morale ? `${weather.name} weather` : `${weather.name} weather — no morale pressure`;
@@ -872,6 +894,7 @@ function updateMorale(dt, foodRate) {
   delta -= powerAllocation().livingBlock * 0.1;
   delta -= crowdMoralePenalty();
   delta -= localTribeIds().filter(id => state.diplomacy?.[id]?.conquered && !commonalityActive()).length;
+  delta += currentPlaceTraits().reduce((sum, trait) => sum + (trait.morale || 0), 0);
   const before = moraleBand(state.morale);
   state.morale = Math.max(0, Math.min(moraleCap(), state.morale + delta * dt));
   const after = moraleBand(state.morale);
@@ -884,7 +907,8 @@ function updateMorale(dt, foodRate) {
 
 function updateExploration(dt) {
   if (!perm('explorers')) return;
-  state.surveyPoints = (state.surveyPoints || 0) + explorerCount() * 0.025 * dt;
+  const traitMultiplier = currentPlaceTraits().reduce((value, trait) => value * (trait.survey || 1), 1);
+  state.surveyPoints = (state.surveyPoints || 0) + explorerCount() * 0.025 * traitMultiplier * dt;
   discoverTradePartners();
 }
 
@@ -1463,13 +1487,17 @@ function beginMigration() {
 
 function landingChoicesForMigration() {
   const available = LANDINGS.filter(l => l.id !== state.landing);
-  const choices = [available.splice(Math.floor(Math.random() * available.length), 1)[0]];
+  const draw = () => {
+    const landing = available.splice(Math.floor(Math.random() * available.length), 1)[0];
+    return { ...landing, traits: traitsForLanding(landing.id) };
+  };
+  const choices = [draw()];
   const costs = [3, 9, 27];
   let points = state.surveyPoints || 0;
   for (const cost of costs) {
     if (points < cost || choices.length >= 4 || !available.length) break;
     points -= cost;
-    choices.push(available.splice(Math.floor(Math.random() * available.length), 1)[0]);
+    choices.push(draw());
   }
   state.surveyPoints = points;
   return choices;
@@ -1520,6 +1548,7 @@ function setOut(trialId = null) {
     policyChangedAt: state.policyChangedAt,
     governor: state.governor, council: [...state.council],
   } : null;
+  const selectedLanding = !trialId && (state.pendingLandings || []).find(l => l.id === state.pendingLanding);
   const landing = LANDING_BY_ID.get(trialId ? state.landing : state.pendingLanding) ||
     state.pendingLandings[0] || LANDINGS.find(l => l.id !== state.landing) || LANDINGS[0];
   const ancestralBlessing = !!trialId || !!state.landingsSeen[landing.id];
@@ -1550,6 +1579,7 @@ function setOut(trialId = null) {
     diplomacy: state.diplomacy,
     achievements: state.achievements,
     commonalityLineages: state.commonalityLineages,
+    placeTraits: state.placeTraits,
     won: state.won, savedAt: state.savedAt, bonusTime: state.bonusTime, log: state.log,
   };
   state = defaultState();
@@ -1572,6 +1602,7 @@ function setOut(trialId = null) {
   state.ancestralBlessing = ancestralBlessing;
   state.log = keep.log;
   state.landing = landing.id;
+  state.placeTraits = trialId ? [...(keep.placeTraits || [])] : [...(selectedLanding?.traits || traitsForLanding(landing.id))];
   if (settings) Object.assign(state, settings);
   if (trialId) state.trial = { id: trialId, startDay: state.day, daysActive: 0, buildings: 0 };
   if (trialId === 'silence') state.trial.steelProduced = 0;
@@ -1604,7 +1635,7 @@ function setOut(trialId = null) {
   }
   state.landing = landing.id;
   state.landingsSeen[landing.id] = true;
-  addLog(`The road ends at ${landing.name}. ${landing.text} (${modsHtml(landing).replace(/<[^>]+>/g, '')})`, 'log-important');
+  addLog(`The road ends at ${landing.name}. ${landing.text} (${modsHtml(landing).replace(/<[^>]+>/g, '')}) Traits: ${currentPlaceTraits().map(trait => trait.name).join(', ') || 'Unmarked ground'}.`, 'log-important');
   if (!trialId) {
     const tribe = rollTradePartner();
     addLog(`${tribe.name} are encountered nearby. ${tribe.text} Trade will bring funds once Currency is researched.`, 'log-important');
@@ -1737,7 +1768,8 @@ function tickStep(dt) {
   // growth
   if (state.res.food > 0 && state.pop < popCap()) {
     state.growthT += dt;
-    if (state.growthT >= popGrowthNeed()) {
+    const traitGrowth = currentPlaceTraits().reduce((value, trait) => value * (trait.growth || 1), 1);
+    if (state.growthT >= popGrowthNeed() * traitGrowth) {
       state.growthT = 0;
       state.pop++;
       if (state.pop % 5 === 0) addLog(`The village has grown to ${state.pop} souls.`, 'log-good');
@@ -1764,6 +1796,18 @@ function tickStep(dt) {
       Winter: 'Winter has come. Food grows scarce — plan for it.',
     };
     addLog(flavor[SEASONS[sIdx].name], SEASONS[sIdx].name === 'Winter' ? 'log-bad' : '');
+  }
+
+  // Loss chances are expressed per one-second simulation tick. Scaling the
+  // probability keeps offline and double-speed play fair without permitting
+  // multiple disappearances from a single trait in one step.
+  const vanishChance = 1 - currentPlaceTraits().reduce((survival, trait) =>
+    survival * Math.pow(1 - (trait.vanishChance || 0), dt), 1);
+  if (state.pop > 1 && vanishChance > 0 && Math.random() < vanishChance) {
+    const source = currentPlaceTraits().find(trait => trait.vanishChance);
+    state.pop--;
+    reconcileWorkers();
+    addLog(`Someone simply vanishes near ${source.name}. Taken by the ancestors? Likely. Don't think hard on it.`, 'log-bad');
   }
   updateAchievements();
   emitAutomationEvent('tick', { dt });
@@ -2134,6 +2178,12 @@ function normalizeSave(s) {
   // Older saves may not have recorded the initial landing. The current
   // settlement is necessarily known and should count as a return destination.
   s.landingsSeen[s.landing] = true;
+  s.placeTraits = [...new Set(s.placeTraits.filter(id => typeof id === 'string' && PLACE_TRAIT_BY_ID.has(id)))].slice(0, 2);
+  if (s.migrating) for (const landing of s.pendingLandings) {
+    if (!landing || typeof landing.id !== 'string') continue;
+    if (!Array.isArray(landing.traits)) landing.traits = traitsForLanding(landing.id);
+    else landing.traits = [...new Set(landing.traits.filter(id => typeof id === 'string' && PLACE_TRAIT_BY_ID.has(id)))].slice(0, 2);
+  }
   s.bonusTime = Math.max(0, Math.min(OFFLINE_CAP, s.bonusTime));
   if (!Number.isInteger(s.pop) || s.pop < 1 || !Number.isInteger(s.era) || s.era < 1 || s.era > ERAS.length)
     throw new Error('Invalid settlement');
@@ -2459,8 +2509,10 @@ function renderHeader() {
   const doy = Math.floor(state.day % DAYS_PER_YEAR);
   const season = SEASONS[Math.floor(doy / DAYS_PER_SEASON)].name;
   const year = Math.floor(state.day / DAYS_PER_YEAR) + 1;
-  document.getElementById('era-line').textContent =
-    `Year ${year} of the ${ERAS[state.era - 1].name} — ${landingDef().name} — ${lineageDef(state.species).name}`;
+  const traitLabels = currentPlaceTraits().map(trait =>
+    `<span class="has-tooltip" tabindex="0" data-tooltip="${attrText(trait.desc)}">${esc(trait.name)}</span>`).join(', ');
+  document.getElementById('era-line').innerHTML =
+    `Year ${year} of the ${esc(ERAS[state.era - 1].name)} — ${esc(landingDef().name)}${traitLabels ? ` (${traitLabels})` : ''} — ${esc(lineageDef(state.species).name)}`;
   document.getElementById('time-line').textContent =
     `${state.paused ? 'Paused · ' : ''}Day ${doy % DAYS_PER_SEASON + 1} of ${season} — chronicle day ${Math.floor(state.day)} — ${weatherSummary()}`;
   document.getElementById('pop-line').textContent =
@@ -2521,6 +2573,7 @@ function renderVillage() {
   let h = `<h2 class="section">Where you stand — ${L.name}</h2>` +
     `<div class="res-note">${L.text}</div>` +
     `<div class="res-note">Climate: ${climateDef().name} — ${climateDef().text} Freezing days reduce food production by 10%; hot days by 5%.</div>` +
+    `<div class="res-note">Place traits: ${traitsHtml(state.placeTraits)}</div>` +
     renderNextStep() +
     `<div class="res-note">Population growth: ${fmt(popGrowthNeed())} seconds per new villager while food and housing are available. Guard healing: ${fmt(guardHealingNeed())} seconds per injury.</div>` +
     `<div class="res-note" style="margin:2px 0 6px">The land gives: ${modsHtml(L)}</div>` +
@@ -2892,6 +2945,7 @@ function renderMigration() {
     h += `<div class="card ${selected ? 'lineage-selected' : ''} ${allowed ? '' : 'dimmed'}"><div class="card-head"><span class="card-title has-tooltip" data-tooltip="${attrText(landing.text)}">${landing.name}</span>${selected ? '<span class="card-count">chosen</span>' : ''}</div>` +
       `<div class="card-effect">${modsHtml(landing)}</div>` +
       `<div class="res-note">Climate: ${climateDef(landing.id).name} — ${climateDef(landing.id).text}</div>` +
+      `<div class="res-note">Place traits: ${traitsHtml(landing.traits)}</div>` +
       (expedition ? `<div class="res-note">${expedition.name}: ${expDone(expedition.id) ? 'established' : 'unexplored'} — ${expedition.effect}</div>` : '') +
       `<div class="card-actions"><button data-action="landing" data-id="${landing.id}" ${selected || !allowed ? 'disabled' : ''}>${!allowed ? 'Unsuitable for chosen lineage' : selected ? 'Chosen' : 'Choose this landing'}</button></div></div>`;
   }

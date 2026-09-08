@@ -34,6 +34,23 @@ test('paused real-time clock does not advance or bank time', () => {
   assert.equal(run('lastGameAt'), 6000);
 });
 
+test('place traits are climate-aware and affect settlement behavior', () => {
+  const { run } = game();
+  assert.ok(run('PLACE_TRAITS.length') >= 30);
+  assert.ok(run(`PLACE_TRAITS.filter(t => t.climates?.length).length`) > 0);
+  run(`for (let i = 0; i < 50; i++) {
+    for (const id of traitsForLanding('grayrocks')) {
+      const trait = placeTraitDef(id);
+      if (trait.climates) { if (!trait.climates.includes('grayrocks')) throw new Error('wrong climate trait'); }
+    }
+  }`);
+  run(`state.placeTraits = ['relicLittered']; state.jobs.thinker = 1; state.res.food = 100;`);
+  assert.ok(Math.abs(run('production(0).knowledge') - 0.132) < 1e-9);
+  run(`Math.random = () => 0; tickStep(1);`);
+  assert.equal(run('state.pop'), 3);
+  assert.match(run('state.log.map(entry => entry.t).join("\\n")'), /simply vanishes/);
+});
+
 test('policy changes wait one real-time hour, persist through saves and trials, and reset on migration', () => {
   const { run } = game();
   run(`let now = 10000000; Date.now = () => now;
