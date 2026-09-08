@@ -4,6 +4,7 @@ All notable changes to Emberhold are recorded here, with the newest changes firs
 
 ## 2026-09-08
 
+- Updated every queued construction, research, and expedition item to show its own missing resources and estimated wait time in parallel queue mode.
 - Added atmospheric narrative descriptions to every trial and expedition, shown directly in their cards, including after an expedition has been established.
 - Expanded expedition and trial flavor text to better describe the risks, places, and promises behind each undertaking.
 - Reworked lineage effects into named, grouped traits shared across cultures; diplomacy and migration now show each lineage's trait set, including trait tooltips and special effects.

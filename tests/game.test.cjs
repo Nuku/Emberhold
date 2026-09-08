@@ -339,15 +339,15 @@ test('stores display Survey after Explorers are unlocked', () => {
   assert.match(stores, /0\.05\/s/);
 });
 
-test('the top queue item shows each missing resource with its own estimate', () => {
+test('queue items show each missing resource with its own estimate', () => {
   const { run } = game();
   run(`state.queues.build = [{ type: 'build', id: 'stoneWorks' }, { type: 'build', id: 'lumberYard' }];
     state.res.wood = 0; state.res.stone = 0;`);
   const html = run("renderQueue('build')");
-  assert.equal((html.match(/queue-waiting-item/g) || []).length, 2);
+  assert.equal((html.match(/queue-waiting-item/g) || []).length, 3);
   assert.match(html, /queue-waiting-item[\s\S]*queue-time/);
   assert.match(html, /lumberCamp|Lumber/);
-  assert.equal((html.match(/queue-needs/g) || []).length, 1);
+  assert.equal((html.match(/queue-needs/g) || []).length, 0);
 });
 
 test('queue items can be reordered before or after another item', () => {

@@ -2836,10 +2836,10 @@ function renderQueue(type) {
   if (!entries.length) return `<div class="queue-empty">${label} queue empty (${queueCapacity(type)} slot${queueCapacity(type) === 1 ? '' : 's'})</div>`;
   return entries.map((entry, index) => {
     const def = queueDef(entry);
-    const cost = queueCost(entry);
-    const details = index === 0
-      ? queueWaitingHtml(entry)
-      : `<span class="queue-needs">needs ${costHtml(cost)}</span><span class="queue-time">${queueLabel(queueTime(entry))}</span>`;
+    // Every entry can start independently in the default parallel queue mode.
+    // Show each entry's actual missing resources so a later item cannot claim
+    // to be ready while its displayed cost is still unaffordable.
+    const details = queueWaitingHtml(entry);
     return `<button class="queue-item" draggable="true" data-action="queue-cancel" data-queue-item="true" data-type="${type}" data-index="${index}" title="Drag to reorder; click to cancel">` +
       `<span class="queue-name">${esc(def ? def.name : entry.id)}</span>` +
       `<span class="queue-details">${details}</span></button>`;
