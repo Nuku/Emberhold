@@ -1683,7 +1683,9 @@ test('Wonders require beacon hints, scale their search by distinct beacons, and 
   assert.equal(run('WONDERS.length'), 6);
   assert.equal(run('new Set(WONDERS.map(w => w.id)).size'), 6);
   assert.equal(run('findWonder()'), false);
-  run(`state.beaconsLit = { emberplain: true };
+  run('state.beaconsLit = { emberplain: true };');
+  assert.equal(run('findWonder()'), false);
+  run(`state.techs.optics = true; state.beaconsLit = { emberplain: true }; state.beaconRevisited = { emberplain: true };
     state.surveyPoints = 10000; state.res.steel = 10000; state.res.machinery = 10000; state.res.food = 10000;`);
   const oneBeacon = run(`wonderFindCost(wonderDef()).survey`);
   run(`state.beaconsLit = Object.fromEntries(LANDINGS.map(l => [l.id, true]));`);
@@ -1695,7 +1697,7 @@ test('Wonders require beacon hints, scale their search by distinct beacons, and 
 
 test('Rapture work opens the Wonder tab, resets only an emptied active section, and retains completed sections', () => {
   const { run } = game();
-  run(`state.beaconsLit = { emberplain: true }; state.surveyPoints = 10000;
+  run(`state.techs.optics = true; state.beaconsLit = { emberplain: true }; state.beaconRevisited = { emberplain: true }; state.surveyPoints = 10000;
     state.res.steel = 10000; state.res.machinery = 10000; state.res.food = 10000;
     findWonder(); state.pop = 12;`);
   assert.equal(run('assignRapture(2)'), true);
@@ -1710,7 +1712,7 @@ test('Rapture work opens the Wonder tab, resets only an emptied active section, 
 
 test('Wonder guards can save workers, wounded-only guards face doubled death weight, and fate rewards persist through forced migration', () => {
   const { run } = game();
-  run(`state.beaconsLit = { emberplain: true }; state.surveyPoints = 10000;
+  run(`state.techs.optics = true; state.beaconsLit = { emberplain: true }; state.beaconRevisited = { emberplain: true }; state.surveyPoints = 10000;
     state.res.steel = 10000; state.res.machinery = 10000; state.res.food = 10000;
     findWonder(); state.pop = 12; state.techs.guards = true; state.bld.barracks = 2;
     state.jobs.guard = 2; assignRapture(1); Math.random = () => 0; resolveWonderIncident();`);

@@ -76,6 +76,7 @@ function defaultState() {
     trial: null,
     expeditions: {},
     beaconsLit: {},
+    beaconRevisited: {},
     wonders: {},
     rapture: { landing: null, workers: 0, tabSeen: false },
     hope: 0,
@@ -143,6 +144,7 @@ function wonderRecord(id = state.landing) {
   return state.wonders[id];
 }
 function beaconsLitCount() { return Object.keys(state.beaconsLit || {}).filter(id => state.beaconsLit[id]).length; }
+function wonderHintsAvailable() { return tech('optics') && !!state.beaconRevisited?.[state.landing]; }
 function wonderChoice(id, choice) { return !!state.wonders?.[id]?.outcomes?.[choice]; }
 function solarPowerAvailable() { return wonderChoice('emberplain', 'restore') &&
   ['steamPlant', 'dynamo', 'windDevice', 'livingBlock', 'factory'].some(id => bld(id) > 0); }
@@ -526,7 +528,7 @@ function remainingWonderChoices(record = wonderRecord()) {
 }
 function findWonder() {
   const def = wonderDef();
-  if (!def || beaconsLitCount() < 1) return false;
+  if (!def || !wonderHintsAvailable()) return false;
   const record = wonderRecord(def.id);
   if (record.found || !remainingWonderChoices(record).length) return false;
   const cost = wonderFindCost(def);
@@ -1997,7 +1999,7 @@ function setOut(trialId = null) {
     day: state.day,
     echoes: state.echoes, upgrades: state.upgrades,
     trialDone: state.trialDone, expeditions: state.expeditions,
-    beaconsLit: state.beaconsLit, wonders: state.wonders,
+    beaconsLit: state.beaconsLit, beaconRevisited: state.beaconRevisited, wonders: state.wonders,
     hope: state.hope, ancient: state.ancient,
     landingsSeen: state.landingsSeen,
     species: state.species, tribesSeen: state.tribesSeen,
@@ -2015,6 +2017,7 @@ function setOut(trialId = null) {
   state.trialDone = keep.trialDone;
   state.expeditions = keep.expeditions;
   state.beaconsLit = keep.beaconsLit;
+  state.beaconRevisited = keep.beaconRevisited;
   state.wonders = keep.wonders;
   state.hope = keep.hope;
   state.ancient = keep.ancient;
@@ -2033,6 +2036,7 @@ function setOut(trialId = null) {
   state.ancestralBlessing = ancestralBlessing;
   state.log = keep.log;
   state.landing = landing.id;
+  if (!trialId && state.beaconsLit?.[landing.id]) state.beaconRevisited[landing.id] = true;
   state.placeTraits = trialId ? [...(keep.placeTraits || [])] : [...(selectedLanding?.traits || traitsForLanding(landing.id))];
   if (settings) Object.assign(state, settings);
   if (trialId) state.trial = { id: trialId, startDay: state.day, daysActive: 0, buildings: 0 };
@@ -2665,6 +2669,8 @@ function normalizeSave(s) {
   for (const r of RESOURCES) if (s.res[r.id] === undefined) s.res[r.id] = 0;
   s.beaconsLit = Object.fromEntries(Object.entries(s.beaconsLit || {})
     .filter(([id, lit]) => LANDING_BY_ID.has(id) && lit === true));
+  s.beaconRevisited = Object.fromEntries(Object.entries(s.beaconRevisited || {})
+    .filter(([id, revisited]) => LANDING_BY_ID.has(id) && revisited === true && s.beaconsLit[id]));
   // Older saves that reached the Beacon predate the per-landing record. They
   // still qualify for the first Wonder hint.
   if (s.won && !Object.keys(s.beaconsLit).length) s.beaconsLit[s.landing] = true;
@@ -3352,8 +3358,14 @@ function renderWonderDiscovery() {
   if (!def) return '';
   const record = wonderRecord(def.id);
   if (record.found) return '';
-  if (beaconsLitCount() < 1) {
-    return '<div class="res-note">A beacon must burn somewhere before its hints can lead to a Wonder.</div>';
+  if (!tech('optics')) {
+    return '<div class="res-note">Research Optics first. Only a properly focused beacon can reveal the way to a Wonder.</div>';
+  }
+  if (!state.beaconsLit?.[state.landing]) {
+    return '<div class="res-note">A beacon must burn at this landing before its hints can lead to its Wonder.</div>';
+  }
+  if (!state.beaconRevisited?.[state.landing]) {
+    return '<div class="res-note">The beacon has burned, but its deeper signal waits. Migrate, then return to this landing.</div>';
   }
   const remaining = remainingWonderChoices(record);
   if (!remaining.length) return `<div class="card done"><div class="card-head"><span class="card-title">${def.name}</span><span class="card-effect">Every known fate has been faced</span></div><div class="card-desc">${def.short}</div></div>`;
