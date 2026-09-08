@@ -513,8 +513,16 @@ function wonderResearchCost(research) {
     [id, Math.ceil(amount * WONDER_RESEARCH_COST_MULTIPLIER)]));
 }
 function currentWonderObstacle(record = wonderRecord()) {
-  const index = wonderSectionIndex(record);
-  return index < 0 ? null : { ...WONDER_OBSTACLES[index], index };
+  const sectionIndex = wonderSectionIndex(record);
+  if (sectionIndex < 0) return null;
+  const built = record.obstacles || {};
+  for (let index = 0; index < WONDER_OBSTACLES.length; index++) {
+    const threshold = Math.ceil(WONDER_SECTION_PROGRESS * (index + 1) / WONDER_OBSTACLES.length);
+    const key = `${sectionIndex}:${index}`;
+    if (record.progress >= threshold && !built[key])
+      return { ...WONDER_OBSTACLES[index], index, sectionIndex, threshold, key };
+  }
+  return null;
 }
 
 function wonderSectionIndex(record = wonderRecord()) {
@@ -687,9 +695,9 @@ function updateWonder(dt) {
   const record = wonderRecord();
   const def = wonderDef();
   const obstacle = currentWonderObstacle(record);
-  const blocked = obstacle && !record.obstacles?.[obstacle.index];
-  if (blocked && !record.obstacleNotices?.[obstacle.index]) {
-    record.obstacleNotices[obstacle.index] = true;
+  const blocked = !!obstacle;
+  if (blocked && !record.obstacleNotices?.[obstacle.key]) {
+    record.obstacleNotices[obstacle.key] = true;
     state.paused = true;
     addLog(`The expedition reaches ${obstacle.name}. Progress stops until it is built.`, 'log-important');
     saveGame(true);
@@ -724,10 +732,10 @@ function buyWonderResearch(index) {
 function buildWonderObstacle() {
   const record = wonderRecord();
   const obstacle = currentWonderObstacle(record);
-  if (!obstacle || !record.found || record.obstacles?.[obstacle.index] || !canAfford(obstacle.cost)) return false;
+  if (!obstacle || !record.found || record.obstacles?.[obstacle.key] || !canAfford(obstacle.cost)) return false;
   payCost(obstacle.cost);
-  record.obstacles[obstacle.index] = true;
-  delete record.obstacleNotices[obstacle.index];
+  record.obstacles[obstacle.key] = true;
+  delete record.obstacleNotices[obstacle.key];
   state.paused = false;
   addLog(`${obstacle.name} completed. The expedition can press onward.`, 'log-good');
   return true;
@@ -2183,7 +2191,7 @@ function startGameClock() {
   // lose time; it only wakes the simulation to account for elapsed time.
   if (typeof Worker === 'function') {
     try {
-      gameClockWorker = new Worker('js/game-clock.worker.js?v=publish-20260908u15');
+      gameClockWorker = new Worker('js/game-clock.worker.js?v=publish-20260908u16');
       gameClockWorker.addEventListener('message', () => {
         updateGameClock(true);
         renderBonusTimer();
@@ -2747,8 +2755,8 @@ function normalizeSave(s) {
       record.progress = Math.max(0, Number(record.progress) || 0);
       record.researches = object(record.researches) ? record.researches : {};
       record.expeditions = object(record.expeditions) ? record.expeditions : {};
-      record.obstacles = object(record.obstacles) ? Object.fromEntries(Object.entries(record.obstacles).filter(([index, built]) => /^[0-4]$/.test(index) && built === true)) : {};
-      record.obstacleNotices = object(record.obstacleNotices) ? Object.fromEntries(Object.entries(record.obstacleNotices).filter(([index, noticed]) => /^[0-4]$/.test(index) && noticed === true)) : {};
+      record.obstacles = object(record.obstacles) ? Object.fromEntries(Object.entries(record.obstacles).filter(([index, built]) => /^[0-4]:[0-4]$/.test(index) && built === true)) : {};
+      record.obstacleNotices = object(record.obstacleNotices) ? Object.fromEntries(Object.entries(record.obstacleNotices).filter(([index, noticed]) => /^[0-4]:[0-4]$/.test(index) && noticed === true)) : {};
       record.outcomes = object(record.outcomes) ? record.outcomes : {};
       return [id, record];
     }));
@@ -3445,9 +3453,10 @@ function renderWonderAssignment() {
   if (!def || !record?.found || wonderReadyForDecision(record)) return '';
   const section = currentWonderSection(record, def);
   const workers = raptureWorkers();
+  const raptureCapacity = Math.max(0, Math.floor(state.jobs.guard || 0)) * 2;
   return `<h2 class="section">The Wonder</h2><div class="card wonder-card"><div class="card-head"><span class="card-title">${def.name}</span><span class="card-count">${section.name}</span></div>` +
     `<div class="card-desc">${section.text}</div><div class="res-note">Assign people to Rapture work. This is dangerous. Once someone is assigned, the Wonders tab will track the expedition.</div>` +
-    `<div class="job-row"><span class="job-name">Rapture workers</span><span class="job-assign">${workers}</span><span class="job-rate">${fmt(record.progress)} / ${WONDER_SECTION_PROGRESS} foothold progress</span>` +
+    `<div class="job-row"><span class="job-name">Rapture workers</span><span class="job-assign">${workers} / ${raptureCapacity}</span><span class="job-rate">${fmt(record.progress)} / ${WONDER_SECTION_PROGRESS} foothold progress</span>` +
     `<span class="job-btns"><button data-action="rapture-dec" data-repeat title="Hold to repeat" ${workers > 0 ? '' : 'disabled'}>−</button><button data-action="rapture-inc" data-repeat title="Hold to repeat" ${unassigned() > 0 ? '' : 'disabled'}>+</button></span></div></div>`;
 }
 function renderWonder() {
@@ -3467,9 +3476,10 @@ function renderWonder() {
   if (section) {
     const calamity = activeWonderCalamity();
     const obstacle = currentWonderObstacle(record);
-    const obstacleBlocked = obstacle && !record.obstacles?.[obstacle.index];
+    const obstacleBlocked = !!obstacle;
     const workers = raptureWorkers();
     const healthy = ableGuards(); const total = state.jobs.guard || 0;
+    const raptureCapacity = Math.max(0, Math.floor(total)) * 2;
     const woundedOnly = healthy <= 0 && total > 0;
     const armor = Math.pow(1.10, armorLevel());
     const guardWeights = { injury: 40, death: (40 / armor) * (woundedOnly ? 2 : 1), hero: 20 * armor };
@@ -3479,14 +3489,14 @@ function renderWonder() {
       `<div class="card-desc">${calamity.text}</div><div class="trial-mod">−${fmt(calamity.amount)} ${resourceName(calamity.resource)}/s while this attempt continues.</div></div>`;
     if (obstacleBlocked) {
       const canBuild = canAfford(obstacle.cost);
-      h += `<div class="card wonder-calamity"><div class="card-head"><span class="card-title">Path blocked: ${obstacle.name}</span><span class="card-count">Progress stopped</span></div>` +
+      h += `<div class="card wonder-calamity"><div class="card-head"><span class="card-title">Path blocked: ${obstacle.name}</span><span class="card-count">Obstruction ${obstacle.index + 1} of 5</span></div>` +
         `<div class="card-desc">${obstacle.text}</div><div class="card-cost">build cost: ${wonderCostHtml(obstacle.cost)}</div>` +
         `<div class="card-actions"><button data-action="wonder-obstacle" ${canBuild ? '' : 'disabled'}>Build ${obstacle.name}</button></div></div>`;
     }
     h += `<div class="card"><div class="card-head"><span class="card-title">Rapture work</span><span class="card-count">${workers} assigned</span></div>` +
       `<div class="res-note">Section danger: ${fmt(wonderDangerMultiplier(record, def))}×. Each section is 25% deadlier than the last. Guards intervene on a lethal incident with a ${Math.round(Math.min(0.98, 0.60 * wonderDefenseMultiplier() * armor) * 100)}% citizen-survival chance.</div>` +
       `<div class="res-note">${healthy} healthy Guard${healthy === 1 ? '' : 's'}; Rapture capacity is ${total * 2}.${woundedOnly ? ` Only injured Guards remain, so guard death is ${Math.round(guardWeights.death / sum * 100)}%.` : ''} Guard outcomes after a save: ${Math.round(guardWeights.injury / sum * 100)}% injury, ${Math.round(guardWeights.death / sum * 100)}% death, ${Math.round(guardWeights.hero / sum * 100)}% both survive.</div>` +
-        `<div class="job-row"><span class="job-name">Rapture workers</span><span class="job-assign">${workers}</span><span class="job-rate">${fmt(WONDER_PROGRESS_PER_WORKER * wonderProgressMultiplier(record, def))} progress/s each</span>` +
+        `<div class="job-row"><span class="job-name">Rapture workers</span><span class="job-assign">${workers} / ${raptureCapacity}</span><span class="job-rate">${fmt(WONDER_PROGRESS_PER_WORKER * wonderProgressMultiplier(record, def))} progress/s each</span>` +
         `<span class="job-btns"><button data-action="rapture-dec" data-repeat title="Hold to repeat" ${workers > 0 ? '' : 'disabled'}>−</button><button data-action="rapture-inc" data-repeat title="Hold to repeat" ${unassigned() > 0 ? '' : 'disabled'}>+</button></span></div></div>`;
     h += '<h2 class="section">Research outside</h2><div class="res-note">Researchers remain outside the Wonder. Some answers ask for people who will not come back.</div>';
     def.researches.forEach((research, index) => {
@@ -3753,7 +3763,7 @@ function renderLog() {
 function loadLatestUpdatesTooltip() {
   const button = document.getElementById('btn-updates');
   if (!button || typeof fetch !== 'function' || typeof DOMParser !== 'function') return;
-  fetch('changelog.html?v=publish-20260908u15')
+  fetch('changelog.html?v=publish-20260908u16')
     .then(response => response.ok ? response.text() : Promise.reject(new Error('changelog unavailable')))
     .then(source => {
       const doc = new DOMParser().parseFromString(source, 'text/html');

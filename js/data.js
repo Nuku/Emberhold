@@ -1131,7 +1131,7 @@ const WONDERS = [
   { id: 'grayrocks', name: 'The World Anvil', short: 'a forge sunk into the bones of a mountain',
     findCost: { survey: 320, stone: 1600, steel: 240, tools: 110 },
     findText: 'High above the last pass, the mountain face bears a seam too straight to be natural. When struck, it opens like a forge door and breathes out a wind of iron.',
-    calamity: { resource: 'stone', name: 'The mountain demands stone', values: [0.2, 0.45, 0.85, 1.4, 2.1],
+    calamity: { resource: 'stone', name: 'The mountain demands stone', values: [3, 6.75, 12.75, 21, 31.5],
       text: 'The Anvil shifts under the Grayrocks. Supporting rock fractures, and the settlement feeds its braces with stone.' },
     sections: [
       ['The Haulway', 'A chain thicker than a road rises into the mountain, carrying empty hooks toward a ceiling lost in smoke.'],

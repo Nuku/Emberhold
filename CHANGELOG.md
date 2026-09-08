@@ -4,6 +4,9 @@ All notable changes to Emberhold are recorded here, with the newest changes firs
 
 ## 2026-09-08
 
+- Fixed Wonder obstacles so each of the five sections tracks its own obstruction sequence and older obstacle state remains safely normalized.
+- Rebalanced the Grayrocks calamity costs to match the sustained Wonder pacing.
+- Clarified the Rapture assignment display with the two-workers-per-Guard capacity limit.
 - Added five escalating Wonder obstacles that halt section progress until their material costs are paid, with persistent obstacle state and save migration.
 - Limited Rapture workers to two per assigned Guard; excess workers now flee back to town with a temporary morale penalty when Guard coverage falls short.
 - Added repeatable hold controls for assigning and removing Rapture workers, and clarified Wonder progress, capacity, and obstacle status in the interface.
