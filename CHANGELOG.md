@@ -4,6 +4,7 @@ All notable changes to Emberhold are recorded here, with the newest changes firs
 
 ## 2026-09-08
 
+- Added Understanding Home research after Mechanism; settlements with local traits can learn their exact current effects through trait tooltips.
 - Added a population-growth timing tooltip that breaks down settlement, fertility, hospital, lineage, morale, and place-trait modifiers.
 - Fixed queued construction, research, and expedition actions retaining the cost shown when they were added, even if a temporary price modifier changes later.
 - Expanded the Stone Working description with guidance about gathering the newly noticed green mineral.

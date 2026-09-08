@@ -61,6 +61,21 @@ test('place traits are climate-aware and affect settlement behavior', () => {
   assert.match(run('state.log.map(entry => entry.t).join("\\n")'), /simply vanishes/);
 });
 
+test('Understanding Home follows Mechanism, requires a local trait, and reveals its active effects', () => {
+  const { run } = game();
+  assert.equal(run(`TECH_BY_ID.get('understandingHome').req()`), false);
+  run(`state.techs.machineryTech = true; state.placeTraits = ['wildOrchards'];`);
+  assert.equal(run(`TECH_BY_ID.get('understandingHome').req()`), true);
+  assert.match(run(`placeTraitTooltip(placeTraitDef('wildOrchards'))`), /Half-tamed fruit trees/);
+  assert.doesNotMatch(run(`placeTraitTooltip(placeTraitDef('wildOrchards'))`), /Current location:/);
+  run(`state.techs.understandingHome = true`);
+  const tooltip = run(`placeTraitTooltip(placeTraitDef('wildOrchards'))`);
+  assert.match(tooltip, /Current location:/);
+  assert.match(tooltip, /\+12% Food production/);
+  assert.match(tooltip, /Population growth time −6%/);
+  assert.doesNotMatch(run(`placeTraitTooltip(placeTraitDef('richTopsoil'))`), /Current location:/);
+});
+
 test('Air of Rage turns accumulated anger into a fading morale bonus after an attack', () => {
   const { run } = game();
   run(`state.placeTraits = ['airOfRage']; state.traitEffects.airOfRage = -0.02;

@@ -737,9 +737,38 @@ function traitsForLanding(landingId, count = 2) {
   while (eligible.length && picked.length < count) picked.push(eligible.splice(Math.floor(Math.random() * eligible.length), 1)[0].id);
   return picked;
 }
+function placeTraitEffectsText(trait) {
+  const effects = [];
+  for (const [resource, modifier] of Object.entries(trait.mods || {})) {
+    const pct = Math.round((modifier - 1) * 100);
+    effects.push(`${pct >= 0 ? '+' : '−'}${Math.abs(pct)}% ${resourceName(resource)} production`);
+  }
+  if (trait.morale) effects.push(`${trait.morale >= 0 ? '+' : '−'}${fmt(Math.abs(trait.morale))} morale/s`);
+  if (trait.growth && trait.growth !== 1) {
+    const pct = Math.round(Math.abs(1 - trait.growth) * 100);
+    effects.push(`Population growth time ${trait.growth < 1 ? '−' : '+'}${pct}%`);
+  }
+  if (trait.survey && trait.survey !== 1) {
+    const pct = Math.round(Math.abs(trait.survey - 1) * 100);
+    effects.push(`${trait.survey > 1 ? '+' : '−'}${pct}% Survey gain`);
+  }
+  if (trait.guardRecruitment && trait.guardRecruitment !== 1) {
+    const pct = Math.round(Math.abs(trait.guardRecruitment - 1) * 100);
+    effects.push(`${trait.guardRecruitment > 1 ? '+' : '−'}${pct}% Guard recruitment rate`);
+  }
+  if (trait.vanishChance) effects.push(`${fmt(trait.vanishChance * 100)}% chance per second for a villager to disappear`);
+  if (trait.rage) effects.push(`Current morale: ${airOfRageMorale() >= 0 ? '+' : '−'}${fmt(Math.abs(airOfRageMorale()))}/s; attacks set it to +0.05/s, then it fades to −0.04/s`);
+  if (trait.atavistic) effects.push('Lineage bonuses and penalties are doubled; lineage events are twice as likely');
+  return effects;
+}
+function placeTraitTooltip(trait) {
+  const activeHere = currentPlaceTraits().some(active => active.id === trait.id);
+  const effects = tech('understandingHome') && activeHere ? placeTraitEffectsText(trait) : [];
+  return effects.length ? `${trait.desc}\n\nCurrent location:\n${effects.join('\n')}` : trait.desc;
+}
 function traitsHtml(traitIds) {
   const traits = (traitIds || []).map(placeTraitDef).filter(Boolean);
-  return traits.length ? traits.map(trait => `<span class="has-tooltip" data-tooltip="${attrText(trait.desc)}">${trait.name}</span>`).join(' · ') : 'Unmarked ground';
+  return traits.length ? traits.map(trait => `<span class="has-tooltip" data-tooltip="${attrText(placeTraitTooltip(trait))}">${trait.name}</span>`).join(' · ') : 'Unmarked ground';
 }
 function airOfRageMorale() {
   return currentPlaceTraits().some(trait => trait.rage) ? (state.traitEffects?.airOfRage || 0) : 0;
@@ -2589,7 +2618,7 @@ function renderHeader() {
   const season = SEASONS[Math.floor(doy / DAYS_PER_SEASON)].name;
   const year = Math.floor(state.day / DAYS_PER_YEAR) + 1;
   const traitLabels = currentPlaceTraits().map(trait =>
-    `<span class="has-tooltip" tabindex="0" data-tooltip="${attrText(trait.desc)}">${esc(trait.name)}</span>`).join(', ');
+    `<span class="has-tooltip" tabindex="0" data-tooltip="${attrText(placeTraitTooltip(trait))}">${esc(trait.name)}</span>`).join(', ');
   document.getElementById('era-line').innerHTML =
     `Year ${year} of the ${esc(ERAS[state.era - 1].name)} — ${esc(landingDef().name)}${traitLabels ? ` (${traitLabels})` : ''} — ${esc(lineageDef(state.species).name)}`;
   document.getElementById('time-line').textContent =
