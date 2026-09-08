@@ -637,23 +637,25 @@ function reorderQueue(type, fromIndex, toIndex, after = false) {
 
 function attemptBuild(id) {
   const def = BUILDINGS.find(b => b.id === id);
-  if (!def || state.queues.build.length >= queueCapacity('build')) return;
-  if (canAfford(buildingCost(def))) doBuild(id);
-  else queueEntry('build', id);
+  if (!def) return;
+  const cost = buildingCost(def);
+  if (canAfford(cost)) doBuild(id);
+  else if (state.queues.build.length < queueCapacity('build')) queueEntry('build', id);
 }
 
 function attemptResearch(id) {
   const def = TECHS.find(t => t.id === id);
-  if (!def || state.queues.research.length >= queueCapacity('research')) return;
+  if (!def) return;
   if (state.res.knowledge >= def.cost) doResearch(id);
-  else queueEntry('research', id);
+  else if (state.queues.research.length < queueCapacity('research')) queueEntry('research', id);
 }
 
 function attemptExpedition(id) {
   const def = EXPEDITIONS.find(e => e.id === id);
-  if (!def || state.queues.expedition.length >= queueCapacity('expedition')) return;
-  if (canAfford(expeditionCost(def))) doExpedition(id);
-  else queueEntry('expedition', id);
+  if (!def) return;
+  const cost = expeditionCost(def);
+  if (canAfford(cost)) doExpedition(id);
+  else if (state.queues.expedition.length < queueCapacity('expedition')) queueEntry('expedition', id);
 }
 
 function updateQueues() {
@@ -2582,7 +2584,8 @@ function renderBuild() {
     const cost = buildingCost(b);
     const queued = state.queues.build.some(entry => entry.id === b.id);
     const forbidden = trialActive('overflow') && Object.values(STORAGE).some(s => s.bld === b.id);
-    const ok = !maxed && !forbidden && state.queues.build.length < queueCapacity('build');
+    const ok = !maxed && !forbidden &&
+      (canAfford(cost) || state.queues.build.length < queueCapacity('build'));
     h += `<div class="card"><div class="card-head">` +
       `<span class="card-title has-tooltip" data-tooltip="${attrText(b.desc)}">${b.name}</span>` +
       (b.max === Infinity ? `<span class="card-count">${count} built</span>` : b.max > 1 ? `<span class="card-count">${count} / ${b.max}</span>` : (count ? `<span class="card-count">built</span>` : '')) +
@@ -2605,7 +2608,7 @@ function renderResearch() {
     if (tech(t.id)) continue;
     any = true;
     const queued = state.queues.research.some(entry => entry.id === t.id);
-    const ok = state.queues.research.length < queueCapacity('research');
+    const ok = state.res.knowledge >= t.cost || state.queues.research.length < queueCapacity('research');
     h += `<div class="card"><div class="card-head">` +
       `<span class="card-title has-tooltip" data-tooltip="${attrText(t.desc)}">${t.name}</span>` +
       `<span class="card-count">${fmt(t.cost)} Knowledge</span></div>` +
@@ -2758,7 +2761,7 @@ function renderExpeditions() {
     const popOk = state.pop >= e.reqPop;
     const site = LANDINGS.find(l => l.id === e.landing);
     const queued = state.queues.expedition.some(entry => entry.id === e.id);
-    const ok = popOk && state.queues.expedition.length < queueCapacity('expedition');
+    const ok = popOk && (canAfford(cost) || state.queues.expedition.length < queueCapacity('expedition'));
     h += `<div class="card"><div class="card-head"><span class="card-title has-tooltip" data-tooltip="${attrText(e.text)}">${e.name}</span></div>` +
       `<div class="card-effect">Grants: ${e.effect}</div>` +
       (site ? `<div class="res-note">Requires settlement at ${site.name} — you are here.</div>` : '') +

@@ -273,6 +273,17 @@ test('queue order defaults to parallel and can be switched to strict first-to-la
   assert.equal(run('state.queues.build.length'), 0);
 });
 
+test('affordable actions start immediately even when their queue is full', () => {
+  const { run } = game();
+  run(`state.techs.craftsmanship = true;
+    state.res.wood = 100; state.res.tools = 10;
+    state.queues.build = [{ type: 'build', id: 'hut' }];
+    attemptBuild('lumberYard');`);
+  assert.equal(run('state.bld.lumberYard'), 1);
+  assert.equal(run('state.queues.build.length'), 1);
+  assert.equal(run('state.queues.build[0].id'), 'hut');
+});
+
 test('neutral tribes do not raid, while hostile tribes still can', () => {
   const { run } = game();
   run(`ensureDiplomacyEntry('human'); let raids = 0;
