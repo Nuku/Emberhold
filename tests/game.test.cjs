@@ -1334,6 +1334,19 @@ test('Forge input costs are not scaled by expedition production bonuses', () => 
   assert.ok(run(`detailWithForgeBonus.steel[0].factors.some(([label, factor]) => label === 'The Sleeping Fires (Forges)' && factor === 1.25)`));
 });
 
+test('expedition production bonuses do not scale outgoing amounts unless explicit', () => {
+  const { run } = game();
+  run(`state.expeditions.oldForest = true; state.jobs.tinkerer = 1; state.bld.workbench = 1;
+    state.trialDone.tinkering = 1;
+    const detail = {}; production(1, detail);
+    const normalInput = detail.wood.find(e => e.label.startsWith('Tinkerer inputs')).amount`);
+  assert.ok(Math.abs(run('normalInput') + 0.069) < 1e-10);
+  assert.equal(run("settlementProductionFactors('wood', true).some(([label]) => label === 'The Old Forest')"), false);
+  run(`EXPEDITIONS.find(e => e.id === 'oldForest').mods = { outgoing: { wood: 1.25 } };
+    const explicit = {}; production(1, explicit)`);
+  assert.ok(Math.abs(run("explicit.wood.find(e => e.label.startsWith('Tinkerer inputs')).amount") + 0.08625) < 1e-10);
+});
+
 test('factory lines unlock through research, persist in saves, and default safely', () => {
   const { run } = game();
   run(`state.bld.factory = 1; chooseFactoryRecipe('machinery')`);

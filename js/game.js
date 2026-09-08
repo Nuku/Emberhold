@@ -733,12 +733,13 @@ function globalProductionFactors() {
   ];
 }
 
-function settlementProductionFactors(res) {
+function settlementProductionFactors(res, outgoing = false) {
   const factors = [[landingDef().name, landingMod(res)], [lineageDef(state.species).name, baseLineageMod(res)]];
   const conquered = conqueredLineage();
   if (conquered && conqueredLineageMod(res) > 1) factors.push([`${conquered.name} (Commonality)`, conqueredLineageMod(res)]);
   for (const e of EXPEDITIONS) {
-    if (expDone(e.id) && e.mods?.[res]) factors.push([e.name, e.mods[res]]);
+    const modifier = outgoing ? e.mods?.outgoing?.[res] : e.mods?.[res];
+    if (expDone(e.id) && modifier) factors.push([e.name, modifier]);
   }
   if (tech('civics')) {
     for (const def of [civicDef(state.policy), governorDef(state.governor), ...(state.council || []).map(councilorDef)]) {
@@ -987,8 +988,12 @@ function renderBuildingPower(id, active = powerAllocation()) {
 
 function production(dt = 0.25, breakdown = null) {
   const rates = {};
+  const incomeRates = {};
+  const outgoingRates = {};
   for (const r of RESOURCES) {
     rates[r.id] = 0;
+    incomeRates[r.id] = 0;
+    outgoingRates[r.id] = 0;
     if (breakdown) breakdown[r.id] = [];
   }
   const weather = dailyWeather();
@@ -1002,10 +1007,15 @@ function production(dt = 0.25, breakdown = null) {
     if (base > 0 && weather.mods[res]) factors = [...factors, [`Weather (${weather.name}, ${weather.temperature}°C)`, weather.mods[res]]];
     const amount = factors.reduce((value, [, factor]) => value * factor, base);
     rates[res] += amount;
+    if (base < 0) outgoingRates[res] += amount;
+    else incomeRates[res] += amount;
     if (breakdown) breakdown[res].push({ label, base, amount, factors: factors.filter(([, factor]) => factor !== 1) });
   };
   const scale = (res, factors) => {
-    rates[res] *= factors.reduce((value, [, factor]) => value * factor, 1);
+    const multiplier = factors.reduce((value, [, factor]) => value * factor, 1);
+    rates[res] *= multiplier;
+    incomeRates[res] *= multiplier;
+    outgoingRates[res] *= multiplier;
     if (breakdown) for (const entry of breakdown[res]) {
       entry.amount = factors.reduce((value, [, factor]) => value * factor, entry.amount);
       entry.factors.push(...factors.filter(([, factor]) => factor !== 1));
@@ -1074,7 +1084,18 @@ function production(dt = 0.25, breakdown = null) {
   if (power.livingBlock) add('power', `Living Blocks: ${power.livingBlock} × ${LIVING_BLOCK_POWER_REQUIREMENT} capacity`, -power.livingBlock * LIVING_BLOCK_POWER_REQUIREMENT);
   // The land, lineage, and civic choices shape output; population upkeep is
   // applied afterward so food policies do not alter how much villagers eat.
-  for (const r in rates) scale(r, settlementProductionFactors(r));
+  for (const r in rates) {
+    const incomeFactors = settlementProductionFactors(r);
+    const outgoingFactors = settlementProductionFactors(r, true);
+    incomeRates[r] *= incomeFactors.reduce((value, [, factor]) => value * factor, 1);
+    outgoingRates[r] *= outgoingFactors.reduce((value, [, factor]) => value * factor, 1);
+    rates[r] = incomeRates[r] + outgoingRates[r];
+    if (breakdown) for (const entry of breakdown[r]) {
+      const factors = entry.base < 0 ? outgoingFactors : incomeFactors;
+      entry.amount = factors.reduce((value, [, factor]) => value * factor, entry.amount);
+      entry.factors.push(...factors.filter(([, factor]) => factor !== 1));
+    }
+  }
   for (const [id, active] of Object.entries(poweredSites)) {
     if (active) add('power', `${BUILDINGS.find(b => b.id === id).name}: ${active} × ${DIG_SITE_POWER} capacity`, -active * DIG_SITE_POWER);
   }
@@ -2888,7 +2909,7 @@ function renderLog() {
 function loadLatestUpdatesTooltip() {
   const button = document.getElementById('btn-updates');
   if (!button || typeof fetch !== 'function' || typeof DOMParser !== 'function') return;
-  fetch('changelog.html?v=forge-controls-20260907a')
+  fetch('changelog.html?v=outgoing-costs-20260907b')
     .then(response => response.ok ? response.text() : Promise.reject(new Error('changelog unavailable')))
     .then(source => {
       const doc = new DOMParser().parseFromString(source, 'text/html');
