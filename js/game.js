@@ -493,9 +493,17 @@ function siteExpeditionsComplete() {
 function practicedMigratorAvailable() { return siteExpeditionsComplete(); }
 
 // ---------- Wonders ----------
-const WONDER_SECTION_PROGRESS = 12;
+// A single worker now needs roughly 20 minutes per section before modifiers;
+// the Wonder is meant to be a sustained expedition, not a quick assignment.
+const WONDER_SECTION_PROGRESS = 240;
 const WONDER_PROGRESS_PER_WORKER = 0.02;
-const WONDER_BASE_DANGER = 0.0012;
+const WONDER_BASE_DANGER = 0.0024;
+const WONDER_RESEARCH_COST_MULTIPLIER = 5;
+
+function wonderResearchCost(research) {
+  return Object.fromEntries(Object.entries(research.cost).map(([id, amount]) =>
+    [id, Math.ceil(amount * WONDER_RESEARCH_COST_MULTIPLIER)]));
+}
 
 function wonderSectionIndex(record = wonderRecord()) {
   return record.sections.findIndex(done => !done);
@@ -503,9 +511,9 @@ function wonderSectionIndex(record = wonderRecord()) {
 function wonderReadyForDecision(record = wonderRecord()) { return wonderSectionIndex(record) < 0; }
 function wonderFindCost(def = wonderDef()) {
   if (!def) return {};
-  // Every distinct beacon gives the expedition a clearer set of clues. The
-  // sixth beacon is the cheapest possible route, but never a cheap route.
-  const multiplier = Math.max(1.05, 1.80 - 0.15 * Math.max(0, beaconsLitCount() - 1));
+  // The first beacon only gives a blurred direction. Each additional distinct
+  // beacon sharpens the route considerably, but the search remains costly.
+  const multiplier = Math.max(2.5, 10 - 1.5 * Math.max(0, beaconsLitCount() - 1));
   return Object.fromEntries(Object.entries(def.findCost).map(([id, amount]) => [id, Math.ceil(amount * multiplier)]));
 }
 function canAffordWonderCost(cost) {
@@ -661,14 +669,15 @@ function canBuyWonderResearch(index) {
   const def = wonderDef(); const record = wonderRecord(); const research = def?.researches[index];
   const section = wonderSectionIndex(record);
   if (!research || record.researches?.[index] || !record.found || section < 0 || index > section) return false;
-  const citizens = research.cost.citizens || 0;
-  const cost = { ...research.cost }; delete cost.citizens;
+  const scaledCost = wonderResearchCost(research);
+  const citizens = scaledCost.citizens || 0;
+  const cost = { ...scaledCost }; delete cost.citizens;
   return unassigned() >= citizens && canAfford(cost);
 }
 function buyWonderResearch(index) {
   if (!canBuyWonderResearch(index)) return false;
   const def = wonderDef(); const record = wonderRecord(); const research = def.researches[index];
-  const cost = { ...research.cost }; const citizens = cost.citizens || 0; delete cost.citizens;
+  const cost = wonderResearchCost(research); const citizens = cost.citizens || 0; delete cost.citizens;
   payCost(cost);
   if (citizens) { state.pop = Math.max(1, state.pop - citizens); reconcileWorkers(); }
   record.researches[index] = true;
@@ -2121,7 +2130,7 @@ function startGameClock() {
   // lose time; it only wakes the simulation to account for elapsed time.
   if (typeof Worker === 'function') {
     try {
-      gameClockWorker = new Worker('js/game-clock.worker.js?v=publish-20260908t');
+      gameClockWorker = new Worker('js/game-clock.worker.js?v=publish-20260908u11');
       gameClockWorker.addEventListener('message', () => {
         updateGameClock(true);
         renderBonusTimer();
@@ -3412,7 +3421,7 @@ function renderWonder() {
       `<div class="card-desc">${calamity.text}</div><div class="trial-mod">−${fmt(calamity.amount)} ${resourceName(calamity.resource)}/s while this attempt continues.</div></div>`;
     h += `<div class="card"><div class="card-head"><span class="card-title">Rapture work</span><span class="card-count">${workers} assigned</span></div>` +
       `<div class="res-note">Section danger: ${fmt(wonderDangerMultiplier(record, def))}×. Each section is 25% deadlier than the last. Guards intervene on a lethal incident with a ${Math.round(Math.min(0.98, 0.60 * wonderDefenseMultiplier() * armor) * 100)}% citizen-survival chance.</div>` +
-      `<div class="res-note">${healthy} healthy Guard${healthy === 1 ? '' : 's'}${woundedOnly ? `; only injured Guards remain, so guard death is ${Math.round(guardWeights.death / sum * 100)}%` : ''}. Guard outcomes after a save: ${Math.round(guardWeights.injury / sum * 100)}% injury, ${Math.round(guardWeights.death / sum * 100)}% death, ${Math.round(guardWeights.hero / sum * 100)}% hero.</div>` +
+      `<div class="res-note">${healthy} healthy Guard${healthy === 1 ? '' : 's'}${woundedOnly ? `; only injured Guards remain, so guard death is ${Math.round(guardWeights.death / sum * 100)}%` : ''}. Guard outcomes after a save: ${Math.round(guardWeights.injury / sum * 100)}% injury, ${Math.round(guardWeights.death / sum * 100)}% death, ${Math.round(guardWeights.hero / sum * 100)}% both survive.</div>` +
       `<div class="job-row"><span class="job-name">Rapture workers</span><span class="job-assign">${workers}</span><span class="job-rate">${fmt(WONDER_PROGRESS_PER_WORKER * wonderProgressMultiplier(record, def))} progress/s each</span>` +
       `<span class="job-btns"><button data-action="rapture-dec" ${workers > 0 ? '' : 'disabled'}>−</button><button data-action="rapture-inc" ${unassigned() > 0 ? '' : 'disabled'}>+</button></span></div></div>`;
     h += '<h2 class="section">Research outside</h2><div class="res-note">Researchers remain outside the Wonder. Some answers ask for people who will not come back.</div>';
@@ -3420,7 +3429,7 @@ function renderWonder() {
       if (index > section.index) return;
       const done = !!record.researches?.[index]; const ok = canBuyWonderResearch(index);
       h += `<div class="card ${done ? 'done' : ''}"><div class="card-head"><span class="card-title">${research.name}</span><span class="card-effect">${done ? 'Completed' : research.effect}</span></div>` +
-        `<div class="card-cost">cost: ${wonderCostHtml(research.cost)}</div><div class="card-actions"><button data-action="wonder-research" data-id="${index}" ${done || !ok ? 'disabled' : ''}>${done ? 'Completed' : 'Research'}</button></div></div>`;
+        `<div class="card-cost">cost: ${wonderCostHtml(wonderResearchCost(research))}</div><div class="card-actions"><button data-action="wonder-research" data-id="${index}" ${done || !ok ? 'disabled' : ''}>${done ? 'Completed' : 'Research'}</button></div></div>`;
     });
     h += '<h2 class="section">Interior expeditions</h2><div class="res-note">These preparations help only this attempt. They do not endure as ordinary expeditions do.</div>';
     def.expeditions.forEach((expedition, index) => {
@@ -3680,7 +3689,7 @@ function renderLog() {
 function loadLatestUpdatesTooltip() {
   const button = document.getElementById('btn-updates');
   if (!button || typeof fetch !== 'function' || typeof DOMParser !== 'function') return;
-  fetch('changelog.html?v=publish-20260908u8')
+  fetch('changelog.html?v=publish-20260908u11')
     .then(response => response.ok ? response.text() : Promise.reject(new Error('changelog unavailable')))
     .then(source => {
       const doc = new DOMParser().parseFromString(source, 'text/html');
