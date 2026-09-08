@@ -782,6 +782,16 @@ test('Turtlefolk lake memories grant time-scaled knowledge and survey', () => {
   assert.match(run('state.log[0].t'), /Knowledge \+5; Survey \+0\.75/);
 });
 
+test('Skyborn wind charts grant time-scaled knowledge', () => {
+  const { run } = game();
+  run(`state.species = 'skyborn'; state.seen.knowledge = true; state.res.knowledge = 0;
+    state.trialDone.wayfinding = 1; state.jobs.thinker = 1;
+    Math.random = (() => { const rolls = [0, 0, 0.99, 0.5, 0]; return () => rolls.shift() ?? 0; })();
+    updateRandomEvents(60)`);
+  assert.equal(run('state.res.knowledge'), 5);
+  assert.match(run('state.log[0].t'), /Knowledge \+5/);
+});
+
 test('resource breakdown reconciles income and costs with scoped modifiers', () => {
   const { run } = game();
   run(`state.jobs = { forager: 3, guard: 2, tinkerer: 1, woodcutter: 2 };

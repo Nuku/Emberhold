@@ -392,7 +392,7 @@ const COUNCILORS = [
 const RANDOM_EVENTS = [
   { text: 'A goose has claimed the council table. No one can explain how it got there.', delta: [1, 4] },
   { text: 'A traveling puppeteer performs for the children. The adults pretend not to enjoy it.', delta: [2, 6] },
-  { text: 'A barrel of winter apples is found behind the old palisade.', delta: [2, 5], food: [10, 25] },
+  { text: 'A barrel of winter apples is found behind the old palisade.', delta: [2, 5], food: [10, 25], timeReward: [10, 20] },
   { text: 'A rumor spreads that the moon is watching the village.', delta: [-2, -7] },
   { text: 'The communal stew turns sour before anyone notices.', delta: [-3, -9], food: [-15, -5] },
   { text: 'A cart axle breaks in the mud, delaying half the morning\'s work.', delta: [-2, -6] },
@@ -409,19 +409,19 @@ const RANDOM_EVENTS = [
 const LINEAGE_EVENTS = {
   human: [
     { text: 'An Emberborn child asks why every new village has the same name. Three elders offer four different answers.' },
-    { text: 'Emberborn neighbors hold a mending day, rescuing useful timber from abandoned furniture.', wood: [8, 18] },
+    { text: 'Emberborn neighbors hold a mending day, rescuing useful timber from abandoned furniture.', wood: [8, 18], timeReward: [10, 20] },
   ],
   stonekin: [
     { text: 'Two Stonekin spend the afternoon debating whether a pebble resembles an ancestor. The pebble declines to comment.' },
-    { text: 'A Stonekin mason hears a promising note beneath the chisel and splits a clean block from the rubble.', stone: [8, 18] },
+    { text: 'A Stonekin mason hears a promising note beneath the chisel and splits a clean block from the rubble.', stone: [8, 18], timeReward: [10, 20] },
   ],
   marshfolk: [
     { text: 'Marshfolk children launch reed boats bearing solemn messages to frogs on the opposite bank.' },
-    { text: 'Marshfolk gardeners uncover a forgotten bed of edible roots beneath the reeds.', food: [10, 22] },
+    { text: 'Marshfolk gardeners uncover a forgotten bed of edible roots beneath the reeds.', food: [10, 22], timeReward: [10, 20] },
   ],
   skyborn: [
     { text: 'A Skyborn elder names every cloud above the village. One is apparently an old rival.' },
-    { text: 'Skyborn kite watchers compare their wind charts and settle a longstanding question.', knowledge: [5, 12] },
+    { text: 'Skyborn kite watchers compare their wind charts and settle a longstanding question.', knowledge: [5, 12], timeReward: [10, 20] },
   ],
   mephit: [
     { text: 'The Mephits hold a perfume contest. The judges insist that everyone else is missing the subtle notes.' },
@@ -429,7 +429,7 @@ const LINEAGE_EVENTS = {
   ],
   dunewalkers: [
     { text: 'Dunewalker storytellers arrange their cushions like a caravan and argue over who gets to play the stubborn camel.' },
-    { text: 'A Dunewalker merchant spots an error in an old tally and returns the overpayment to the village.', currency: [3, 8] },
+    { text: 'A Dunewalker merchant spots an error in an old tally and returns the overpayment to the village.', currency: [3, 8], timeReward: [10, 20] },
   ],
   cinderforged: [
     { text: 'Cinderforged smiths tap their supper bowls in the rhythm of a forging song. The cook demands a quieter encore.' },
@@ -437,11 +437,11 @@ const LINEAGE_EVENTS = {
   ],
   thornkin: [
     { text: 'A Thornkin doorway blooms overnight. Its residents politely ask visitors to knock on the other branch.' },
-    { text: 'Thornkin pruners guide an overgrown arbor back into shape and share the straight fallen branches.', wood: [10, 20] },
+    { text: 'Thornkin pruners guide an overgrown arbor back into shape and share the straight fallen branches.', wood: [10, 20], timeReward: [10, 20] },
   ],
   clocklings: [
     { text: 'Every Clockling alarm rings at once, except the official village clock, which appears deeply embarrassed.' },
-    { text: 'Clockling tinkerers assemble several useful implements from a box labeled probably spare parts.', tools: [1, 3] },
+    { text: 'Clockling tinkerers assemble several useful implements from a box labeled probably spare parts.', tools: [1, 3], timeReward: [10, 20] },
   ],
   glimmerfolk: [
     { text: 'Glimmerfolk singers rehearse a lullaby for a crystal that refuses to stop glowing after bedtime.' },
@@ -449,11 +449,11 @@ const LINEAGE_EVENTS = {
   ],
   otterfolk: [
     { text: 'Otterfolk float hand in hand through an evening storytelling circle. The youngest keeps drifting ahead to the ending.' },
-    { text: 'An Otterfolk diving crew follows a silver shoal into the shallows and returns with a shared catch.', food: [10, 22] },
+    { text: 'An Otterfolk diving crew follows a silver shoal into the shallows and returns with a shared catch.', food: [10, 22], timeReward: [10, 20] },
   ],
   beaverkin: [
     { text: 'A Beaverkin inspector declares a decorative footbridge structurally excellent but insufficiently chewy.' },
-    { text: 'Beaverkin builders dismantle an obsolete spillway and recover its seasoned beams.', wood: [12, 24] },
+    { text: 'Beaverkin builders dismantle an obsolete spillway and recover its seasoned beams.', wood: [12, 24], timeReward: [10, 20] },
   ],
   turtlefolk: [
     { text: 'The Turtlefolk annual walking race reaches its first bend. Spectators settle in for a pleasant afternoon.' },
@@ -461,7 +461,7 @@ const LINEAGE_EVENTS = {
   ],
   axolotlkin: [
     { text: 'Axolotlkin students practice looking solemn during a submerged lecture. Their waving gills betray their laughter.' },
-    { text: 'Axolotlkin pond keepers observe an unfamiliar glow and carefully record its changing rhythm.', knowledge: [6, 14] },
+    { text: 'Axolotlkin pond keepers observe an unfamiliar glow and carefully record its changing rhythm.', knowledge: [6, 14], timeReward: [10, 20] },
   ],
   carpfolk: [
     { text: 'Carpfolk decorate the underwater lanes with smooth stones, then politely debate which direction counts as upstreet.' },
@@ -473,23 +473,23 @@ const LINEAGE_EVENTS = {
   ],
   heronkin: [
     { text: 'A Heronkin fishing teacher demonstrates perfect stillness. The pupils wonder whether class has actually started.' },
-    { text: 'Heronkin fishers spot a crowded backwater and bring home enough to share beyond their stilt houses.', food: [8, 20] },
+    { text: 'Heronkin fishers spot a crowded backwater and bring home enough to share beyond their stilt houses.', food: [8, 20], timeReward: [10, 20] },
   ],
   foxfolk: [
     { text: 'A Foxfolk storyteller sells the same joke with three different endings. All three audiences insist theirs was the original.' },
-    { text: 'A Foxfolk trader negotiates a small rebate by remembering exactly what was promised last spring.', currency: [3, 8] },
+    { text: 'A Foxfolk trader negotiates a small rebate by remembering exactly what was promised last spring.', currency: [3, 8], timeReward: [10, 20] },
   ],
   wolfkin: [
     { text: 'Wolfkin pups rehearse a moon greeting. An elder gently explains that volume is only half the tradition.' },
-    { text: 'A Wolfkin hunting pack returns early and lays an unexpected catch before the communal hearth.', food: [10, 22] },
+    { text: 'A Wolfkin hunting pack returns early and lays an unexpected catch before the communal hearth.', food: [10, 22], timeReward: [10, 20] },
   ],
   bearfolk: [
     { text: 'A Bearfolk carpenter falls asleep testing a new chair. The workshop accepts this as a favorable review.' },
-    { text: 'Bearfolk gatherers discover a honey tree and insist on sharing before anyone starts counting portions.', food: [8, 16], delta: [1, 3] },
+    { text: 'Bearfolk gatherers discover a honey tree and insist on sharing before anyone starts counting portions.', food: [8, 16], delta: [1, 3], timeReward: [10, 20] },
   ],
   deerkin: [
     { text: 'Deerkin dancers weave ribbons between their antlers for a procession that requires very careful doorways.' },
-    { text: 'A Deerkin orchard walk finds an overlooked stand of ripe fruit at the edge of the commons.', food: [10, 20] },
+    { text: 'A Deerkin orchard walk finds an overlooked stand of ripe fruit at the edge of the commons.', food: [10, 20], timeReward: [10, 20] },
   ],
   rabbitfolk: [
     { text: 'Rabbitfolk children give every warren junction a new name. The adults request a map before supper.' },
@@ -501,23 +501,23 @@ const LINEAGE_EVENTS = {
   ],
   squirrelfolk: [
     { text: 'A Squirrelfolk archivist files a nut under important historical objects and refuses to explain further.' },
-    { text: 'A Squirrelfolk child remembers a forgotten cache while telling an unrelated story. Supper improves immediately.', food: [8, 18] },
+    { text: 'A Squirrelfolk child remembers a forgotten cache while telling an unrelated story. Supper improves immediately.', food: [8, 18], timeReward: [10, 20] },
   ],
   owlkin: [
     { text: 'An Owlkin reading circle observes a respectful silence so complete that nobody notices the meeting has ended.' },
-    { text: 'Owlkin observers compare marginal notes and resolve a puzzle that had kept several scholars awake.', knowledge: [6, 14] },
+    { text: 'Owlkin observers compare marginal notes and resolve a puzzle that had kept several scholars awake.', knowledge: [6, 14], timeReward: [10, 20] },
   ],
   lynxfolk: [
     { text: 'A Lynxfolk tracker reconstructs an elaborate mystery from footprints. The culprit was carrying the laundry.' },
-    { text: 'Lynxfolk scouts follow green stains along a ledge and collect a handful of loose copper nodules.', copper: [2, 5] },
+    { text: 'Lynxfolk scouts follow green stains along a ledge and collect a handful of loose copper nodules.', copper: [2, 5], timeReward: [10, 20] },
   ],
   ibexkin: [
     { text: 'Ibexkin youngsters choose the least convenient ledge for a picnic and rate the view unanimously excellent.' },
-    { text: 'An Ibexkin hauling team clears a cliff path and brings the sound stone back to the builders.', stone: [10, 22] },
+    { text: 'An Ibexkin hauling team clears a cliff path and brings the sound stone back to the builders.', stone: [10, 22], timeReward: [10, 20] },
   ],
   eaglefolk: [
     { text: 'An Eaglefolk messenger circles the aerie twice to finish a particularly satisfying story before landing.' },
-    { text: 'Eaglefolk sky watchers sketch a rare pattern of high clouds before the mountain wind scatters it.', knowledge: [5, 12] },
+    { text: 'Eaglefolk sky watchers sketch a rare pattern of high clouds before the mountain wind scatters it.', knowledge: [5, 12], timeReward: [10, 20] },
   ],
   molekin: [
     { text: 'Molekin neighbors exchange tapping greetings through their walls. One household requests slower gossip.' },
@@ -525,7 +525,7 @@ const LINEAGE_EVENTS = {
   ],
   raccoonfolk: [
     { text: 'A Raccoonfolk collector unveils a magnificent display of shiny objects, none of which anyone can identify.' },
-    { text: 'Raccoonfolk salvagers restore a box of bent implements with patient fingers and questionable confidence.', tools: [1, 3] },
+    { text: 'Raccoonfolk salvagers restore a box of bent implements with patient fingers and questionable confidence.', tools: [1, 3], timeReward: [10, 20] },
   ],
 };
 

@@ -880,16 +880,13 @@ function updateRandomEvents(dt) {
     state.morale = Math.max(0, Math.min(moraleCap(), before + randomRange(event.delta)));
     record('Morale', state.morale - before);
   }
+  let timeRates;
+  let timeSeconds;
   if (event.timeReward) {
-    const seconds = randomRange(event.timeReward);
-    const knowledgeFloor = event.knowledge ? randomRange(event.knowledge) : 0;
-    const knowledge = Math.max(knowledgeFloor, Math.round(production(0).knowledge * seconds));
-    if (knowledge && state.seen.knowledge) {
-      state.res.knowledge += knowledge;
-      record('Knowledge', knowledge);
-    }
+    timeSeconds = randomRange(event.timeReward);
+    timeRates = production(0);
     if (event.survey) {
-      const survey = perm('explorers') ? explorerCount() * 0.025 * seconds : 0;
+      const survey = perm('explorers') ? explorerCount() * 0.025 * timeSeconds : 0;
       if (survey) {
         state.surveyPoints = (state.surveyPoints || 0) + survey;
         record('Survey', survey);
@@ -897,9 +894,10 @@ function updateRandomEvents(dt) {
     }
   }
   for (const { id: resource, name } of RESOURCES) {
-    if (event.timeReward && (resource === 'knowledge' || event.survey && resource === 'survey')) continue;
     if (!event[resource] || !state.seen[resource]) continue;
-    const amount = randomEventResourceAmount(resource, event[resource]);
+    const amount = event.timeReward
+      ? Math.max(randomRange(event[resource]), Math.round(Math.max(0, timeRates[resource] || 0) * timeSeconds))
+      : randomEventResourceAmount(resource, event[resource]);
     const before = state.res[resource];
     // Rewards never discard an existing over-cap stockpile.
     state.res[resource] = amount > 0 ? before + Math.min(amount, Math.max(0, capacityOf(resource) - before)) : Math.max(0, before + amount);
@@ -2935,7 +2933,7 @@ function renderLog() {
 function loadLatestUpdatesTooltip() {
   const button = document.getElementById('btn-updates');
   if (!button || typeof fetch !== 'function' || typeof DOMParser !== 'function') return;
-  fetch('changelog.html?v=publish-20260908d')
+  fetch('changelog.html?v=publish-20260908e')
     .then(response => response.ok ? response.text() : Promise.reject(new Error('changelog unavailable')))
     .then(source => {
       const doc = new DOMParser().parseFromString(source, 'text/html');
