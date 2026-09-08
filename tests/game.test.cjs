@@ -1420,6 +1420,16 @@ test('tribal requests use discovered cultural preferences and renew after supply
   assert.equal(run('raidLoot("clocklings").includes("machinery")'), true);
 });
 
+test('tribal requests never ask for Power capacity and repair legacy Power requests', () => {
+  const { run } = game();
+  run(`state.seen = { power: true, food: true }; Math.random = () => 0;
+    state.diplomacy.human = { disposition: 0, militaryStrength: 100, economicStrength: 100,
+      request: { res: 'power', amount: 10, age: era() } };
+    ensureDiplomacyEntry('human')`);
+  assert.equal(run('state.diplomacy.human.request.res'), 'food');
+  assert.notEqual(run('randomDiplomacyRequest("human").res'), 'power');
+});
+
 test('new lineages change actual income with both bonuses and tradeoffs', () => {
   const cases = [
     ['dunewalkers', 'currency', 1.30, 'wood', 0.88],

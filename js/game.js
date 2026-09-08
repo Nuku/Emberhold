@@ -215,8 +215,14 @@ function randomTownStrength(tier = 0) {
 function militaryStrength(entry) { return Math.max(1, Number(entry?.militaryStrength) || 100); }
 function militaryStrengthFloor() { return 60; }
 function economicStrength(entry) { return Math.max(1, Number(entry?.economicStrength) || 100); }
+function tradeableRequestResource(id) {
+  // Power is generated capacity rather than a stored good, so it cannot be
+  // offered to a neighboring settlement.
+  return id !== 'knowledge' && id !== 'currency' && id !== 'machinery' &&
+    id !== 'power' && id !== 'aether';
+}
 function randomDiplomacyRequest(id) {
-  const available = RESOURCES.filter(r => r.id !== 'knowledge' && r.id !== 'currency' && r.id !== 'machinery' && r.id !== 'aether' && state.seen[r.id]);
+  const available = RESOURCES.filter(r => tradeableRequestResource(r.id) && state.seen[r.id]);
   const preferred = available.filter(r => (tribeDef(id).requests || []).includes(r.id));
   const pool = preferred.length ? preferred : available;
   const res = (pool.length ? pool : [RESOURCE_BY_ID.get('wood')])[Math.floor(Math.random() * (pool.length || 1))];
@@ -243,7 +249,8 @@ function ensureDiplomacyEntry(id, strengthTier = 0) {
     if (!Number.isFinite(entry.militaryStrength)) entry.militaryStrength = 100;
     if (!Number.isFinite(entry.militaryBaseStrength)) entry.militaryBaseStrength = entry.militaryStrength;
     if (!Number.isFinite(entry.economicStrength)) entry.economicStrength = 100;
-    if (!entry.request || entry.request.age === undefined) entry.request = randomDiplomacyRequest(id);
+    if (!entry.request || entry.request.age === undefined || !tradeableRequestResource(entry.request.res))
+      entry.request = randomDiplomacyRequest(id);
   }
   return state.diplomacy[id];
 }
@@ -3132,7 +3139,7 @@ function renderLog() {
 function loadLatestUpdatesTooltip() {
   const button = document.getElementById('btn-updates');
   if (!button || typeof fetch !== 'function' || typeof DOMParser !== 'function') return;
-  fetch('changelog.html?v=publish-20260908s')
+  fetch('changelog.html?v=publish-20260908u1')
     .then(response => response.ok ? response.text() : Promise.reject(new Error('changelog unavailable')))
     .then(source => {
       const doc = new DOMParser().parseFromString(source, 'text/html');

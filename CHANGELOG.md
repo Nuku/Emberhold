@@ -4,6 +4,7 @@ All notable changes to Emberhold are recorded here, with the newest changes firs
 
 ## 2026-09-08
 
+- Fixed neighboring-tribe requests so they never ask for generated Power capacity, and repaired legacy saves containing Power requests.
 - Added a persistent option to dismiss the front-page tutorial card; the choice is saved and carried into migrated settlements.
 - Added Air of Rage and Atavistic Aura place traits: rage becomes a fading morale bonus after attacks and a growing penalty when unspent, while Atavistic Aura doubles lineage effects and lineage-event frequency.
 - Added an optional Tooltips setting for players who prefer a cleaner interface without hover details.
