@@ -51,6 +51,7 @@ function defaultState() {
     upgrades: {},
     landing: 'emberplain',
     landingsSeen: {},
+    ancestralBlessing: false,
     species: 'human',
     lineagesUnlocked: { human: true },
     tradePartner: 'human',
@@ -1027,6 +1028,7 @@ function production(dt = 0.25, breakdown = null) {
   if (expDone('foothills')) add('stone', 'Foothills passive', 1.0);
   if (expDone('sunkenRuins')) add('knowledge', 'Sunken Ruins passive', 0.3);
   if (upg('journalOfOldTimes')) add('knowledge', 'Journal of Old Times', 0.2 * upg('journalOfOldTimes'));
+  if (state.ancestralBlessing) add('knowledge', 'Smiling ancestors', 0.33);
   if (expDone('emberVein')) add('coal', 'Ember Vein passive', 0.5);
   if (expDone('glacialPeaks')) add('aether', 'Glacial Peaks passive', 0.1);
   const localIds = localTribeIds();
@@ -1416,6 +1418,7 @@ function setOut(trialId = null) {
   } : null;
   const landing = LANDINGS.find(l => l.id === (trialId ? state.landing : state.pendingLanding)) ||
     state.pendingLandings[0] || LANDINGS.find(l => l.id !== state.landing) || LANDINGS[0];
+  const ancestralBlessing = !!trialId || !!state.landingsSeen[landing.id];
   const up = { ...state.upgrades };
   const candidate = state.pendingSpecies || state.species;
   if (!trialId && !lineageSelectable(candidate, landing.id)) return;
@@ -1462,6 +1465,7 @@ function setOut(trialId = null) {
   state.won = keep.won;
   state.savedAt = keep.savedAt;
   state.bonusTime = keep.bonusTime;
+  state.ancestralBlessing = ancestralBlessing;
   state.log = keep.log;
   state.landing = landing.id;
   if (settings) Object.assign(state, settings);
@@ -2854,7 +2858,7 @@ function renderLog() {
 function loadLatestUpdatesTooltip() {
   const button = document.getElementById('btn-updates');
   if (!button || typeof fetch !== 'function' || typeof DOMParser !== 'function') return;
-  fetch('changelog.html?v=power-controls-20260907e')
+  fetch('changelog.html?v=ancestral-blessing-20260907a')
     .then(response => response.ok ? response.text() : Promise.reject(new Error('changelog unavailable')))
     .then(source => {
       const doc = new DOMParser().parseFromString(source, 'text/html');

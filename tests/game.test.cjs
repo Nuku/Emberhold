@@ -1107,6 +1107,18 @@ test('bonus time survives saves and migration and older saves default to zero', 
   assert.equal(run('state.bonusTime'), 0);
 });
 
+test('returning to a known landing grants the ancestral knowledge blessing', () => {
+  const { run } = game();
+  run(`state.migrating = true; state.pendingLanding = 'greenfold'; setOut()`);
+  assert.equal(run('state.ancestralBlessing'), false);
+  run(`state.migrating = true; state.pendingLanding = 'emberplain'; setOut()`);
+  assert.equal(run('state.ancestralBlessing'), true);
+  assert.ok(Math.abs(run('production(0).knowledge') - 0.33) < 1e-10);
+  run('state.ancestralBlessing = false; setOut("scarcity")');
+  assert.equal(run('state.ancestralBlessing'), true);
+  assert.ok(Math.abs(run('production(0).knowledge') - 0.33) < 1e-10);
+});
+
 test('bonus timer shows remaining real time and hides when depleted', () => {
   const { run, context } = game();
   const timer = { classList: { toggle(name, hidden) { this.hidden = hidden; } } };
