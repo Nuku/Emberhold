@@ -110,6 +110,7 @@ function defaultState() {
     governor: null,
     council: [],
     guardInjuries: 0,
+    raptureFleeMoraleT: 0,
     guardRecruitment: 0,
     migrationGuardDeaths: 0,
     migrationRaids: 0,
@@ -140,7 +141,7 @@ function expDone(id) { return !!state.expeditions[id]; }
 function wonderDef(id = state.landing) { return WONDER_BY_ID.get(id); }
 function wonderRecord(id = state.landing) {
   state.wonders = state.wonders || {};
-  if (!state.wonders[id]) state.wonders[id] = { found: false, sections: [false, false, false, false, false], progress: 0, researches: {}, expeditions: {}, outcomes: {} };
+  if (!state.wonders[id]) state.wonders[id] = { found: false, sections: [false, false, false, false, false], progress: 0, researches: {}, expeditions: {}, obstacles: {}, obstacleNotices: {}, outcomes: {} };
   return state.wonders[id];
 }
 function beaconsLitCount() { return Object.keys(state.beaconsLit || {}).filter(id => state.beaconsLit[id]).length; }
@@ -453,7 +454,7 @@ function conqueredLineageMod(res) {
   return mod > 1 ? 1 + (mod - 1) * 0.5 : 1;
 }
 function alliedIncomeBonus() { return commonalityActive() ? 0.075 : 0.05; }
-function ableGuards() { return Math.max(0, (state.jobs.guard || 0) - (state.guardInjuries || 0)); }
+function ableGuards() { return Math.floor(Math.max(0, (state.jobs.guard || 0) - (state.guardInjuries || 0))); }
 function trialMax(def) {
   return def.repeat > 0 ? def.repeat + (upg('oathkeepers') ? 1 : 0) : 0;
 }
@@ -499,10 +500,21 @@ const WONDER_SECTION_PROGRESS = 240;
 const WONDER_PROGRESS_PER_WORKER = 0.02;
 const WONDER_BASE_DANGER = 0.0024;
 const WONDER_RESEARCH_COST_MULTIPLIER = 5;
+const WONDER_OBSTACLES = [
+  { name: 'Aetheric Breach Charge', text: 'A sealed passage blocks the way. The researchers outside can build one shaped explosion, but only one.', cost: { steel: 900, machinery: 240, coal: 1200 } },
+  { name: 'Ancestor’s Lockpick', text: 'The lock has no keyhole, only a question written in metal. A strange instrument may persuade it to open.', cost: { steel: 700, machinery: 300, aether: 45 } },
+  { name: 'Gravity Anchor', text: 'The floor falls away whenever someone steps forward. Something must pin the expedition to the mountain.', cost: { stone: 1400, steel: 850, machinery: 360 } },
+  { name: 'Silence Device', text: 'The defenses wake at every sound. Researchers must build a device that teaches the chamber not to hear.', cost: { machinery: 500, knowledge: 5000, aether: 70 } },
+  { name: 'Heart-Seal Key', text: 'The final seal recognizes no human hand. It will require a key built from materials that have remembered stranger owners.', cost: { steel: 1200, machinery: 650, aether: 120 } },
+];
 
 function wonderResearchCost(research) {
   return Object.fromEntries(Object.entries(research.cost).map(([id, amount]) =>
     [id, Math.ceil(amount * WONDER_RESEARCH_COST_MULTIPLIER)]));
+}
+function currentWonderObstacle(record = wonderRecord()) {
+  const index = wonderSectionIndex(record);
+  return index < 0 ? null : { ...WONDER_OBSTACLES[index], index };
 }
 
 function wonderSectionIndex(record = wonderRecord()) {
@@ -546,6 +558,8 @@ function findWonder() {
   record.progress = 0;
   record.researches = {};
   record.expeditions = {};
+  record.obstacles = {};
+  record.obstacleNotices = {};
   addLog(`The expedition finds ${def.name}. ${def.findText}`, 'log-important');
   return true;
 }
@@ -584,12 +598,23 @@ function assignRapture(delta) {
   state.rapture = state.rapture || { landing: null, workers: 0, tabSeen: false };
   if (state.rapture.landing && state.rapture.landing !== state.landing) return false;
   const next = raptureWorkers() + delta;
-  if (next < 0 || (delta > 0 && delta > unassigned())) return false;
+  const guardCapacity = Math.max(0, Math.floor(state.jobs.guard || 0)) * 2;
+  if (next < 0 || (delta > 0 && (delta > unassigned() || next > guardCapacity))) return false;
   state.rapture.landing = state.landing;
   state.rapture.workers = next;
   if (next > 0) state.rapture.tabSeen = true;
   if (next === 0) resetWonderSection('The last worker leaves the section. The foothold is lost.');
   return true;
+}
+function enforceRaptureGuardCap() {
+  const workers = raptureWorkers();
+  const guardCapacity = Math.max(0, Math.floor(state.jobs.guard || 0)) * 2;
+  if (workers <= guardCapacity) return 0;
+  const fled = workers - guardCapacity;
+  state.rapture.workers = guardCapacity;
+  state.raptureFleeMoraleT = Math.max(10, Number(state.raptureFleeMoraleT) || 0);
+  addLog(`${fled} Rapture worker${fled === 1 ? '' : 's'} flee back to Emberhold as Guard cover falls short.`, 'log-bad');
+  return fled;
 }
 function resetWonderSection(message) {
   const record = state.wonders?.[state.landing];
@@ -657,12 +682,24 @@ function completeWonderSection() {
 }
 function updateWonder(dt) {
   if (!raptureActiveHere() || raptureWorkers() <= 0) return;
+  enforceRaptureGuardCap();
+  if (raptureWorkers() <= 0) return;
   const record = wonderRecord();
   const def = wonderDef();
-  record.progress += raptureWorkers() * WONDER_PROGRESS_PER_WORKER * wonderProgressMultiplier(record, def) * dt;
+  const obstacle = currentWonderObstacle(record);
+  const blocked = obstacle && !record.obstacles?.[obstacle.index];
+  if (blocked && !record.obstacleNotices?.[obstacle.index]) {
+    record.obstacleNotices[obstacle.index] = true;
+    state.paused = true;
+    addLog(`The expedition reaches ${obstacle.name}. Progress stops until it is built.`, 'log-important');
+    saveGame(true);
+    return;
+  }
   const danger = WONDER_BASE_DANGER * wonderDangerMultiplier(record, def);
   const incidentChance = 1 - Math.pow(1 - danger, raptureWorkers() * dt);
   if (Math.random() < incidentChance) resolveWonderIncident();
+  if (blocked) return;
+  record.progress += raptureWorkers() * WONDER_PROGRESS_PER_WORKER * wonderProgressMultiplier(record, def) * dt;
   if (record.progress >= WONDER_SECTION_PROGRESS) completeWonderSection();
 }
 function canBuyWonderResearch(index) {
@@ -682,6 +719,17 @@ function buyWonderResearch(index) {
   if (citizens) { state.pop = Math.max(1, state.pop - citizens); reconcileWorkers(); }
   record.researches[index] = true;
   addLog(`Wonder research completed: ${research.name}. ${research.effect}`, 'log-good');
+  return true;
+}
+function buildWonderObstacle() {
+  const record = wonderRecord();
+  const obstacle = currentWonderObstacle(record);
+  if (!obstacle || !record.found || record.obstacles?.[obstacle.index] || !canAfford(obstacle.cost)) return false;
+  payCost(obstacle.cost);
+  record.obstacles[obstacle.index] = true;
+  delete record.obstacleNotices[obstacle.index];
+  state.paused = false;
+  addLog(`${obstacle.name} completed. The expedition can press onward.`, 'log-good');
   return true;
 }
 function buyWonderExpedition(index) {
@@ -1253,6 +1301,7 @@ function moraleTooltip(foodRate = production(0.25).food) {
   add(-crowdMoralePenalty(), `${Math.max(0, state.pop - 20)} villager${Math.max(0, state.pop - 20) === 1 ? '' : 's'} beyond 20`);
   for (const trait of currentPlaceTraits()) add(trait.morale || 0, trait.name);
   add(airOfRageMorale(), 'Air of Rage');
+  if ((state.raptureFleeMoraleT || 0) > 0) add(-3, 'Rapture workers fleeing back to town');
   const conquered = localTribeIds().filter(id => state.diplomacy?.[id]?.conquered && !commonalityActive()).length;
   add(-conquered, conquered === 1 ? 'conquered town' : `${conquered} conquered towns`);
   const weatherNote = weather.morale ? `${weather.name} weather` : `${weather.name} weather — no morale pressure`;
@@ -1274,6 +1323,10 @@ function updateMorale(dt, foodRate) {
   delta -= localTribeIds().filter(id => state.diplomacy?.[id]?.conquered && !commonalityActive()).length;
   delta += currentPlaceTraits().reduce((sum, trait) => sum + (trait.morale || 0), 0);
   delta += airOfRageMorale();
+  if ((state.raptureFleeMoraleT || 0) > 0) {
+    delta -= 3;
+    state.raptureFleeMoraleT = Math.max(0, state.raptureFleeMoraleT - dt);
+  }
   const before = moraleBand(state.morale);
   state.morale = Math.max(0, Math.min(moraleCap(), state.morale + delta * dt));
   const after = moraleBand(state.morale);
@@ -2130,7 +2183,7 @@ function startGameClock() {
   // lose time; it only wakes the simulation to account for elapsed time.
   if (typeof Worker === 'function') {
     try {
-      gameClockWorker = new Worker('js/game-clock.worker.js?v=publish-20260908u12');
+      gameClockWorker = new Worker('js/game-clock.worker.js?v=publish-20260908u15');
       gameClockWorker.addEventListener('message', () => {
         updateGameClock(true);
         renderBonusTimer();
@@ -2694,6 +2747,8 @@ function normalizeSave(s) {
       record.progress = Math.max(0, Number(record.progress) || 0);
       record.researches = object(record.researches) ? record.researches : {};
       record.expeditions = object(record.expeditions) ? record.expeditions : {};
+      record.obstacles = object(record.obstacles) ? Object.fromEntries(Object.entries(record.obstacles).filter(([index, built]) => /^[0-4]$/.test(index) && built === true)) : {};
+      record.obstacleNotices = object(record.obstacleNotices) ? Object.fromEntries(Object.entries(record.obstacleNotices).filter(([index, noticed]) => /^[0-4]$/.test(index) && noticed === true)) : {};
       record.outcomes = object(record.outcomes) ? record.outcomes : {};
       return [id, record];
     }));
@@ -2701,6 +2756,7 @@ function normalizeSave(s) {
   s.rapture.landing = LANDING_BY_ID.has(s.rapture.landing) ? s.rapture.landing : null;
   s.rapture.workers = Math.max(0, Math.floor(Number(s.rapture.workers) || 0));
   s.rapture.tabSeen = !!s.rapture.tabSeen;
+  s.raptureFleeMoraleT = Math.max(0, Math.min(10, Number(s.raptureFleeMoraleT) || 0));
   // Power visibility belongs to the current settlement. Older saves could
   // carry the discovery flag across a migration even after all power-related
   // buildings had been left behind.
@@ -3392,7 +3448,7 @@ function renderWonderAssignment() {
   return `<h2 class="section">The Wonder</h2><div class="card wonder-card"><div class="card-head"><span class="card-title">${def.name}</span><span class="card-count">${section.name}</span></div>` +
     `<div class="card-desc">${section.text}</div><div class="res-note">Assign people to Rapture work. This is dangerous. Once someone is assigned, the Wonders tab will track the expedition.</div>` +
     `<div class="job-row"><span class="job-name">Rapture workers</span><span class="job-assign">${workers}</span><span class="job-rate">${fmt(record.progress)} / ${WONDER_SECTION_PROGRESS} foothold progress</span>` +
-    `<span class="job-btns"><button data-action="rapture-dec" ${workers > 0 ? '' : 'disabled'}>−</button><button data-action="rapture-inc" ${unassigned() > 0 ? '' : 'disabled'}>+</button></span></div></div>`;
+    `<span class="job-btns"><button data-action="rapture-dec" data-repeat title="Hold to repeat" ${workers > 0 ? '' : 'disabled'}>−</button><button data-action="rapture-inc" data-repeat title="Hold to repeat" ${unassigned() > 0 ? '' : 'disabled'}>+</button></span></div></div>`;
 }
 function renderWonder() {
   const def = wonderDef();
@@ -3410,6 +3466,8 @@ function renderWonder() {
     `<div class="wonder-section ${record.sections[index] ? 'done' : index === section?.index ? 'active' : ''}"><span>${index + 1}</span>${name}</div>`).join('') + '</div>';
   if (section) {
     const calamity = activeWonderCalamity();
+    const obstacle = currentWonderObstacle(record);
+    const obstacleBlocked = obstacle && !record.obstacles?.[obstacle.index];
     const workers = raptureWorkers();
     const healthy = ableGuards(); const total = state.jobs.guard || 0;
     const woundedOnly = healthy <= 0 && total > 0;
@@ -3419,11 +3477,17 @@ function renderWonder() {
     h += `<div class="wonder-progress"><div><strong>${section.name}</strong><span>${fmt(record.progress)} / ${WONDER_SECTION_PROGRESS} progress</span></div><progress value="${record.progress}" max="${WONDER_SECTION_PROGRESS}"></progress></div>`;
     h += `<div class="card wonder-calamity"><div class="card-head"><span class="card-title">Calamity: ${calamity.name}</span><span class="card-count">Section ${section.index + 1}</span></div>` +
       `<div class="card-desc">${calamity.text}</div><div class="trial-mod">−${fmt(calamity.amount)} ${resourceName(calamity.resource)}/s while this attempt continues.</div></div>`;
+    if (obstacleBlocked) {
+      const canBuild = canAfford(obstacle.cost);
+      h += `<div class="card wonder-calamity"><div class="card-head"><span class="card-title">Path blocked: ${obstacle.name}</span><span class="card-count">Progress stopped</span></div>` +
+        `<div class="card-desc">${obstacle.text}</div><div class="card-cost">build cost: ${wonderCostHtml(obstacle.cost)}</div>` +
+        `<div class="card-actions"><button data-action="wonder-obstacle" ${canBuild ? '' : 'disabled'}>Build ${obstacle.name}</button></div></div>`;
+    }
     h += `<div class="card"><div class="card-head"><span class="card-title">Rapture work</span><span class="card-count">${workers} assigned</span></div>` +
       `<div class="res-note">Section danger: ${fmt(wonderDangerMultiplier(record, def))}×. Each section is 25% deadlier than the last. Guards intervene on a lethal incident with a ${Math.round(Math.min(0.98, 0.60 * wonderDefenseMultiplier() * armor) * 100)}% citizen-survival chance.</div>` +
-      `<div class="res-note">${healthy} healthy Guard${healthy === 1 ? '' : 's'}${woundedOnly ? `; only injured Guards remain, so guard death is ${Math.round(guardWeights.death / sum * 100)}%` : ''}. Guard outcomes after a save: ${Math.round(guardWeights.injury / sum * 100)}% injury, ${Math.round(guardWeights.death / sum * 100)}% death, ${Math.round(guardWeights.hero / sum * 100)}% both survive.</div>` +
-      `<div class="job-row"><span class="job-name">Rapture workers</span><span class="job-assign">${workers}</span><span class="job-rate">${fmt(WONDER_PROGRESS_PER_WORKER * wonderProgressMultiplier(record, def))} progress/s each</span>` +
-      `<span class="job-btns"><button data-action="rapture-dec" ${workers > 0 ? '' : 'disabled'}>−</button><button data-action="rapture-inc" ${unassigned() > 0 ? '' : 'disabled'}>+</button></span></div></div>`;
+      `<div class="res-note">${healthy} healthy Guard${healthy === 1 ? '' : 's'}; Rapture capacity is ${total * 2}.${woundedOnly ? ` Only injured Guards remain, so guard death is ${Math.round(guardWeights.death / sum * 100)}%.` : ''} Guard outcomes after a save: ${Math.round(guardWeights.injury / sum * 100)}% injury, ${Math.round(guardWeights.death / sum * 100)}% death, ${Math.round(guardWeights.hero / sum * 100)}% both survive.</div>` +
+        `<div class="job-row"><span class="job-name">Rapture workers</span><span class="job-assign">${workers}</span><span class="job-rate">${fmt(WONDER_PROGRESS_PER_WORKER * wonderProgressMultiplier(record, def))} progress/s each</span>` +
+        `<span class="job-btns"><button data-action="rapture-dec" data-repeat title="Hold to repeat" ${workers > 0 ? '' : 'disabled'}>−</button><button data-action="rapture-inc" data-repeat title="Hold to repeat" ${unassigned() > 0 ? '' : 'disabled'}>+</button></span></div></div>`;
     h += '<h2 class="section">Research outside</h2><div class="res-note">Researchers remain outside the Wonder. Some answers ask for people who will not come back.</div>';
     def.researches.forEach((research, index) => {
       if (index > section.index) return;
@@ -3689,7 +3753,7 @@ function renderLog() {
 function loadLatestUpdatesTooltip() {
   const button = document.getElementById('btn-updates');
   if (!button || typeof fetch !== 'function' || typeof DOMParser !== 'function') return;
-  fetch('changelog.html?v=publish-20260908u12')
+  fetch('changelog.html?v=publish-20260908u15')
     .then(response => response.ok ? response.text() : Promise.reject(new Error('changelog unavailable')))
     .then(source => {
       const doc = new DOMParser().parseFromString(source, 'text/html');
@@ -3911,6 +3975,7 @@ function runAction(btn) {
     case 'rapture-dec': assignRapture(-1); render(); break;
     case 'wonder-find': findWonder(); render(); break;
     case 'wonder-research': buyWonderResearch(+btn.dataset.id); render(); break;
+    case 'wonder-obstacle': buildWonderObstacle(); render(); break;
     case 'wonder-expedition': buyWonderExpedition(+btn.dataset.id); render(); break;
     case 'wonder-fate': chooseWonderFate(btn.dataset.id); render(); break;
     case 'policy': choosePolicy(btn.dataset.id); render(); break;

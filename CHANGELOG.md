@@ -4,6 +4,9 @@ All notable changes to Emberhold are recorded here, with the newest changes firs
 
 ## 2026-09-08
 
+- Added five escalating Wonder obstacles that halt section progress until their material costs are paid, with persistent obstacle state and save migration.
+- Limited Rapture workers to two per assigned Guard; excess workers now flee back to town with a temporary morale penalty when Guard coverage falls short.
+- Added repeatable hold controls for assigning and removing Rapture workers, and clarified Wonder progress, capacity, and obstacle status in the interface.
 - Rebalanced Wonders into sustained expeditions: section work now takes substantially longer and danger is higher; research discovered inside a Wonder now costs five times its base amount.
 - Clarified the Wonder guard outcome text so it accurately describes the outcome where both the citizen and guard survive.
 - Added the Wonder reset layer: beacon-guided, landing-specific Wonder expeditions; five dangerous interior sections; persistent section progress; outside research; temporary interior expeditions; escalating calamities; guard rescues; and a dedicated Wonders tab.
