@@ -25,6 +25,15 @@ function game() {
   return { run, context };
 }
 
+test('paused real-time clock does not advance or bank time', () => {
+  const { run } = game();
+  run(`let now = 1000; Date.now = () => now;
+    state.paused = true; lastGameAt = now; now = 6000; updateGameClock();`);
+  assert.equal(run('state.day'), 0);
+  assert.equal(run('state.bonusTime'), 0);
+  assert.equal(run('lastGameAt'), 6000);
+});
+
 test('policy changes wait one real-time hour, persist through saves and trials, and reset on migration', () => {
   const { run } = game();
   run(`let now = 10000000; Date.now = () => now;

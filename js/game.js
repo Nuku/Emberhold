@@ -1537,6 +1537,10 @@ function advanceRealTime(elapsed) {
 
 function updateGameClock() {
   const now = Date.now();
+  if (state.paused) {
+    lastGameAt = now;
+    return;
+  }
   if (lastGameAt !== null) advanceRealTime((now - lastGameAt) / 1000);
   lastGameAt = now;
 }
@@ -2878,7 +2882,7 @@ function renderLog() {
 function loadLatestUpdatesTooltip() {
   const button = document.getElementById('btn-updates');
   if (!button || typeof fetch !== 'function' || typeof DOMParser !== 'function') return;
-  fetch('changelog.html?v=pause-control-20260907b')
+  fetch('changelog.html?v=pause-clock-20260907c')
     .then(response => response.ok ? response.text() : Promise.reject(new Error('changelog unavailable')))
     .then(source => {
       const doc = new DOMParser().parseFromString(source, 'text/html');
