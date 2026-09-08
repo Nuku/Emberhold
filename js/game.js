@@ -1051,7 +1051,9 @@ function production(dt = 0.25, breakdown = null) {
     if (n > 0) {
       if (!job.winterproof) {
         const supplied = !job.inputs || (state.res.wood > 0 && state.res.stone > 0);
-        add(job.res, `${job.name}: ${n} × ${job.base}/s`, n * job.base, supplied ? [] : [['Missing wood or stone', 0]]);
+        const factors = j === 'ironminer' && tech('ironMites') ? [['Iron Mites', 1.30]] : [];
+        add(job.res, `${job.name}: ${n} × ${job.base}/s`, n * job.base,
+          [...factors, ...(supplied ? [] : [['Missing wood or stone', 0]])]);
       }
       if (job.inputs) {
         for (const r in job.inputs) add(r, `${job.name} inputs: ${n} × ${job.inputs[r]}/s`, -n * job.inputs[r]);

@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Emberhold Automation
 // @namespace    https://github.com/emberhold
-// @version      1.25.4
+// @version      1.25.5
 // @description  Configurable automation for Emberhold
 // @updateURL    https://raw.githubusercontent.com/Nuku/Emberhold-Automation/main/emberhold_automation.user.js
 // @downloadURL  https://raw.githubusercontent.com/Nuku/Emberhold-Automation/main/emberhold_automation.user.js
@@ -106,7 +106,7 @@
   const RESEARCH_ORDER = [
     'stoneWorking', 'writing', 'craftsmanship', 'masonry', 'copperProspecting',
     'currency', 'guards', 'leatherArmor', 'deepMining', 'seamMining',
-    'metallurgy', 'weaponry', 'banking', 'diplomacy', 'civics', 'council',
+    'metallurgy', 'ironMites', 'weaponry', 'banking', 'diplomacy', 'civics', 'council',
     'machineryTech', 'advancedScience', 'hydraulics', 'weaponEfficiency', 'electricalEngineering',
     'astronomy', 'optics', 'aphrodisiac', 'hospital',
   ];

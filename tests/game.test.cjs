@@ -104,6 +104,17 @@ test('Awaken Ancients unlocks after Mechanism and powers each mining resource wi
   assert.equal(run('off.stone[0].amount'), run('before.stone[0].amount'));
 });
 
+test('Iron Mites unlocks after building a Forge and improves Iron Miner output', () => {
+  const { run } = game();
+  assert.equal(run("TECHS.find(t => t.id === 'ironMites').req()"), false);
+  run(`state.bld.forge = 1; state.bld.deepMine = 1; state.jobs.ironminer = 1;
+    const before = {}; production(1, before)`);
+  assert.equal(run("TECHS.find(t => t.id === 'ironMites').req()"), true);
+  run(`state.techs.ironMites = true; const after = {}; production(1, after)`);
+  assert.ok(Math.abs(run("after.iron.find(e => e.label.startsWith('Iron Miner')).amount") -
+    run("before.iron.find(e => e.label.startsWith('Iron Miner')).amount") * 1.3) < 1e-10);
+});
+
 test('dig site power supports partial counts, shortages, save normalization, and fresh settlements', () => {
   const { run } = game();
   run(`state.techs.awakenAncients = true; state.bld.quarry = 20;
