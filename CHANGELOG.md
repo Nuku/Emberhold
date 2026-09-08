@@ -4,6 +4,8 @@ All notable changes to Emberhold are recorded here, with the newest changes firs
 
 ## 2026-09-08
 
+- Added Buy and Purchased tabs to the Ancestral Shop so fully learned upgrades are separated from current choices.
+- Preserved partial power allocations when adding a new controllable building; new copies join automatically only when all existing copies were enabled.
 - Exposed factory recipe definitions through the automation API, including recipe inputs, rates, and research requirements.
 - Improved background-tab timekeeping with a dedicated worker clock, while preserving safe delayed-time banking for suspended or sleeping sessions.
 - Improved game and automation performance by indexing immutable definitions and caching repeated lookups.

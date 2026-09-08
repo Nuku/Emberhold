@@ -106,6 +106,7 @@ function defaultState() {
     armor: 0,
     migrating: false,
     pendingEchoes: 0,
+    shopTab: 'buy',
     won: false,
     achievements: {},
     commonalityLineages: {},
@@ -1654,7 +1655,7 @@ function startGameClock() {
   // lose time; it only wakes the simulation to account for elapsed time.
   if (typeof Worker === 'function') {
     try {
-      gameClockWorker = new Worker('js/game-clock.worker.js?v=publish-20260908r');
+      gameClockWorker = new Worker('js/game-clock.worker.js?v=publish-20260908s');
       gameClockWorker.addEventListener('message', () => {
         updateGameClock(true);
         renderBonusTimer();
@@ -1781,7 +1782,15 @@ function doBuild(id) {
   const cost = buildingCost(def);
   if (!canAfford(cost)) return;
   payCost(cost);
-  state.bld[id] = bld(id) + 1;
+  const previousCount = bld(id);
+  const previousEnabled = state.buildingPower[id];
+  state.bld[id] = previousCount + 1;
+  // A new copy joins the allocation only when every existing copy was on.
+  // Partial or fully disabled allocations remain the player's choice.
+  if (Object.hasOwn(POWER_BUILDINGS, id) && Number.isFinite(previousEnabled) &&
+      Math.max(0, Math.min(previousCount, Math.floor(previousEnabled))) >= previousCount) {
+    state.buildingPower[id] = previousCount + 1;
+  }
   if (state.trial && ['frugality', 'expansion'].includes(state.trial.id)) state.trial.buildings++;
   addLog(`${def.name} completed (${bld(id)}).`);
 
@@ -2138,9 +2147,13 @@ function normalizeSave(s) {
     s.bld.forge = (s.bld.forge || 0) + s.bld.foundry;
     delete s.bld.foundry;
   }
-  s.buildingPower = Object.fromEntries(Object.keys(POWER_BUILDINGS).map(id => [id,
-    Number.isFinite(s.buildingPower[id]) ? Math.max(0, Math.min(Math.floor(s.bld[id] || 0), Math.floor(s.buildingPower[id]))) :
-      Math.floor(s.bld[id] || 0)]));
+  // Only persist controls for buildings that exist. Recording a zero for an
+  // unbuilt type would make its first completed instance look explicitly off.
+  s.buildingPower = Object.fromEntries(Object.keys(POWER_BUILDINGS)
+    .filter(id => s.bld[id] > 0)
+    .map(id => [id, Number.isFinite(s.buildingPower[id])
+      ? Math.max(0, Math.min(Math.floor(s.bld[id]), Math.floor(s.buildingPower[id])))
+      : Math.floor(s.bld[id]) ]));
   if (!savedTradePartners) s.tradePartners = [legacyTradePartner || 'human'];
   s.tradePartners = [...new Set(s.tradePartners.filter(id => typeof id === 'string'))];
   if (!s.tradePartners.length) s.tradePartners = [s.tradePartner || 'human'];
@@ -2898,10 +2911,13 @@ function renderMigration() {
 }
 
 function renderShop() {
+  const tab = state.shopTab || 'buy';
   let h = '<h2 class="section">Ancestral Shop — what echoes endure</h2>';
   if (!state.migrating) {
     h += '<div class="res-note">Points can be added and removed only while a migration is being prepared — a fresh respec before every founding, handy for swearing trials.</div>';
   }
+  const available = [];
+  const purchased = [];
   for (const u of UPGRADES) {
     if (u.id === 'farHorizons' && !LINEAGES.some(l => l.id !== 'human' && lineageUnlocked(l.id))) continue;
     if (u.id === 'fearOfTheConqueror' && !fearOfTheConquerorAvailable()) continue;
@@ -2910,7 +2926,7 @@ function renderShop() {
     const maxed = lvl >= u.max;
     const nextCost = maxed ? null : u.costs[lvl];
     if (state.migrating && !maxed && nextCost > totalMigrationEchoes()) continue;
-    h += `<div class="card ${maxed ? 'done' : ''}"><div class="card-head">` +
+    const card = `<div class="card ${maxed ? 'done' : ''}"><div class="card-head">` +
       `<span class="card-title has-tooltip" data-tooltip="${attrText(u.desc)}">${u.name}</span>` +
       `<span class="card-count">${lvl} / ${u.max}</span>` +
       `<span class="card-effect">${u.effect}</span></div>` +
@@ -2919,7 +2935,14 @@ function renderShop() {
       `<button data-action="migration-buy" data-id="${u.id}" ${state.migrating && !maxed && state.echoes >= nextCost ? '' : 'disabled'}>Buy</button> ` +
       `<button data-action="migration-refund" data-id="${u.id}" ${state.migrating && lvl > 0 ? '' : 'disabled'}>Refund</button>` +
       `</div></div>`;
+    (maxed ? purchased : available).push(card);
   }
+  h += `<div class="subtabs" role="tablist" aria-label="Ancestral Shop upgrades">` +
+    `<button class="subtab ${tab === 'buy' ? 'active' : ''}" data-action="shop-tab" data-shop-tab="buy" role="tab" aria-selected="${tab === 'buy'}">Buy <span class="subtab-count">${available.length}</span></button>` +
+    `<button class="subtab ${tab === 'purchased' ? 'active' : ''}" data-action="shop-tab" data-shop-tab="purchased" role="tab" aria-selected="${tab === 'purchased'}">Purchased <span class="subtab-count">${purchased.length}</span></button>` +
+    `</div>`;
+  const visible = tab === 'purchased' ? purchased : available;
+  h += visible.length ? visible.join('') : `<div class="res-note">${tab === 'purchased' ? 'No ancestral upgrades are fully learned yet.' : 'Every available ancestral upgrade is fully learned.'}</div>`;
   return h;
 }
 
@@ -3022,7 +3045,7 @@ function renderLog() {
 function loadLatestUpdatesTooltip() {
   const button = document.getElementById('btn-updates');
   if (!button || typeof fetch !== 'function' || typeof DOMParser !== 'function') return;
-  fetch('changelog.html?v=publish-20260908r')
+  fetch('changelog.html?v=publish-20260908s')
     .then(response => response.ok ? response.text() : Promise.reject(new Error('changelog unavailable')))
     .then(source => {
       const doc = new DOMParser().parseFromString(source, 'text/html');
@@ -3245,6 +3268,7 @@ function runAction(btn) {
     case 'landing': chooseLanding(btn.dataset.id); render(); break;
     case 'migration-buy': migrationBuy(btn.dataset.id); render(); break;
     case 'migration-refund': migrationRefund(btn.dataset.id); render(); break;
+    case 'shop-tab': state.shopTab = btn.dataset.shopTab === 'purchased' ? 'purchased' : 'buy'; render(); break;
     case 'stats-tab': state.statsTab = btn.dataset.statsTab; render(); break;
     case 'setting-toggle': setSetting(btn.dataset.setting); render(); break;
     case 'save': saveGame(); render(); break;
@@ -3392,6 +3416,7 @@ function boot() {
   state.council = Array.isArray(state.council) ? state.council : [];
   state.settings = { autosave: true, reducedMotion: false, compactStores: false, strictQueueOrder: false, ...(state.settings || {}) };
   state.achievements = state.achievements || {};
+  state.shopTab = ['buy', 'purchased'].includes(state.shopTab) ? state.shopTab : 'buy';
   state.statsTab = ['stats', 'achievements', 'perks'].includes(state.statsTab) ? state.statsTab : 'stats';
   applySettings();
   state.tribesSeen = state.tribesSeen || { human: true };

@@ -140,6 +140,10 @@ test('dig site power supports partial counts, shortages, save normalization, and
   run('delete state.buildingPower; state = normalizeSave(JSON.parse(JSON.stringify(state)))');
   assert.equal(run("buildingPowerCount('quarry')"), 20);
   assert.equal(run("buildingPowerCount('deepMine')"), 1);
+  run(`state.bld.factory = 0;
+    state = normalizeSave(JSON.parse(JSON.stringify(state)));
+    state.bld.factory = 1`);
+  assert.equal(run("buildingPowerCount('factory')"), 1);
   assert.equal(run('Object.keys(defaultState().buildingPower).length'), 0);
 });
 
@@ -384,6 +388,7 @@ test('Journal of Old Times costs 500 Echoes and permanently adds Knowledge', () 
   assert.equal(run('state.upgrades.journalOfOldTimes'), 1);
   assert.equal(run('state.echoes'), 0);
   assert.ok(Math.abs(run('rates.knowledge') - 0.2) < 1e-6);
+  run("state.shopTab = 'purchased'");
   assert.match(run('renderShop()'), /Journal of Old Times/);
   run('migrationRefund("journalOfOldTimes"); const refundedRates = production(1)');
   assert.equal(run('state.upgrades.journalOfOldTimes || 0'), 0);
@@ -398,6 +403,17 @@ test('migration shop hides upgrades above total echoes including spent echoes', 
 
   run('state.echoes = 438');
   assert.equal(run("renderShop().includes('Journal of Old Times')"), true);
+});
+
+test('migration shop separates available upgrades from fully purchased ones', () => {
+  const { run } = game();
+  run("state.upgrades = { deepRoots: 5, wanderers: 2 }; state.shopTab = 'buy';");
+  assert.match(run('renderShop()'), /data-shop-tab="buy"/);
+  assert.doesNotMatch(run('renderShop()'), /Deep Roots/);
+  assert.match(run('renderShop()'), /Wandering Kin/);
+  run("state.shopTab = 'purchased'");
+  assert.match(run('renderShop()'), /Deep Roots/);
+  assert.doesNotMatch(run('renderShop()'), /Wandering Kin/);
 });
 
 test('multiple local tribes can be active at once', () => {
@@ -1424,6 +1440,16 @@ test('Forges can be disabled without consuming inputs or producing Steel', () =>
   assert.match(run(`buildFilter = 'power'; renderBuild()`), /data-id="forge"/);
   run(`state = normalizeSave(JSON.parse(JSON.stringify(state))); state.bld.forge = 1`);
   assert.equal(run("buildingPowerCount('forge')"), 0);
+});
+
+test('a newly built controllable building starts enabled only when all prior copies were enabled', () => {
+  const { run } = game();
+  run(`state.techs.metallurgy = true; state.bld.forge = 1; state.buildingPower.forge = 1;
+    state.res.stone = 10000; state.res.iron = 10000; state.res.tools = 10000; state.res.currency = 10000;
+    doBuild('forge')`);
+  assert.equal(run("buildingPowerCount('forge')"), 2);
+  run(`setBuildingPower('forge', 1); doBuild('forge')`);
+  assert.equal(run("buildingPowerCount('forge')"), 1);
 });
 
 test('Steam Plants provide persistent Power capacity and consume 0.8 Coal/s each', () => {
