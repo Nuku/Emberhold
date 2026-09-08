@@ -154,6 +154,13 @@ invalid imports, storage failures, and offline time accounting.
 
 ## Automation power API
 
+Factory production lines are available at
+`window.emberhold.definitions.FACTORY_RECIPES`. Each recipe provides its `id`,
+`name`, output `rate` per factory per second, material `inputs`, required
+`tech` (or `null`), and display `unlock` text. Filter entries using the
+technology IDs in `api.getState().techs`, then select an unlocked line with
+`api.actions.chooseFactoryRecipe(recipeId)`.
+
 `window.emberhold.getPower()` returns live power capacity, also included as
 `window.emberhold.getState().power` and in subscription event snapshots:
 

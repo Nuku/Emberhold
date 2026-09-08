@@ -1510,6 +1510,19 @@ test('factory lines unlock through research, persist in saves, and default safel
   assert.equal(run('state.factoryRecipe'), 'goods');
 });
 
+test('automation API exposes factory recipe definitions', () => {
+  const { run } = game();
+  assert.equal(
+    run('JSON.stringify(window.emberhold.definitions.FACTORY_RECIPES)'),
+    JSON.stringify([
+      { id: 'goods', name: 'Industrial Goods', rate: 0.08, inputs: {}, tech: null, unlock: 'Always available' },
+      { id: 'tools', name: 'Tools', rate: 0.08, inputs: { wood: 3.2 }, tech: 'craftsmanship', unlock: 'Craftsmanship' },
+      { id: 'steel', name: 'Steel', rate: 0.04, inputs: { iron: 0.6, coal: 0.4 }, tech: 'metallurgy', unlock: 'Metallurgy' },
+      { id: 'machinery', name: 'Machinery', rate: 0.02, inputs: { steel: 0.1, coal: 0.4 }, tech: 'machineryTech', unlock: 'Mechanism' },
+    ]),
+  );
+});
+
 test('factories switch outputs and consume recipe materials without multiplying costs', () => {
   for (const [id, research, output, input, cost] of [
     ['goods', null, 0.08 * 1.2, null, 0],
