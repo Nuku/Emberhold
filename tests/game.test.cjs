@@ -1263,6 +1263,20 @@ test('Forges automatically smelt Steel, throttle on inputs, and migrate old Foun
   assert.equal(run('CRAFTS.some(c => c.id === "steel")'), false);
 });
 
+test('Forges can be disabled without consuming inputs or producing Steel', () => {
+  const { run } = game();
+  run(`state.bld.forge = 2; state.techs.metallurgy = true;
+    state.res.iron = 100; state.res.coal = 100; state.res.steel = 0;
+    setBuildingPower('forge', 0); const off = production(1)`);
+  assert.equal(run('off.steel'), 0);
+  assert.equal(run('off.iron'), 0);
+  assert.equal(run('off.coal'), 0);
+  assert.equal(run("buildingPowerCount('forge')"), 0);
+  assert.match(run(`buildFilter = 'power'; renderBuild()`), /data-id="forge"/);
+  run(`state = normalizeSave(JSON.parse(JSON.stringify(state))); state.bld.forge = 1`);
+  assert.equal(run("buildingPowerCount('forge')"), 0);
+});
+
 test('Steam Plants provide persistent Power capacity and consume 0.8 Coal/s each', () => {
   const { run } = game();
   run(`state.bld.steamPlant = 2; state.res.coal = 100; const rates = production(1); tick(1)`);

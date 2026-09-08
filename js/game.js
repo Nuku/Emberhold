@@ -927,10 +927,13 @@ const POWER_BUILDINGS = {
   livingBlock: { power: LIVING_BLOCK_POWER_REQUIREMENT, label: 'Living Blocks' },
   ...Object.fromEntries(Object.keys(DIG_SITE_RESOURCES).map(id => [id, { power: DIG_SITE_POWER }])),
   factory: { power: FACTORY_POWER_REQUIREMENT, label: 'Factories' },
+  // Forges can be switched off, but do not draw from power capacity.
+  forge: { power: 0, label: 'Forges' },
 };
 
 function powerBuildingControllable(id) {
-  return Object.hasOwn(POWER_BUILDINGS, id) && (id === 'livingBlock' || id === 'factory' || tech('awakenAncients'));
+  return Object.hasOwn(POWER_BUILDINGS, id) &&
+    (id === 'livingBlock' || id === 'factory' || id === 'forge' || tech('awakenAncients'));
 }
 
 function buildingPowerCount(id) {
@@ -950,7 +953,7 @@ function setBuildingPower(id, count) {
 function powerAllocation() {
   const powerFactor = settlementProductionFactors('power').reduce((value, [, factor]) => value * factor, 1);
   let available = Math.max(0, (bld('steamPlant') * POWER_PER_STEAM_PLANT + bld('dynamo') * 1.5) * powerFactor);
-  const active = {};
+  const active = { forge: buildingPowerCount('forge') };
   for (const id of ['livingBlock', ...Object.keys(DIG_SITE_RESOURCES), 'factory']) {
     active[id] = Math.min(buildingPowerCount(id), Math.floor((available + 1e-9) / POWER_BUILDINGS[id].power));
     available = Math.max(0, available - active[id] * POWER_BUILDINGS[id].power);
@@ -973,7 +976,9 @@ function renderBuildingPower(id, active = powerAllocation()) {
   const info = POWER_BUILDINGS[id];
   const resource = DIG_SITE_RESOURCES[id] ? RESOURCES.find(r => r.id === DIG_SITE_RESOURCES[id]).name : null;
   const effect = resource ? `, +${active[id] * 10}% ${resource} production` : '';
-  return `<div class="card-desc">Power supply: ${count} / ${bld(id)} enabled; ${active[id]} active (${+(active[id] * info.power).toFixed(2)} Power)${effect}.</div>` +
+  const supply = info.power ? `Power supply: ${count} / ${bld(id)} enabled; ${active[id]} active (${+(active[id] * info.power).toFixed(2)} Power)` :
+    `Production: ${count} / ${bld(id)} enabled; ${active[id]} active`;
+  return `<div class="card-desc">${supply}${effect}.</div>` +
     `<div class="card-actions"><button data-action="power-off" data-id="${id}" ${count ? '' : 'disabled'}>Off</button>` +
     `<button data-action="power-dec" data-id="${id}" data-repeat aria-label="Reduce ${id} power" ${count ? '' : 'disabled'}>−</button>` +
     `<button data-action="power-inc" data-id="${id}" data-repeat aria-label="Increase ${id} power" ${count < bld(id) ? '' : 'disabled'}>+</button>` +
@@ -1078,21 +1083,22 @@ function production(dt = 0.25, breakdown = null) {
   // continuously, using fixed amounts of Iron and Coal. Keep this after the
   // settlement scaling pass so expedition bonuses affect supply, not recipe
   // costs; the factory below can still account for Forge consumption.
-  if (bld('forge') > 0 && dt > 0) {
+  const activeForges = power.forge;
+  if (activeForges > 0 && dt > 0) {
     const rate = 0.04;
     const inputs = { iron: 0.6, coal: 0.4 };
     const factors = forgeProductionFactors();
-    const output = factors.reduce((value, [, factor]) => value * factor, bld('forge') * rate);
+    const output = factors.reduce((value, [, factor]) => value * factor, activeForges * rate);
     let fraction = Math.min(1, Math.max(0, capacityOf('steel') - state.res.steel) / (output * dt));
     let limitation = fraction < 1 ? 'Steel storage space' : 'Forge utilization';
     for (const r in inputs) {
       const available = Math.max(0, state.res[r] + Math.min(0, rates[r]) * dt);
-      const supplied = available / (inputs[r] * bld('forge') * dt);
+      const supplied = available / (inputs[r] * activeForges * dt);
       if (supplied < fraction) limitation = `${RESOURCES.find(resource => resource.id === r).name} shortage`;
       fraction = Math.min(fraction, supplied);
     }
-    add('steel', `Forges: ${bld('forge')} × ${rate}/s`, bld('forge') * rate, [...factors, [limitation, fraction]]);
-    for (const r in inputs) add(r, `Forge inputs: ${bld('forge')} × ${inputs[r]}/s`, -inputs[r] * bld('forge'), [[limitation, fraction]]);
+    add('steel', `Forges: ${activeForges} active × ${rate}/s`, activeForges * rate, [...factors, [limitation, fraction]]);
+    for (const r in inputs) add(r, `Forge inputs: ${activeForges} active × ${inputs[r]}/s`, -inputs[r] * activeForges, [[limitation, fraction]]);
   }
 
   if (bld('factory') > 0 && dt > 0) {
@@ -2004,9 +2010,15 @@ function normalizeSave(s) {
     for (const n of Object.values(s[key]))
       if (typeof n !== 'number' || n < 0) throw new Error(`Invalid ${key}`);
   }
+  // Foundry was the original one-off Steel unlock. Preserve it as a Forge
+  // before normalizing building toggles so migrated Forges start enabled.
+  if (s.bld.foundry) {
+    s.bld.forge = (s.bld.forge || 0) + s.bld.foundry;
+    delete s.bld.foundry;
+  }
   s.buildingPower = Object.fromEntries(Object.keys(POWER_BUILDINGS).map(id => [id,
     Number.isFinite(s.buildingPower[id]) ? Math.max(0, Math.min(Math.floor(s.bld[id] || 0), Math.floor(s.buildingPower[id]))) :
-      (id === 'factory' || id === 'livingBlock' ? Math.floor(s.bld[id] || 0) : 0)]));
+      (id === 'factory' || id === 'livingBlock' || id === 'forge' ? Math.floor(s.bld[id] || 0) : 0)]));
   if (!savedTradePartners) s.tradePartners = [legacyTradePartner || 'human'];
   s.tradePartners = [...new Set(s.tradePartners.filter(id => typeof id === 'string'))];
   if (!s.tradePartners.length) s.tradePartners = [s.tradePartner || 'human'];
@@ -2035,12 +2047,6 @@ function normalizeSave(s) {
   if (!hasPowerBuilding) {
     s.seen.power = false;
     s.res.power = 0;
-  }
-  // Foundry was the original one-off Steel unlock. Preserve it as a Forge
-  // when loading saves made before Steel became a building production line.
-  if (s.bld.foundry) {
-    s.bld.forge = (s.bld.forge || 0) + s.bld.foundry;
-    delete s.bld.foundry;
   }
   for (const entry of Object.values(s.diplomacy)) {
     if (!object(entry) || typeof entry.disposition !== 'number') throw new Error('Invalid diplomacy');
@@ -2482,7 +2488,7 @@ function renderBuild() {
   const knownBuildings = BUILDINGS.filter(b => bld(b.id) > 0 || !b.req || b.req());
   const completedCount = knownBuildings.filter(b => bld(b.id) >= b.max).length;
   const incompleteCount = knownBuildings.length - completedCount;
-  const controllablePowerBuildings = ['livingBlock', ...Object.keys(DIG_SITE_RESOURCES), 'factory']
+  const controllablePowerBuildings = ['livingBlock', ...Object.keys(DIG_SITE_RESOURCES), 'factory', 'forge']
     .filter(id => powerBuildingControllable(id) && bld(id));
   h += `<div class="subtabs" role="tablist" aria-label="Construction status">` +
     `<button class="subtab ${buildFilter === 'incomplete' ? 'active' : ''}" data-action="build-filter" data-filter="incomplete" role="tab" aria-selected="${buildFilter === 'incomplete'}">Incomplete <span class="subtab-count">${incompleteCount}</span></button>` +
@@ -2490,7 +2496,7 @@ function renderBuild() {
     (controllablePowerBuildings.length ? `<button class="subtab ${buildFilter === 'power' ? 'active' : ''}" data-action="build-filter" data-filter="power" role="tab" aria-selected="${buildFilter === 'power'}">Power</button>` : '') +
     `</div>`;
   if (buildFilter === 'power' && controllablePowerBuildings.length) {
-    h += '<div class="res-note">Set how many buildings are enabled. Power is allocated to Living Blocks first, then Quarry, Deep Mine, Coal Seam, and finally Factories; enabled buildings without capacity remain inactive.</div>';
+    h += '<div class="res-note">Set how many buildings are enabled. Power is allocated to Living Blocks first, then Quarry, Deep Mine, Coal Seam, and finally Factories; enabled buildings without capacity remain inactive. Forges can be toggled here and do not use Power capacity.</div>';
     const active = powerAllocation();
     for (const id of controllablePowerBuildings) {
       h += `<div class="card"><div class="card-title">${BUILDINGS.find(b => b.id === id).name}</div>${renderBuildingPower(id, active)}</div>`;
@@ -2882,7 +2888,7 @@ function renderLog() {
 function loadLatestUpdatesTooltip() {
   const button = document.getElementById('btn-updates');
   if (!button || typeof fetch !== 'function' || typeof DOMParser !== 'function') return;
-  fetch('changelog.html?v=pause-clock-20260907c')
+  fetch('changelog.html?v=forge-controls-20260907a')
     .then(response => response.ok ? response.text() : Promise.reject(new Error('changelog unavailable')))
     .then(source => {
       const doc = new DOMParser().parseFromString(source, 'text/html');
