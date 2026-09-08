@@ -973,7 +973,7 @@ function setBuildingPower(id, count) {
 
 function powerAllocation() {
   const powerFactor = settlementProductionFactors('power').reduce((value, [, factor]) => value * factor, 1);
-  let available = Math.max(0, (bld('steamPlant') * POWER_PER_STEAM_PLANT + bld('dynamo') * 1.5) * powerFactor);
+  let available = Math.max(0, (bld('steamPlant') * POWER_PER_STEAM_PLANT + bld('dynamo') * 1.5 + bld('windDevice') * POWER_PER_WIND_DEVICE) * powerFactor);
   const active = { forge: buildingPowerCount('forge') };
   for (const id of ['livingBlock', ...Object.keys(DIG_SITE_RESOURCES), 'factory']) {
     active[id] = Math.min(buildingPowerCount(id), Math.floor((available + 1e-9) / POWER_BUILDINGS[id].power));
@@ -1105,6 +1105,7 @@ function production(dt = 0.25, breakdown = null) {
     add('coal', `Steam Plant fuel: ${bld('steamPlant')} × 0.8/s`, -bld('steamPlant') * 0.8);
   }
   if (bld('dynamo') > 0) add('power', `Dynamos: ${bld('dynamo')} × 1.5 capacity`, bld('dynamo') * 1.5);
+  if (bld('windDevice') > 0) add('power', `Wind Devices: ${bld('windDevice')} × ${POWER_PER_WIND_DEVICE} capacity`, bld('windDevice') * POWER_PER_WIND_DEVICE);
   if (power.livingBlock) add('power', `Living Blocks: ${power.livingBlock} × ${LIVING_BLOCK_POWER_REQUIREMENT} capacity`, -power.livingBlock * LIVING_BLOCK_POWER_REQUIREMENT);
   // The land, lineage, and civic choices shape output; population upkeep is
   // applied afterward so food policies do not alter how much villagers eat.
@@ -2107,7 +2108,7 @@ function normalizeSave(s) {
   // Power visibility belongs to the current settlement. Older saves could
   // carry the discovery flag across a migration even after all power-related
   // buildings had been left behind.
-  const hasPowerBuilding = ['steamPlant', 'dynamo', 'livingBlock', 'factory']
+  const hasPowerBuilding = ['steamPlant', 'dynamo', 'windDevice', 'livingBlock', 'factory']
     .some(id => (s.bld[id] || 0) > 0);
   if (!hasPowerBuilding) {
     s.seen.power = false;
@@ -2366,7 +2367,7 @@ function renderNextStep() {
 }
 
 function resVisible(id) {
-  if (id === 'power' && !['steamPlant', 'dynamo', 'livingBlock', 'factory']
+  if (id === 'power' && !['steamPlant', 'dynamo', 'windDevice', 'livingBlock', 'factory']
     .some(building => bld(building) > 0)) return false;
   return !!state.seen?.[id];
 }
@@ -2963,7 +2964,7 @@ function renderLog() {
 function loadLatestUpdatesTooltip() {
   const button = document.getElementById('btn-updates');
   if (!button || typeof fetch !== 'function' || typeof DOMParser !== 'function') return;
-  fetch('changelog.html?v=publish-20260908i')
+  fetch('changelog.html?v=publish-20260908k')
     .then(response => response.ok ? response.text() : Promise.reject(new Error('changelog unavailable')))
     .then(source => {
       const doc = new DOMParser().parseFromString(source, 'text/html');

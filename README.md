@@ -104,7 +104,7 @@ invalid imports, storage failures, and offline time accounting.
   when enough capacity is available and shut off when it is not. Completing the trial makes factories permanent.
   In the Village, switch all factories between Industrial Goods (the default),
   Tools (Craftsmanship), Steel (Metallurgy), and Machinery (Mechanism).
-  Each Steam Plant provides 3 Power capacity, and each factory requires 1.5 Power capacity.
+  Each Steam Plant provides 3 Power capacity, each Wind Device provides 1 Power capacity without fuel, and each factory requires 1.5 Power capacity.
   Tools use Wood, Steel uses Iron and Coal,
   and Machinery uses Steel and Coal. Steel is smelted automatically by scalable
   Forges; it is no longer a hand-crafted item. Recipe cards show output and input rates. Lineage and governance

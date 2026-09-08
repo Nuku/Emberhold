@@ -33,6 +33,7 @@ const RESOURCES = [
 // Power is capacity, not a stockpile. These baseline values are intentionally
 // separate so research and upgrades can tune generation and demand later.
 const POWER_PER_STEAM_PLANT = 3;
+const POWER_PER_WIND_DEVICE = 1;
 const FACTORY_POWER_REQUIREMENT = 1.5;
 const LIVING_BLOCK_POWER_REQUIREMENT = 1;
 const INDUSTRIALIZATION_COAL_MULTIPLIER = 0.2;
@@ -247,6 +248,11 @@ const BUILDINGS = [
     effect: () => `supports ${bld('instrumentHall')} Experimentalist${bld('instrumentHall') === 1 ? '' : 's'}`,
     req: () => tech('advancedScience'), desc: 'precision instruments and costly parts turn questions into discoveries' },
 
+  { id: 'windDevice', name: 'Wind Device', max: Infinity, scale: 2.2,
+    cost: { goods: 120, steel: 220, stone: 500 },
+    effect: () => `+${POWER_PER_WIND_DEVICE} Power capacity, no fuel required`,
+    req: () => tech('windHarness'), desc: 'capture a small bit of the wind\'s gusting power' },
+
   { id: 'observatory', name: 'Observatory', max: 1, scale: 1,
     cost: { steel: 130, machinery: 20, tools: 60, currency: 150, goods: 60 },
     effect: () => 'unlocks Aether and Astronomers',
@@ -317,6 +323,9 @@ const TECHS = [
   { id: 'advancedScience', name: 'Advanced Science', cost: 2200,
     desc: 'Unlocks the uncapped Instrument Hall and Experimentalists, whose work advances Knowledge beyond the Thinkers.',
     req: () => tech('machineryTech') && tech('writing') },
+  { id: 'windHarness', name: 'Wind Harness', cost: 3000,
+    desc: 'Unlocks the uncapped Wind Device, which produces 1.0 Power without fuel.',
+    req: () => tech('advancedScience') },
   { id: 'banking', name: 'Banking', cost: 900,
     desc: 'Unlocks Money Lenders and Bankers. Each Money Lender supports one Banker and produces 0.001 Currency per population per second.',
     req: () => tech('metallurgy') && tech('currency') },

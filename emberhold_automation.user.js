@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Emberhold Automation
 // @namespace    https://github.com/emberhold
-// @version      1.25.5
+// @version      1.25.6
 // @description  Configurable automation for Emberhold
 // @updateURL    https://raw.githubusercontent.com/Nuku/Emberhold-Automation/main/emberhold_automation.user.js
 // @downloadURL  https://raw.githubusercontent.com/Nuku/Emberhold-Automation/main/emberhold_automation.user.js
@@ -107,14 +107,14 @@
     'stoneWorking', 'writing', 'craftsmanship', 'masonry', 'copperProspecting',
     'currency', 'guards', 'leatherArmor', 'deepMining', 'seamMining',
     'metallurgy', 'ironMites', 'weaponry', 'banking', 'diplomacy', 'civics', 'council',
-    'machineryTech', 'advancedScience', 'hydraulics', 'weaponEfficiency', 'electricalEngineering',
+    'machineryTech', 'advancedScience', 'windHarness', 'hydraulics', 'weaponEfficiency', 'electricalEngineering',
     'astronomy', 'optics', 'aphrodisiac', 'hospital',
   ];
   const BUILD_ORDER = [
     'hut', 'storehouse', 'foragerLodge', 'lumberYard', 'quarry', 'stoneWorks',
     'workbench', 'library', 'monument', 'barracks', 'trainingYard', 'hospital', 'deepMine', 'deepStore',
     'coalSeam', 'forge', 'aqueduct', 'shrine', 'amphitheatre', 'workshop',
-    'steamPlant', 'dynamo', 'vault', 'factory', 'instrumentHall', 'observatory', 'beacon',
+    'steamPlant', 'dynamo', 'vault', 'factory', 'instrumentHall', 'windDevice', 'observatory', 'beacon',
   ];
   const JOB_ORDER = [
     'forager', 'woodcutter', 'miner', 'thinker', 'experimentalist', 'tinkerer', 'digger',
