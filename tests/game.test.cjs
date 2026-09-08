@@ -239,6 +239,18 @@ test('the top queue item shows each missing resource with its own estimate', () 
   assert.equal((html.match(/queue-needs/g) || []).length, 1);
 });
 
+test('queue items can be reordered before or after another item', () => {
+  const { run } = game();
+  run(`state.queues.build = [{ type: 'build', id: 'hut' }, { type: 'build', id: 'lumberYard' }, { type: 'build', id: 'stoneWorks' }];
+    reorderQueue('build', 0, 2, true);`);
+  assert.deepEqual(JSON.parse(run('JSON.stringify(state.queues.build.map(entry => entry.id))')),
+    ['lumberYard', 'stoneWorks', 'hut']);
+  run("reorderQueue('build', 2, 0)");
+  assert.deepEqual(JSON.parse(run('JSON.stringify(state.queues.build.map(entry => entry.id))')),
+    ['hut', 'lumberYard', 'stoneWorks']);
+  assert.match(run("renderQueue('build')"), /draggable="true"/);
+});
+
 test('queue order defaults to parallel and can be switched to strict first-to-last processing', () => {
   const { run } = game();
   run(`state.techs.craftsmanship = true;

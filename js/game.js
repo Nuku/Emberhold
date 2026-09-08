@@ -624,6 +624,17 @@ function cancelQueue(type, index) {
   if (Number.isInteger(index) && state.queues[type][index]) state.queues[type].splice(index, 1);
 }
 
+function reorderQueue(type, fromIndex, toIndex, after = false) {
+  const entries = state.queues[type];
+  if (!Array.isArray(entries) || !Number.isInteger(fromIndex) || !Number.isInteger(toIndex) ||
+      !entries[fromIndex] || !entries[toIndex] || (fromIndex === toIndex && !after)) return false;
+  let insertIndex = toIndex + (after ? 1 : 0);
+  const [entry] = entries.splice(fromIndex, 1);
+  if (fromIndex < insertIndex) insertIndex--;
+  entries.splice(insertIndex, 0, entry);
+  return true;
+}
+
 function attemptBuild(id) {
   const def = BUILDINGS.find(b => b.id === id);
   if (!def || state.queues.build.length >= queueCapacity('build')) return;
@@ -2534,7 +2545,7 @@ function renderQueue(type) {
     const details = index === 0
       ? queueWaitingHtml(entry)
       : `<span class="queue-needs">needs ${costHtml(cost)}</span><span class="queue-time">${queueLabel(queueTime(entry))}</span>`;
-    return `<button class="queue-item" data-action="queue-cancel" data-type="${type}" data-index="${index}" title="Click to cancel">` +
+    return `<button class="queue-item" draggable="true" data-action="queue-cancel" data-queue-item="true" data-type="${type}" data-index="${index}" title="Drag to reorder; click to cancel">` +
       `<span class="queue-name">${esc(def ? def.name : entry.id)}</span>` +
       `<span class="queue-details">${details}</span></button>`;
   }).join('') + `<div class="queue-capacity">${entries.length} / ${queueCapacity(type)} slots used</div>`;
@@ -2947,7 +2958,7 @@ function renderLog() {
 function loadLatestUpdatesTooltip() {
   const button = document.getElementById('btn-updates');
   if (!button || typeof fetch !== 'function' || typeof DOMParser !== 'function') return;
-  fetch('changelog.html?v=publish-20260908g')
+  fetch('changelog.html?v=publish-20260908h')
     .then(response => response.ok ? response.text() : Promise.reject(new Error('changelog unavailable')))
     .then(source => {
       const doc = new DOMParser().parseFromString(source, 'text/html');
@@ -3123,6 +3134,8 @@ window.emberhold = {
 let repeatTimer = null;
 let repeatButton = null;
 let suppressRepeatClick = false;
+let draggedQueueItem = null;
+let suppressQueueClick = false;
 
 function repeatable(btn) {
   return btn.hasAttribute('data-repeat');
@@ -3204,6 +3217,10 @@ function repeatStep(meta, startedAt) {
 document.addEventListener('click', (e) => {
   const btn = e.target.closest('[data-action]');
   if (!btn || btn.disabled) return;
+  if (suppressQueueClick && btn.dataset.action === 'queue-cancel') {
+    suppressQueueClick = false;
+    return;
+  }
   if (suppressRepeatClick && repeatable(btn)) {
     suppressRepeatClick = false;
     return;
@@ -3211,6 +3228,46 @@ document.addEventListener('click', (e) => {
   runAction(btn);
   render();
 });
+
+document.addEventListener('dragstart', (e) => {
+  const item = e.target.closest('[data-queue-item]');
+  if (!item) return;
+  draggedQueueItem = { type: item.dataset.type, index: +item.dataset.index, item };
+  item.classList.add('queue-dragging');
+  e.dataTransfer.effectAllowed = 'move';
+  e.dataTransfer.setData('text/plain', `${draggedQueueItem.type}:${draggedQueueItem.index}`);
+});
+
+document.addEventListener('dragover', (e) => {
+  const target = e.target.closest('[data-queue-item]');
+  if (!draggedQueueItem || !target || target.dataset.type !== draggedQueueItem.type) return;
+  e.preventDefault();
+  e.dataTransfer.dropEffect = 'move';
+  target.classList.toggle('queue-drop-before', e.clientY < target.getBoundingClientRect().top + target.offsetHeight / 2);
+  target.classList.toggle('queue-drop-after', !target.classList.contains('queue-drop-before'));
+});
+
+document.addEventListener('drop', (e) => {
+  const target = e.target.closest('[data-queue-item]');
+  if (!draggedQueueItem || !target || target.dataset.type !== draggedQueueItem.type) return;
+  e.preventDefault();
+  const before = e.clientY < target.getBoundingClientRect().top + target.offsetHeight / 2;
+  const moved = reorderQueue(draggedQueueItem.type, draggedQueueItem.index, +target.dataset.index, !before);
+  suppressQueueClick = moved;
+  clearQueueDragState();
+  if (moved) render();
+});
+
+document.addEventListener('dragend', () => {
+  if (draggedQueueItem) clearQueueDragState();
+});
+
+function clearQueueDragState() {
+  document.querySelectorAll('.queue-dragging, .queue-drop-before, .queue-drop-after')
+    .forEach(item => item.classList.remove('queue-dragging', 'queue-drop-before', 'queue-drop-after'));
+  draggedQueueItem = null;
+  if (suppressQueueClick) setTimeout(() => { suppressQueueClick = false; }, 0);
+}
 
 document.addEventListener('change', (e) => {
   const select = e.target.closest('[data-raid-select]');
