@@ -1488,6 +1488,7 @@ test('expedition production bonuses do not scale outgoing amounts unless explici
 
 test('factory lines unlock through research, persist in saves, and default safely', () => {
   const { run } = game();
+  assert.equal(run("BUILDINGS.find(b => b.id === 'factory').max"), Infinity);
   run(`state.bld.factory = 1; chooseFactoryRecipe('machinery')`);
   assert.equal(run('state.factoryRecipe'), 'goods');
   run(`state.techs.machineryTech = true; chooseFactoryRecipe('machinery'); saveGame(true); state = loadGame()`);

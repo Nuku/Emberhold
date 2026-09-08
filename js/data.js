@@ -233,7 +233,7 @@ const BUILDINGS = [
     effect: () => '+50 machinery and aether capacity',
     req: () => tech('machineryTech'), desc: 'a quiet room where delicate things wait' },
 
-  { id: 'factory', name: 'Factory', max: 3, scale: 1.8,
+  { id: 'factory', name: 'Factory', max: Infinity, scale: 1.8,
     cost: { steel: 70, tools: 55, currency: 90 },
     effect: () => '+10% all production; selectable powered production in the Village',
     req: () => (trialActive('industrialization') || perm('factory')) && tech('metallurgy'), desc: 'the drumbeat of the new age' },
