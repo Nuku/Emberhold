@@ -511,9 +511,9 @@ function wonderSectionIndex(record = wonderRecord()) {
 function wonderReadyForDecision(record = wonderRecord()) { return wonderSectionIndex(record) < 0; }
 function wonderFindCost(def = wonderDef()) {
   if (!def) return {};
-  // The first beacon only gives a blurred direction. Each additional distinct
-  // beacon sharpens the route considerably, but the search remains costly.
-  const multiplier = Math.max(2.5, 10 - 1.5 * Math.max(0, beaconsLitCount() - 1));
+  // Every distinct beacon gives the expedition a clearer set of clues. The
+  // sixth beacon is the cheapest possible route, but never a cheap route.
+  const multiplier = Math.max(1.05, 1.80 - 0.15 * Math.max(0, beaconsLitCount() - 1));
   return Object.fromEntries(Object.entries(def.findCost).map(([id, amount]) => [id, Math.ceil(amount * multiplier)]));
 }
 function canAffordWonderCost(cost) {
@@ -2130,7 +2130,7 @@ function startGameClock() {
   // lose time; it only wakes the simulation to account for elapsed time.
   if (typeof Worker === 'function') {
     try {
-      gameClockWorker = new Worker('js/game-clock.worker.js?v=publish-20260908u11');
+      gameClockWorker = new Worker('js/game-clock.worker.js?v=publish-20260908u12');
       gameClockWorker.addEventListener('message', () => {
         updateGameClock(true);
         renderBonusTimer();
@@ -3689,7 +3689,7 @@ function renderLog() {
 function loadLatestUpdatesTooltip() {
   const button = document.getElementById('btn-updates');
   if (!button || typeof fetch !== 'function' || typeof DOMParser !== 'function') return;
-  fetch('changelog.html?v=publish-20260908u11')
+  fetch('changelog.html?v=publish-20260908u12')
     .then(response => response.ok ? response.text() : Promise.reject(new Error('changelog unavailable')))
     .then(source => {
       const doc = new DOMParser().parseFromString(source, 'text/html');

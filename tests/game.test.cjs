@@ -1691,8 +1691,8 @@ test('Wonders require beacon hints, scale their search by distinct beacons, and 
   assert.equal(run('wonderResearchCost(wonderDef().researches[0]).knowledge'), 9000);
   run(`state.beaconsLit = Object.fromEntries(LANDINGS.map(l => [l.id, true]));`);
   const sixBeacons = run(`wonderFindCost(wonderDef()).survey`);
-  assert.equal(oneBeacon, 3200);
-  assert.equal(sixBeacons, 800);
+  assert.equal(oneBeacon, 576);
+  assert.equal(sixBeacons, 336);
   assert.ok(sixBeacons < oneBeacon);
   assert.equal(run('findWonder()'), true);
   assert.equal(run('state.wonders.emberplain.found'), true);
@@ -1701,7 +1701,7 @@ test('Wonders require beacon hints, scale their search by distinct beacons, and 
 test('Rapture work opens the Wonder tab, resets only an emptied active section, and retains completed sections', () => {
   const { run } = game();
   run(`state.techs.optics = true; state.beaconsLit = { emberplain: true }; state.beaconRevisited = { emberplain: true }; state.surveyPoints = 10000;
-    state.res.steel = 10000; state.res.machinery = 10000; state.res.food = 20000;
+    state.res.steel = 10000; state.res.machinery = 10000; state.res.food = 10000;
     findWonder(); state.pop = 12;`);
   assert.equal(run('assignRapture(2)'), true);
   assert.equal(run('state.rapture.tabSeen'), true);

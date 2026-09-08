@@ -4,7 +4,7 @@ All notable changes to Emberhold are recorded here, with the newest changes firs
 
 ## 2026-09-08
 
-- Rebalanced Wonders into sustained expeditions: section work now takes substantially longer, danger is higher, beacon searches remain costly even with multiple beacons, and Wonder research costs are multiplied fivefold.
+- Rebalanced Wonders into sustained expeditions: section work now takes substantially longer and danger is higher; research discovered inside a Wonder now costs five times its base amount.
 - Clarified the Wonder guard outcome text so it accurately describes the outcome where both the citizen and guard survive.
 - Added the Wonder reset layer: beacon-guided, landing-specific Wonder expeditions; five dangerous interior sections; persistent section progress; outside research; temporary interior expeditions; escalating calamities; guard rescues; and a dedicated Wonders tab.
 - Added six starting Wonders for Emberplain, Greenfold, Grayrocks, Floodmeadows, Ashfen, and Windmere, each with its own five-section narrative, calamity, research, expeditions, and ending text.
