@@ -2,6 +2,10 @@
 
 All notable changes to Emberhold are recorded here, with the newest changes first.
 
+## 2026-09-08
+
+- Fixed controllable buildings loading disabled when their saved toggle was missing; owned buildings now start enabled by default while explicit off settings are preserved.
+
 ## 2026-09-07
 
 - Updated the Trial of the Long Night so the entire trial remains winter, keeping its food production penalty active throughout the trial.

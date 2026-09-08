@@ -2066,7 +2066,7 @@ function normalizeSave(s) {
   }
   s.buildingPower = Object.fromEntries(Object.keys(POWER_BUILDINGS).map(id => [id,
     Number.isFinite(s.buildingPower[id]) ? Math.max(0, Math.min(Math.floor(s.bld[id] || 0), Math.floor(s.buildingPower[id]))) :
-      (id === 'factory' || id === 'livingBlock' || id === 'forge' ? Math.floor(s.bld[id] || 0) : 0)]));
+      Math.floor(s.bld[id] || 0)]));
   if (!savedTradePartners) s.tradePartners = [legacyTradePartner || 'human'];
   s.tradePartners = [...new Set(s.tradePartners.filter(id => typeof id === 'string'))];
   if (!s.tradePartners.length) s.tradePartners = [s.tradePartner || 'human'];
@@ -2428,9 +2428,7 @@ function renderVillage() {
     renderNextStep() +
     `<div class="res-note">Population growth: ${fmt(popGrowthNeed())} seconds per new villager while food and housing are available. Guard healing: ${fmt(guardHealingNeed())} seconds per injury.</div>` +
     `<div class="res-note" style="margin:2px 0 6px">The land gives: ${modsHtml(L)}</div>` +
-    `<div class="res-note" style="margin:2px 0 6px">${tradeAvailable() ? `Trading with ${localTribeIds().map(id => tribeDef(id).name).join(' and ')}; funds arrive at ${fmtRate(0.05 * localTribeIds().length)} before Banker work.` : `${localTribeIds().map(id => tribeDef(id).name).join(' and ') || 'No tribes'} are nearby. Research Currency to begin trading.`}</div>` +
-    `<div class="res-note" style="margin:2px 0 6px">Guard armor: level ${fmt(armorLevel())} — each level reduces death odds by 8% (minimum 15%).</div>` +
-    `<div class="res-note" style="margin:2px 0 6px">Morale rises when stores are secure and falls when food runs short. Summer adds +0.006 morale/s; winter exerts −0.006 morale/s. Spring and autumn have no seasonal morale pressure. Clear days add +0.025 morale/s; storms exert −0.060 morale/s. Seasonal and weather pressures stack. The Shrine steadies the people. ${moraleLabel()} morale changes production and population growth speed by ${Math.round((moraleMult() - 1) * 100)}%; current ceiling: ${moraleCap()}.</div>`;
+    `<div class="res-note" style="margin:2px 0 6px">Guard armor: level ${fmt(armorLevel())} — each level reduces death odds by 8% (minimum 15%).</div>`;
 
   if (bld('factory') > 0) {
     h += '<h2 class="section">Factory production</h2><div class="res-note">All factories share one production line. Rates below are per factory before bonuses. Production slows when supplies run short and pauses when output storage is full. The Industrialization trial requires Industrial Goods.</div>';

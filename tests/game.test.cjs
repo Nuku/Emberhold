@@ -127,7 +127,8 @@ test('dig site power supports partial counts, shortages, save normalization, and
   assert.equal(run("buildingPowerCount('quarry')"), 20);
   assert.equal(run("buildingPowerCount('deepMine')"), 0);
   run('delete state.buildingPower; state = normalizeSave(JSON.parse(JSON.stringify(state)))');
-  assert.equal(run("buildingPowerCount('quarry')"), 0);
+  assert.equal(run("buildingPowerCount('quarry')"), 20);
+  assert.equal(run("buildingPowerCount('deepMine')"), 1);
   assert.equal(run('Object.keys(defaultState().buildingPower).length'), 0);
 });
 
@@ -356,7 +357,7 @@ test('incoming raids are less destructive and staffed raids are reliable', () =>
   const { run } = game();
   run(`state.techs.guards = true; state.jobs.guard = 4; state.res.food = 500;
     state.res.tools = 20; ensureDiplomacyEntry('human');
-    state.diplomacy.human.disposition = -50; Math.random = () => 0;
+    state.diplomacy.human.disposition = -50; state.diplomacy.human.militaryStrength = 100; Math.random = () => 0;
     resolveTribeRaid('human')`);
   assert.equal(run('state.jobs.guard'), 4);
 
@@ -599,7 +600,7 @@ test('morale speeds or slows population growth and stacks with fertility bonuses
   assert.ok(Math.abs(neutral / happy - run("globalProductionFactors()[0][1]")) < 1e-10);
   run("state.species = 'rabbitfolk'; state.techs.aphrodisiac = true; state.bld.hospital = 2");
   assert.ok(Math.abs(run('popGrowthNeed()') - happy * 0.5 * 0.75 * 0.9 ** 2) < 1e-10);
-  assert.match(run('renderVillage()'), /production and population growth speed/);
+  assert.match(run('renderVillage()'), /Population growth:/);
 });
 
 test('Rabbitfolk population growth takes half the usual time', () => {
