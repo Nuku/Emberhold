@@ -266,6 +266,18 @@ test('weather survives save/load, lasts 15–30 days, and varies by climate and 
   })`));
 });
 
+test('season changes are logged as events rather than progress', () => {
+  const { run } = game();
+  for (const message of ['Spring returns. The fields wake.', 'High summer. Provisions come easy.', 'Autumn. The harvest slows.', 'Winter has come. Food grows scarce.']) {
+    assert.equal(run(`logCategory(${JSON.stringify(message)})`), 'events');
+  }
+});
+
+test('achievement messages have their own log category', () => {
+  const { run } = game();
+  assert.equal(run('logCategory("Achievement completed: Many Hands.")'), 'achievements');
+});
+
 test('clear skies lift morale, storms depress it, and weather production appears in breakdowns', () => {
   const { run } = game();
   run(`state.res.food = 10;
@@ -1676,6 +1688,24 @@ test('factories switch outputs and consume recipe materials without multiplying 
     if (input) assert.equal(run(`rates['${input}']`), -cost);
     if (id !== 'goods') assert.equal(run('rates.goods'), 0);
   }
+});
+
+test('Steel Hearted boosts every Steel output path without increasing costs', () => {
+  const { run } = game();
+  run(`state.bld.factory = 1; state.bld.steamPlant = 1; state.res.power = 10;
+    state.res.iron = 100; state.res.coal = 100; state.res.steel = 1000;
+    state.techs.metallurgy = true; chooseFactoryRecipe('steel'); updateAchievements(); state.res.steel = 0;
+    const factoryDetail = {}; const factory = production(1, factoryDetail);
+    state.bld.factory = 0; state.bld.forge = 1; const forgeDetail = {}; const forge = production(1, forgeDetail)`);
+  assert.equal(run('state.achievements.steelHearted'), true);
+  assert.ok(Math.abs(run('factory.steel') - 0.048) < 1e-10);
+  assert.ok(Math.abs(run('forge.steel') - 0.048) < 1e-10);
+  assert.equal(run("factoryDetail.iron.find(e => e.label.startsWith('Factory inputs')).amount"), -0.6);
+  assert.equal(run("factoryDetail.coal.find(e => e.label.startsWith('Factory inputs')).amount"), -0.4);
+  assert.equal(run("forgeDetail.iron.find(e => e.label.startsWith('Forge inputs')).amount"), -0.6);
+  assert.equal(run("forgeDetail.coal.find(e => e.label.startsWith('Forge inputs')).amount"), -0.4);
+  run('state.res.steel = 999; updateAchievements()');
+  assert.equal(run('state.achievements.steelHearted'), true);
 });
 
 test('Lightning Metal boosts factory Steel output and input costs', () => {

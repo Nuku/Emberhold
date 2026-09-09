@@ -4,6 +4,8 @@ All notable changes to Emberhold are recorded here, with the newest changes firs
 
 ## 2026-09-09
 
+- Added the Steel Hearted achievement: holding 1,000 Steel grants +20% Steel production from factories and Forges.
+- Added a dedicated Achievements message-log filter and display for achievement-specific effects.
 - Updated the escaped-farm-animal event so each occurrence can feature chickens, ducks, goats, sheep, or pigs.
 - Added Lightning Metal research, increasing factory Steel output and material costs by 50%.
 - Added the Living Alloy reset-layer unlock: Grayrocks restoration can now preserve access to Living Alloy research between migrations, which unlocks the Living Alloy Mine and its dedicated miners and storage.

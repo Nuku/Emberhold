@@ -1265,6 +1265,7 @@ function globalProductionFactors() {
 
 function settlementProductionFactors(res, outgoing = false) {
   const factors = [[landingDef().name, landingMod(res)], [lineageDef(state.species).name, baseLineageMod(res)]];
+  if (res === 'steel' && !outgoing && steelHearted()) factors.push(['Steel Hearted', 1.20]);
   if (!outgoing) for (const trait of currentPlaceTraits()) {
     const modifier = trait.mods?.[res];
     if (modifier) factors.push([trait.name, modifier]);
@@ -1285,6 +1286,7 @@ function settlementProductionFactors(res, outgoing = false) {
 
 function forgeProductionFactors() {
   const factors = [[landingDef().name, landingMod('steel')], [lineageDef(state.species).name, baseLineageMod('steel')]];
+  if (steelHearted()) factors.push(['Steel Hearted', 1.20]);
   if (lineageSpecialValue('forgeOutput') !== 1) factors.push(['Banked Heat', lineageSpecialValue('forgeOutput')]);
   const conquered = conqueredLineage();
   if (conquered && conqueredLineageMod('steel') > 1) factors.push([`${conquered.name} (Commonality)`, conqueredLineageMod('steel')]);
@@ -1823,7 +1825,8 @@ function logCategory(text) {
   if (/queue|queued/.test(value)) return 'queue';
   if (/research complete|research completed|wonder research completed|technology/.test(value)) return 'research';
   if (/completed \(\d+\)|build|built|construction|beacon/.test(value)) return 'building';
-  if (/winter has come|spring returns|high summer|autumn|chronicle resumes|village has grown|grows|grown|era|migration|expedition returned|achievement|saved|imported|exported/.test(value)) return 'progress';
+  if (/achievement/.test(value)) return 'achievements';
+  if (/chronicle resumes|village has grown|era|migration|expedition returned|saved|imported|exported/.test(value)) return 'progress';
   return 'events';
 }
 
@@ -2254,7 +2257,7 @@ function startGameClock() {
   // lose time; it only wakes the simulation to account for elapsed time.
   if (typeof Worker === 'function') {
     try {
-      gameClockWorker = new Worker('js/game-clock.worker.js?v=publish-20260909u04');
+      gameClockWorker = new Worker('js/game-clock.worker.js?v=publish-20260909u07');
       gameClockWorker.addEventListener('message', () => {
         updateGameClock(true);
         renderBonusTimer();
@@ -2978,6 +2981,7 @@ function costText(cost) {
 }
 
 function lineageAccessCount() { return LINEAGES.filter(lineage => lineageUnlocked(lineage.id)).length; }
+function steelHearted() { return !!state.achievements?.steelHearted; }
 
 const ACHIEVEMENTS = [
   { id: 'firstDay', name: 'Ashes to Ashes', desc: 'Let Emberhold see its first day.', test: () => state.day >= 1, progress: () => `${fmt(Math.min(state.day, 1))} / 1 day` },
@@ -2989,6 +2993,7 @@ const ACHIEVEMENTS = [
   { id: 'trialist', name: 'Oathbound', desc: 'Complete a trial.', test: () => Object.values(state.trialDone || {}).some(n => n > 0), progress: () => `${Object.values(state.trialDone || {}).reduce((a, n) => a + n, 0)} completed` },
   { id: 'beacon', name: 'The Beacon Burns', desc: 'Reach the Age of Light.', test: () => state.era >= 5 || state.won, progress: () => `Age ${Math.min(state.era, 5)} / 5` },
   { id: 'manyHands', name: 'Many Hands', desc: 'Grow Emberhold to 25 people.', test: () => state.pop >= 25, progress: () => `${Math.min(state.pop, 25)} / 25 people` },
+  { id: 'steelHearted', name: 'Steel Hearted', desc: 'Hold 1,000 Steel at once.', effect: '+20% Steel production', test: () => (state.res.steel || 0) >= 1000, progress: () => `${fmt(Math.min(state.res.steel || 0, 1000))} / 1,000 Steel` },
   { id: 'butchersBill', name: "The Butcher's Bill", desc: 'Lose at least 25 Guards during a single migration.', test: () => state.migrationChallengePending && (state.migrationGuardDeaths || 0) >= 25, progress: () => `${Math.min(state.migrationGuardDeaths || 0, 25)} / 25 Guard deaths this migration` },
   { id: 'peacefulMigration', name: 'The Quiet Road', desc: 'Complete a migration without launching a raid.', test: () => state.migrationChallengePending && (state.migrationRaids || 0) === 0, progress: () => `${state.migrationRaids || 0} raids launched this migration` },
   ...LINEAGES.map(lineage => ({
@@ -3751,7 +3756,7 @@ function renderStats() {
     ['stats', 'achievements', 'perks'].map(id => `<button class="subtab ${tab === id ? 'active' : ''}" data-action="stats-tab" data-stats-tab="${id}" role="tab" aria-selected="${tab === id}">${id[0].toUpperCase() + id.slice(1)}${id === 'achievements' ? ` <span class="subtab-count">${completed}/${ACHIEVEMENTS.length}</span>` : ''}</button>`).join('') + '</div>';
   if (tab === 'achievements') {
     h += '<div class="res-note stats-intro">Achievements are the work Emberhold is expected to do. Complete them naturally as your settlement grows.</div>';
-    h += ACHIEVEMENTS.map(a => { const done = !!state.achievements?.[a.id]; return `<div class="achievement-card card ${done ? 'done' : 'dimmed'}"><div class="card-head"><span class="card-title">${done ? '✦ ' : ''}${a.name}</span><span class="card-count">${done ? 'Complete' : 'In progress'}</span><span class="card-effect">+0.1% production</span></div><div class="card-desc">${a.desc}</div><div class="achievement-progress">${done ? 'Completion bonus earned' : a.progress()}</div></div>`; }).join('');
+    h += ACHIEVEMENTS.map(a => { const done = !!state.achievements?.[a.id]; return `<div class="achievement-card card ${done ? 'done' : 'dimmed'}"><div class="card-head"><span class="card-title">${done ? '✦ ' : ''}${a.name}</span><span class="card-count">${done ? 'Complete' : 'In progress'}</span><span class="card-effect">${a.effect ? `${a.effect}; ` : ''}+0.1% production</span></div><div class="card-desc">${a.desc}</div><div class="achievement-progress">${done ? 'Completion bonus earned' : a.progress()}</div></div>`; }).join('');
     return h;
   }
   if (tab === 'perks') {
@@ -3852,7 +3857,7 @@ function renderSidePanel() {
 function loadLatestUpdatesTooltip() {
   const button = document.getElementById('btn-updates');
   if (!button || typeof fetch !== 'function' || typeof DOMParser !== 'function') return;
-  fetch('changelog.html?v=publish-20260909u04')
+  fetch('changelog.html?v=publish-20260909u07')
     .then(response => response.ok ? response.text() : Promise.reject(new Error('changelog unavailable')))
     .then(source => {
       const doc = new DOMParser().parseFromString(source, 'text/html');
