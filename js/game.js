@@ -1409,6 +1409,7 @@ function updateRandomEvents(dt) {
   const local = lineageEvents.length > 0 && Math.random() < lineageEventChance;
   const pool = local ? lineageEvents : RANDOM_EVENTS;
   const event = pool[Math.floor(Math.random() * pool.length)];
+  const eventText = event.text.replace('{animal}', FARM_ANIMALS[Math.floor(Math.random() * FARM_ANIMALS.length)] || 'chickens');
   const changes = [];
   const actualChanges = [];
   function record(label, change) {
@@ -1446,7 +1447,7 @@ function updateRandomEvents(dt) {
   }
   const impact = actualChanges.some(n => n < 0) ? 'log-bad' : actualChanges.length ? 'log-good' : '';
   const prefix = local ? `${lineageDef(state.species).name}: ` : '';
-  addLog(`${prefix}${event.text}${changes.length ? ` ${changes.join('; ')}.` : ''}`, impact);
+  addLog(`${prefix}${eventText}${changes.length ? ` ${changes.join('; ')}.` : ''}`, impact);
 }
 
 function baseLineageMod(res) {

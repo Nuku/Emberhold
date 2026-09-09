@@ -427,6 +427,7 @@ const COUNCILORS = [
 ];
 
 // --- unscheduled happenings: mostly troublesome, occasionally heartening ---
+const FARM_ANIMALS = ['chickens', 'ducks', 'goats', 'sheep', 'pigs'];
 const RANDOM_EVENTS = [
   { text: 'A goose has claimed the council table. No one can explain how it got there.', delta: [1, 4] },
   { text: 'A traveling puppeteer performs for the children. The adults pretend not to enjoy it.', delta: [2, 6] },
@@ -434,7 +435,7 @@ const RANDOM_EVENTS = [
   { text: 'A rumor spreads that the moon is watching the village.', delta: [-2, -7] },
   { text: 'The communal stew turns sour before anyone notices.', delta: [-3, -9], food: [-15, -5] },
   { text: 'A cart axle breaks in the mud, delaying half the morning\'s work.', delta: [-2, -6] },
-  { text: 'A child releases all the carefully penned chickens.', delta: [-1, -5] },
+  { text: 'A child releases all the carefully penned {animal}.', delta: [-1, -5] },
   { text: 'The night watch hears wolves beyond the fields.', delta: [-3, -10] },
   { text: 'A roof gives way under wet snow. The repairs will be embarrassing.', delta: [-4, -12], wood: [-30, -10] },
   { text: 'A visiting merchant cheats three villagers with a remarkably obvious shell game.', delta: [-2, -8], currency: [-8, -2] },
