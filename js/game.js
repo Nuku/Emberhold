@@ -365,16 +365,18 @@ function updateSpyIntel(id) {
 function hireSpy(id) {
   const entry = state.diplomacy && state.diplomacy[id];
   const cost = spyTrainingCost(id);
-  if (!tech('spies') || !entry || entry.conquered || !localTribe(id) || state.spyTraining || !canAfford(cost)) return;
+  if (!tech('spies') || !entry || entry.conquered || !localTribe(id) || state.spyTraining || !canAfford(cost)) return { ok: false, reason: 'unavailable', target: id };
   payCost(cost);
   state.spyTraining = { target: id, remaining: SPY_TRAINING_TIME };
   addLog(`A spy begins training for an assignment in the ${tribeDef(id).name}.`, 'log-important');
+  return { ok: true, action: 'sendSpy', target: id, cost: { ...cost }, trainingSeconds: SPY_TRAINING_TIME };
 }
 function beginEspionage(id) {
   const entry = state.diplomacy && state.diplomacy[id];
-  if (!tech('espionage') || !entry || entry.conquered || !localTribe(id) || spyCount(id) < 1 || entry.espionageT > 0 || militaryStrength(entry) <= militaryStrengthFloor(entry)) return;
+  if (!tech('espionage') || !entry || entry.conquered || !localTribe(id) || spyCount(id) < 1 || entry.espionageT > 0 || militaryStrength(entry) <= militaryStrengthFloor(entry)) return { ok: false, reason: 'unavailable', target: id };
   entry.espionageT = ESPIONAGE_TIME;
   addLog(`A spy begins an espionage attempt against the ${tribeDef(id).name}'s military.`, 'log-important');
+  return { ok: true, action: 'startEspionage', target: id, durationSeconds: ESPIONAGE_TIME };
 }
 function spyKilled(id) {
   const entry = state.diplomacy && state.diplomacy[id];
@@ -460,6 +462,17 @@ function conqueredLineageMod(res) {
 }
 function alliedIncomeBonus() { return commonalityActive() ? 0.075 : 0.05; }
 function ableGuards() { return Math.floor(Math.max(0, (state.jobs.guard || 0) - (state.guardInjuries || 0))); }
+function guardAttackPower(guardCount = ableGuards()) {
+  const healthy = Math.max(0, Math.min(ableGuards(), Math.floor(Number(guardCount) || 0)));
+  return healthy * (tech('weaponry') ? 1.9 : 1);
+}
+function guardSiegePower(guardCount = ableGuards()) {
+  return guardAttackPower(guardCount) * governanceDefenseMod();
+}
+function guardLimits() {
+  const healthy = ableGuards();
+  return { minimum: 1, maximum: healthy, healthy };
+}
 function trialMax(def) {
   return def.repeat > 0 ? def.repeat + (upg('oathkeepers') ? 1 : 0) : 0;
 }
@@ -2290,7 +2303,7 @@ function startGameClock() {
   // lose time; it only wakes the simulation to account for elapsed time.
   if (typeof Worker === 'function') {
     try {
-      gameClockWorker = new Worker('js/game-clock.worker.js?v=publish-20260909u14');
+      gameClockWorker = new Worker('js/game-clock.worker.js?v=publish-20260909u15');
       gameClockWorker.addEventListener('message', () => {
         updateGameClock(true);
         renderBonusTimer();
@@ -2638,22 +2651,35 @@ function applyRaidCasualties(deaths, injuries) {
   return { deaths: actualDeaths, injuries: healthyInjuries };
 }
 
-function doRaid(id, stageId = 'raid') {
+function predictRaid(id, stageId = 'raid', guardCount = ableGuards()) {
   const entry = state.diplomacy && state.diplomacy[id];
-  if (!entry || entry.conquered || !localTribe(id) || !tech('guards')) return;
+  const stage = raidStage(stageId);
+  const limits = guardLimits();
+  const deployed = Math.max(0, Math.min(limits.maximum, Math.floor(Number(guardCount) || 0)));
+  const targetIsMephit = id === 'mephit';
+  const difficulty = (militaryStrength(entry) / 20 + Math.max(0, Number(entry?.disposition) || 0) / 10) * stage.difficulty * (targetIsMephit ? 1.35 : 1);
+  const force = guardAttackPower(deployed);
+  const chance = Math.min(0.9, Math.max(0.35, 0.4 + force * governanceDefenseMod() / (force * governanceDefenseMod() + difficulty) * 0.55));
+  return { target: id, stage: stage.id, deployedGuards: deployed, force, difficulty, chance, likelyWin: chance >= 0.5 };
+}
+
+function doRaid(id, stageId = 'raid', guardCount = ableGuards()) {
+  const entry = state.diplomacy && state.diplomacy[id];
+  if (!entry || entry.conquered || !localTribe(id) || !tech('guards')) return { ok: false, reason: 'unavailable', target: id, stage: stageId };
   const stage = raidStage(stageId);
   const able = ableGuards();
+  const deployed = Math.floor(Number(guardCount));
   const cost = stage.cost;
-  if (able < 1 || !canAfford(cost)) return;
+  if (!Number.isFinite(deployed) || deployed < 1 || deployed > able) return { ok: false, reason: 'invalid-guard-count', target: id, stage: stage.id, limits: guardLimits() };
+  if (!canAfford(cost)) return { ok: false, reason: 'unaffordable', target: id, stage: stage.id, cost };
   payCost(cost);
   state.migrationRaids = (state.migrationRaids || 0) + 1;
   triggerAirOfRage();
 
   const targetIsMephit = id === 'mephit';
   // Weapons improve the attack; armor only protects troops who come home.
-  const totalGuards = state.jobs.guard || 0;
-  const wounded = Math.max(0, totalGuards - able);
-  const force = able + wounded * 0.5 + (tech('weaponry') ? (able * 0.9 + wounded * 0.45) : 0);
+  const totalGuards = deployed;
+  const force = guardAttackPower(deployed);
   const difficulty = (militaryStrength(entry) / 20 + Math.max(0, entry.disposition) / 10) * stage.difficulty * (targetIsMephit ? 1.35 : 1);
   // A properly staffed raid should be a dependable active choice, not a coin
   // flip.  It still needs enough Guards to overcome stronger neighbors.
@@ -2710,6 +2736,8 @@ function doRaid(id, stageId = 'raid') {
     state.morale = Math.max(0, state.morale - 5);
     addLog(`The ${stage.name.toLowerCase()} on the ${tribeDef(id).name} fails${targetIsMephit ? ' — the smell alone breaks the charge' : ''}. ${actualDeaths} Guard${actualDeaths === 1 ? '' : 's'} lost and ${actualInjuries} injured.`, 'log-bad');
   }
+  return { ok: true, action: stage.id === 'siege' ? 'siege' : 'attack', target: id, stage: stage.id,
+    succeeded, deployedGuards: deployed, force, difficulty, chance, deaths: actualDeaths, injuries: actualInjuries, cost: { ...cost } };
 }
 
 function supplyDiplomacyRequest(id) {
@@ -2736,13 +2764,14 @@ function checkSaveConflict() {
 
 function conquerTown(id) {
   const entry = state.diplomacy && state.diplomacy[id];
-  if (!entry || !localTribe(id) || !entry.siegeReady || entry.conquered) return;
-  if (ableGuards() < 15) return;
+  if (!entry || !localTribe(id) || !entry.siegeReady || entry.conquered) return { ok: false, reason: 'not-conquerable', target: id };
+  if (ableGuards() < 15) return { ok: false, reason: 'insufficient-healthy-guards', target: id, requiredGuards: 15 };
   state.jobs.guard = Math.max(0, (state.jobs.guard || 0) - 15);
   state.guardInjuries = Math.min(state.guardInjuries || 0, state.jobs.guard);
   entry.conquered = true;
   entry.siegeReady = false;
   addLog(`Emberhold conquers the ${tribeDef(id).name}. The town joins the realm, but its occupation steadily weighs on morale.`, 'log-good');
+  return { ok: true, action: 'conquer', target: id, deployedGuards: 15 };
 }
 function saveGame(silent) {
   try {
@@ -3906,7 +3935,7 @@ function renderSidePanel() {
 function loadLatestUpdatesTooltip() {
   const button = document.getElementById('btn-updates');
   if (!button || typeof fetch !== 'function' || typeof DOMParser !== 'function') return;
-  fetch('changelog.html?v=publish-20260909u14')
+  fetch('changelog.html?v=publish-20260909u15')
     .then(response => response.ok ? response.text() : Promise.reject(new Error('changelog unavailable')))
     .then(source => {
       const doc = new DOMParser().parseFromString(source, 'text/html');
@@ -3967,7 +3996,30 @@ function switchTab(tab) {
 const automationListeners = new Set();
 
 function automationSnapshot() {
-  return state ? JSON.parse(JSON.stringify({ ...state, power: powerStatus() })) : null;
+  if (!state) return null;
+  const snapshot = JSON.parse(JSON.stringify({ ...state, power: powerStatus() }));
+  snapshot.diplomacy = Object.fromEntries(Object.entries(snapshot.diplomacy || {}).map(([id, record]) => {
+    const base = Number(record.militaryBaseStrength) || Number(record.militaryStrength) || 100;
+    const current = Math.max(1, Number(record.militaryStrength) || 100);
+    const floor = militaryStrengthFloor();
+    const siegeDefense = current * raidStage('siege').difficulty;
+    return [id, { ...record,
+      hostile: Number(record.disposition) < 0,
+      conquered: record.conquered === true,
+      conquerable: record.conquered !== true && record.siegeReady === true,
+      enemyAttack: current,
+      enemyDefense: current,
+      knownEnemyAttack: record.militaryKnown === true ? current : null,
+      knownEnemyDefense: record.militaryKnown === true ? current : null,
+      siegeDefense,
+      fortification: siegeDefense,
+      espionageReduction: Math.max(0, base - current),
+      maximumEspionageReduction: Math.max(0, base - floor),
+      espionageReductionLevel: Math.max(0, base - current),
+      maximumEspionageReductionLevel: Math.max(0, base - floor),
+    }];
+  }));
+  return snapshot;
 }
 
 function powerStatus() {
@@ -4026,6 +4078,8 @@ const automationActionFns = {
   migrationOut: setOut,
   migrationRefund,
   raid: doRaid,
+  attack: doRaid,
+  siege: (id, guardCount = ableGuards()) => doRaid(id, 'siege', guardCount),
   conquer: conquerTown,
   research: attemptResearch,
   trialAbandon: () => endTrial(false),
@@ -4033,7 +4087,9 @@ const automationActionFns = {
   supplyDiplomacyRequest,
   governor: appointGovernor,
   spyHire: hireSpy,
+  sendSpy: hireSpy,
   espionage: beginEspionage,
+  startEspionage: beginEspionage,
 };
 
 function runAutomationAction(name, ...args) {
@@ -4088,6 +4144,16 @@ window.emberhold = {
     wonderExpedition: buyWonderExpedition,
     chooseWonderFate,
     buyWonderUnlock,
+    guardAttackPower,
+    guardSiegePower,
+    guardLimits,
+    validGuardCounts: guardLimits,
+    predictAttack: predictRaid,
+    predictSiege: (id, guardCount = ableGuards()) => predictRaid(id, 'siege', guardCount),
+    canWinAttack: (id, stageId = 'raid', guardCount = ableGuards()) => predictRaid(id, stageId, guardCount).likelyWin,
+    canWinSiege: (id, guardCount = ableGuards()) => predictRaid(id, 'siege', guardCount).likelyWin,
+    sendSpy: hireSpy,
+    startEspionage: beginEspionage,
   },
   render,
   switchTab,

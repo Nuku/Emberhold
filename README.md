@@ -190,6 +190,62 @@ Changes refresh the UI and emit the standard action event. Enabled counts are
 saved; active counts reflect current supply. Returned snapshots are detached
 from game state and are calculated immediately, without waiting for a tick.
 
+### Combat and espionage API
+
+The diplomacy records in `api.getState().diplomacy[id]` include the saved fields
+`disposition`, `conquered`, `siegeReady`, `militaryStrength`,
+`militaryBaseStrength`, `militaryKnown`, `economicStrength`, `economicKnown`,
+`espionageT`, and `spies`. The stable derived fields are:
+
+- `hostile`: `disposition < 0`; `conquered`: the nation has been taken.
+- `conquerable`: `siegeReady && !conquered`.
+- `enemyAttack` and `enemyDefense`: the current military strength used by the
+  combat model. `knownEnemyAttack`/`knownEnemyDefense` are that value when
+  `militaryKnown` is true, otherwise `null`.
+- `siegeDefense` and `fortification`: current military strength × the Siege
+  stage difficulty (3.8).
+- `espionageReduction` and `espionageReductionLevel`: base military strength
+  minus current strength; `maximumEspionageReduction` and
+  `maximumEspionageReductionLevel`: base strength minus the floor (60).
+
+The public action names and signatures are:
+
+```js
+api.actions.sendSpy(nationId)                 // train and assign one spy
+api.actions.startEspionage(nationId)          // begin a 20-minute attempt
+api.actions.attack(nationId, stageId='raid', guardCount=api.helpers.guardLimits().healthy)
+api.actions.siege(nationId, guardCount=api.helpers.guardLimits().healthy)
+api.actions.conquer(nationId)                 // consumes 15 healthy Guards
+```
+
+`raid`, `spyHire`, and `espionage` remain compatibility aliases. `stageId` is
+one of `raid`, `foray`, `skirmish`, `assault`, `offensive`, `breakthrough`,
+`breach`, or `siege`. An attack returns `{ ok, action, target, stage,
+succeeded, deployedGuards, force, difficulty, chance, deaths, injuries, cost }`;
+failed validation returns `{ ok:false, reason }`. Siege is the same attack
+action with `stageId: 'siege'`; a successful siege sets `siegeReady`, and
+conquest returns `{ ok:true, action:'conquer', target, deployedGuards:15 }`.
+
+`guardCount` is the number of healthy Guards committed, from
+`api.helpers.guardLimits()` (`minimum`, `maximum`, and `healthy`). Combat
+planning helpers are `guardAttackPower(count)`, `guardSiegePower(count)`,
+`predictAttack(nationId, stageId, count)`, `predictSiege(nationId, count)`,
+`canWinAttack(nationId, stageId, count)`, and `canWinSiege(nationId, count)`.
+Predictions expose `{ chance, likelyWin, force, difficulty, deployedGuards }`;
+`likelyWin` means the modeled chance is at least 50%, not a guarantee.
+
+```js
+const api = window.emberhold;
+const id = 'stonekin';
+const plan = api.helpers.predictSiege(id, api.helpers.guardLimits().healthy);
+if (plan.likelyWin) {
+  const result = api.actions.siege(id, plan.deployedGuards);
+  console.log(result.deployedGuards, result.succeeded, result.chance);
+}
+api.actions.sendSpy(id);
+api.actions.startEspionage(id);
+```
+
 ## The Great Migration (the loop)
 
 Once the Monument stands, the village may be abandoned and founded anew.
