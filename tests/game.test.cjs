@@ -184,6 +184,17 @@ test('Iron Mites unlocks after building a Forge and improves Iron Miner output',
     run("before.iron.find(e => e.label.startsWith('Iron Miner')).amount") * 1.3) < 1e-10);
 });
 
+test('Tree Husbandry unlocks after Aqueducts and improves wood income', () => {
+  const { run } = game();
+  assert.equal(run("TECHS.find(t => t.id === 'treeHusbandry').req()"), false);
+  run('state.techs.aqueduct = true');
+  assert.equal(run("TECHS.find(t => t.id === 'treeHusbandry').req()"), false);
+  run('state.bld.aqueduct = 1; state.jobs.woodcutter = 1; const before = {}; production(1, before)');
+  assert.equal(run("TECHS.find(t => t.id === 'treeHusbandry').req()"), true);
+  run('state.techs.treeHusbandry = true; const after = {}; production(1, after)');
+  assert.ok(Math.abs(run("after.wood.find(e => e.label.startsWith('Woodcutter')).amount - before.wood.find(e => e.label.startsWith('Woodcutter')).amount * 1.2") - 0) < 1e-10);
+});
+
 test('dig site power supports partial counts, shortages, save normalization, and fresh settlements', () => {
   const { run } = game();
   run(`state.techs.awakenAncients = true; state.bld.quarry = 20;

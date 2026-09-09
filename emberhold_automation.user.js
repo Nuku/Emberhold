@@ -125,7 +125,7 @@
     'stoneWorking', 'writing', 'craftsmanship', 'masonry', 'copperProspecting',
     'currency', 'guards', 'leatherArmor', 'deepMining', 'seamMining',
     'metallurgy', 'ironMites', 'weaponry', 'banking', 'diplomacy', 'civics', 'council',
-    'machineryTech', 'advancedScience', 'windHarness', 'hydraulics', 'weaponEfficiency', 'electricalEngineering',
+    'machineryTech', 'advancedScience', 'windHarness', 'hydraulics', 'treeHusbandry', 'weaponEfficiency', 'electricalEngineering',
     'astronomy', 'optics', 'aphrodisiac', 'hospital',
   ];
   const BUILD_ORDER = [

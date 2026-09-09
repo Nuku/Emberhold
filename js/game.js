@@ -1619,7 +1619,9 @@ function production(dt = 0.25, breakdown = null) {
       [...global, ['Weaponry', tech('weaponry') ? 1.50 : 1], ['Weapon Efficiency', tech('weaponEfficiency') ? 1.75 : 1]]);
     if (job.upkeep) add('food', `${job.name} upkeep: ${n} × ${job.upkeep}/s`, -n * job.upkeep);
   }
-  scale('wood', [...global, ['Lumber Yards', 1 + 0.10 * bld('lumberYard')], ['Old Forest', expDone('oldForest') ? 1.15 : 1]]);
+  scale('wood', [...global, ['Lumber Yards', 1 + 0.10 * bld('lumberYard')],
+    ['Tree Husbandry', tech('treeHusbandry') ? 1.20 : 1],
+    ['Old Forest', expDone('oldForest') ? 1.15 : 1]]);
   scale('stone', [...global, ['Stone Works', 1 + 0.10 * bld('stoneWorks')], ['Foothills', expDone('foothills') ? 1.15 : 1]]);
   scale('knowledge', [...global, ['Libraries', 1 + 0.10 * bld('library')], ['Writing', tech('writing') ? 1.25 : 1],
     ['Sunken Ruins', expDone('sunkenRuins') ? 1.15 : 1], ['Oral Tradition', perm('oralTradition') ? 1.5 : 1], ['Silence trial', trialActive('silence') ? 0 : 1]]);
