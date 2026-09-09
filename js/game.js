@@ -1810,8 +1810,23 @@ function populationGrowthTooltip() {
 function guardHealingNeed() { return 90 * hospitalTimeMod(); }
 
 // ---------- log ----------
+function logCategory(text) {
+  const value = String(text).toLowerCase();
+  if (/spy|espionage/.test(value)) return 'espionage';
+  if (/raid|attack|siege|guard|injur|killed|die|combat|riot/.test(value)) return 'combat';
+  if (/queue|queued/.test(value)) return 'queue';
+  if (/research|technology|knowledge/.test(value)) return 'research';
+  if (/build|built|construction|beacon/.test(value)) return 'building';
+  if (/complete|completed|grows|grown|era|migration|expedition returned|achievement|resumes|saved|imported|exported/.test(value)) return 'progress';
+  return 'events';
+}
+
+function logMatchesFilter(entry, filter) {
+  return filter === 'all' || (entry.k || logCategory(entry.t)) === filter;
+}
+
 function addLog(text, cls) {
-  state.log.unshift({ d: Math.floor(state.day), t: text, c: cls || '' });
+  state.log.unshift({ d: Math.floor(state.day), t: text, c: cls || '', k: logCategory(text) });
   if (state.log.length > 200) state.log.length = 200;
 }
 
@@ -2233,7 +2248,7 @@ function startGameClock() {
   // lose time; it only wakes the simulation to account for elapsed time.
   if (typeof Worker === 'function') {
     try {
-      gameClockWorker = new Worker('js/game-clock.worker.js?v=publish-20260909u01');
+      gameClockWorker = new Worker('js/game-clock.worker.js?v=publish-20260909u02');
       gameClockWorker.addEventListener('message', () => {
         updateGameClock(true);
         renderBonusTimer();
@@ -2342,7 +2357,7 @@ function tickStep(dt) {
       Spring: 'Spring returns. The fields wake.',
       Summer: 'High summer. Provisions come easy.',
       Autumn: 'Autumn. The harvest slows.',
-      Winter: 'Winter has come. Food grows scarce — plan for it.',
+      Winter: 'Winter has come. Food grows scarce.',
     };
     addLog(flavor[SEASONS[sIdx].name], SEASONS[sIdx].name === 'Winter' ? 'log-bad' : '');
   }
@@ -3813,7 +3828,7 @@ function renderLog() {
   const el = document.getElementById('log');
   const filter = document.querySelector('[data-log-filter].active')?.dataset.logFilter || 'all';
   let h = '';
-  for (const e of state.log.slice(0, 80).filter(e => filter === 'all' || e.c === `log-${filter}` || (filter === 'events' && !['log-progress', 'log-queue', 'log-building', 'log-research', 'log-combat', 'log-espionage'].includes(e.c)))) {
+  for (const e of state.log.slice(0, 80).filter(e => logMatchesFilter(e, filter))) {
     h += `<div class="log-entry ${e.c}"><span class="log-day">d${e.d}</span>${esc(e.t)}</div>`;
   }
   updateContent(el, h);
@@ -3830,7 +3845,7 @@ function renderSidePanel() {
 function loadLatestUpdatesTooltip() {
   const button = document.getElementById('btn-updates');
   if (!button || typeof fetch !== 'function' || typeof DOMParser !== 'function') return;
-  fetch('changelog.html?v=publish-20260909u01')
+  fetch('changelog.html?v=publish-20260909u02')
     .then(response => response.ok ? response.text() : Promise.reject(new Error('changelog unavailable')))
     .then(source => {
       const doc = new DOMParser().parseFromString(source, 'text/html');
@@ -4126,7 +4141,7 @@ document.addEventListener('click', (e) => {
     if (logAction.dataset.logAction === 'clear-all') state.log = [];
     else {
       const filter = document.querySelector('[data-log-filter].active')?.dataset.logFilter || 'all';
-      state.log = state.log.filter(entry => !(filter === 'all' || entry.c === `log-${filter}` || (filter === 'events' && !['log-progress', 'log-queue', 'log-building', 'log-research', 'log-combat', 'log-espionage'].includes(entry.c))));
+      state.log = state.log.filter(entry => !logMatchesFilter(entry, filter));
     }
     render();
     return;
