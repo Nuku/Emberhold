@@ -329,8 +329,9 @@ test('every queue item lists the resources it needs', () => {
 test('physical research requires its material inputs in addition to Knowledge', () => {
   const { run } = game();
   assert.deepEqual(JSON.parse(run("JSON.stringify(researchCost(TECHS.find(t => t.id === 'metallurgy')))")),
-    { knowledge: 600, iron: 180, coal: 120, tools: 30 });
-  run(`state.techs.seamMining = true; state.res.knowledge = 600;
+    { knowledge: 9000, iron: 180, coal: 120, tools: 30 });
+  assert.equal(run("researchCost(TECHS.find(t => t.id === 'stoneWorking')).knowledge"), 15);
+  run(`state.techs.seamMining = true; state.res.knowledge = 9000;
     state.res.iron = 180; state.res.coal = 119; state.res.tools = 30;
     attemptResearch('metallurgy');`);
   assert.equal(run('state.techs.metallurgy'), undefined);

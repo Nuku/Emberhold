@@ -142,6 +142,14 @@ function tech(id) { return !!state.techs[id]; }
 function bld(id) { return state.bld[id] || 0; }
 function era() { return state.era; }
 function expDone(id) { return !!state.expeditions[id]; }
+const POST_STONE_AGE_KNOWLEDGE_COST_MULTIPLIER = 15;
+const POST_STONE_AGE_RESEARCH = new Set([
+  'metallurgy', 'ironMites', 'weaponry', 'machineryTech', 'lightningMetal',
+  'livingAlloy', 'understandingHome', 'awakenAncients', 'advancedScience',
+  'windHarness', 'banking', 'diplomacy', 'spies', 'espionage', 'civics',
+  'council', 'commonality', 'festivals', 'civicHarmony', 'weaponEfficiency',
+  'electricalEngineering', 'astronomy', 'optics',
+]);
 function wonderDef(id = state.landing) { return WONDER_BY_ID.get(id); }
 function wonderRecord(id = state.landing) {
   state.wonders = state.wonders || {};
@@ -999,7 +1007,9 @@ function queueCost(entry) {
 }
 
 function researchCost(def) {
-  return { knowledge: def.cost, ...(def.materials || {}) };
+  const knowledgeMultiplier = POST_STONE_AGE_RESEARCH.has(def.id)
+    ? POST_STONE_AGE_KNOWLEDGE_COST_MULTIPLIER : 1;
+  return { knowledge: def.cost * knowledgeMultiplier, ...(def.materials || {}) };
 }
 
 function queueDemand() {
@@ -2303,7 +2313,7 @@ function startGameClock() {
   // lose time; it only wakes the simulation to account for elapsed time.
   if (typeof Worker === 'function') {
     try {
-      gameClockWorker = new Worker('js/game-clock.worker.js?v=publish-20260909u16');
+      gameClockWorker = new Worker('js/game-clock.worker.js?v=publish-20260909u17');
       gameClockWorker.addEventListener('message', () => {
         updateGameClock(true);
         renderBonusTimer();
@@ -3935,7 +3945,7 @@ function renderSidePanel() {
 function loadLatestUpdatesTooltip() {
   const button = document.getElementById('btn-updates');
   if (!button || typeof fetch !== 'function' || typeof DOMParser !== 'function') return;
-  fetch('changelog.html?v=publish-20260909u16')
+  fetch('changelog.html?v=publish-20260909u17')
     .then(response => response.ok ? response.text() : Promise.reject(new Error('changelog unavailable')))
     .then(source => {
       const doc = new DOMParser().parseFromString(source, 'text/html');

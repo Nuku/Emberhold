@@ -4,6 +4,7 @@ All notable changes to Emberhold are recorded here, with the newest changes firs
 
 ## 2026-09-09
 
+- Increased Knowledge costs 15× for research discovered after the Stone Age so later technologies better match the game's progression curve.
 - Fixed Stores production-rate tooltips so they remain visible within the viewport when hovered or focused.
 - Expanded the automation API with structured combat and espionage actions, guard deployment limits, attack/siege predictions, conquerability state, and live military/espionage intel fields.
 - Added the Trial of Conquest, unlocked after Hope or Ancient, which fixes three nearby nations at zero relations until all are conquered and permanently increases Guard recruitment speed by 10% on completion.
