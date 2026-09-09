@@ -41,6 +41,7 @@ const LINEAGE_BY_ID = indexById(LINEAGES);
 const LANDING_BY_ID = indexById(LANDINGS);
 const UPGRADE_BY_ID = indexById(UPGRADES);
 const WONDER_BY_ID = indexById(WONDERS);
+const WONDER_UNLOCK_BY_ID = indexById(WONDER_UNLOCKS);
 const FACTORY_RECIPE_BY_ID = indexById(FACTORY_RECIPES);
 const PLACE_TRAIT_BY_ID = indexById(PLACE_TRAITS);
 const LINEAGE_TRAIT_BY_ID = indexById(LINEAGE_TRAITS);
@@ -78,6 +79,7 @@ function defaultState() {
     beaconsLit: {},
     beaconRevisited: {},
     wonders: {},
+    wonderUnlocks: {},
     rapture: { landing: null, workers: 0, tabSeen: false },
     hope: 0,
     ancient: 0,
@@ -147,6 +149,7 @@ function wonderRecord(id = state.landing) {
 function beaconsLitCount() { return Object.keys(state.beaconsLit || {}).filter(id => state.beaconsLit[id]).length; }
 function wonderHintsAvailable() { return tech('optics') && !!state.beaconRevisited?.[state.landing]; }
 function wonderChoice(id, choice) { return !!state.wonders?.[id]?.outcomes?.[choice]; }
+function wonderUnlock(id) { return !!state.wonderUnlocks?.[id]; }
 function solarPowerAvailable() { return wonderChoice('emberplain', 'restore') &&
   ['steamPlant', 'dynamo', 'windDevice', 'livingBlock', 'factory'].some(id => bld(id) > 0); }
 function trialCount(id) { return state.trialDone[id] || 0; }
@@ -2040,6 +2043,16 @@ function migrationBuy(id) {
   state.upgrades[id] = lvl + 1;
 }
 
+function buyWonderUnlock(id) {
+  const def = WONDER_UNLOCK_BY_ID.get(id);
+  if (!def || !state.migrating || wonderUnlock(id) || state.hope < def.cost ||
+      (def.req && !def.req())) return false;
+  state.hope -= def.cost;
+  state.wonderUnlocks[id] = true;
+  addLog(`${def.name} purchased with Hope. Its instructions will survive the next founding.`, 'log-good');
+  return true;
+}
+
 function migrationRefund(id) {
   const def = UPGRADE_BY_ID.get(id);
   if (!def || !state.migrating) return;
@@ -2097,6 +2110,7 @@ function setOut(trialId = null) {
     echoes: state.echoes, upgrades: state.upgrades,
     trialDone: state.trialDone, expeditions: state.expeditions,
     beaconsLit: state.beaconsLit, beaconRevisited: state.beaconRevisited, wonders: state.wonders,
+    wonderUnlocks: state.wonderUnlocks,
     hope: state.hope, ancient: state.ancient,
     landingsSeen: state.landingsSeen,
     species: state.species, tribesSeen: state.tribesSeen,
@@ -2116,6 +2130,7 @@ function setOut(trialId = null) {
   state.beaconsLit = keep.beaconsLit;
   state.beaconRevisited = keep.beaconRevisited;
   state.wonders = keep.wonders;
+  state.wonderUnlocks = keep.wonderUnlocks;
   state.hope = keep.hope;
   state.ancient = keep.ancient;
   state.landingsSeen = keep.landingsSeen;
@@ -2218,7 +2233,7 @@ function startGameClock() {
   // lose time; it only wakes the simulation to account for elapsed time.
   if (typeof Worker === 'function') {
     try {
-      gameClockWorker = new Worker('js/game-clock.worker.js?v=publish-20260908u17');
+      gameClockWorker = new Worker('js/game-clock.worker.js?v=publish-20260909u01');
       gameClockWorker.addEventListener('message', () => {
         updateGameClock(true);
         renderBonusTimer();
@@ -2364,6 +2379,7 @@ function doBuild(id) {
   const previousCount = bld(id);
   const previousEnabled = state.buildingPower[id];
   state.bld[id] = previousCount + 1;
+  if (id === 'alloyMine') state.seen.livingAlloy = true;
   // A new copy joins the allocation only when every existing copy was on.
   // Partial or fully disabled allocations remain the player's choice.
   if (Object.hasOwn(POWER_BUILDINGS, id) && Number.isFinite(previousEnabled) &&
@@ -2774,6 +2790,9 @@ function normalizeSave(s) {
   if (s.won && !Object.keys(s.beaconsLit).length) s.beaconsLit[s.landing] = true;
   s.hope = Math.max(0, Number(s.hope) || 0);
   s.ancient = Math.max(0, Number(s.ancient) || 0);
+  s.wonderUnlocks = object(s.wonderUnlocks) ? Object.fromEntries(
+    Object.entries(s.wonderUnlocks).filter(([id, unlocked]) => WONDER_UNLOCK_BY_ID.has(id) && unlocked === true)
+  ) : {};
   s.wonders = Object.fromEntries(Object.entries(s.wonders || {})
     .filter(([id, record]) => LANDING_BY_ID.has(id) && object(record))
     .map(([id, record]) => {
@@ -3260,7 +3279,6 @@ function renderQueue(type) {
 
 function renderBuild() {
   let h = '<h2 class="section">Construction</h2>';
-  h += `<div class="queue"><div class="queue-label">Construction queue</div>${renderQueue('build')}</div>`;
   const knownBuildings = BUILDINGS.filter(b => bld(b.id) > 0 || !b.req || b.req());
   const completedCount = knownBuildings.filter(b => bld(b.id) >= b.max).length;
   const incompleteCount = knownBuildings.length - completedCount;
@@ -3306,7 +3324,6 @@ function renderBuild() {
 
 function renderResearch() {
   let h = '<h2 class="section">Research</h2>';
-  h += `<div class="queue"><div class="queue-label">Research queue</div>${renderQueue('research')}</div>`;
   let any = false;
   for (const t of TECHS) {
     if (t.req && !t.req()) continue;
@@ -3558,7 +3575,6 @@ function renderWonder() {
 
 function renderExpeditions() {
   let h = '<h2 class="section">Expeditions — widen the world</h2>';
-  h += `<div class="queue"><div class="queue-label">Expedition queue</div>${renderQueue('expedition')}</div>`;
   h += '<div class="res-note">Each expedition is sent once. What it finds stays with Emberhold forever.</div>';
   if (beaconsLitCount() > 0) h += '<h2 class="section">Beacon hints</h2>' + renderWonderDiscovery();
   const sitesDone = EXPEDITIONS.filter(e => e.landing && expDone(e.id)).length;
@@ -3664,6 +3680,19 @@ function renderShop() {
   }
   const available = [];
   const purchased = [];
+  const wonderUnlocks = WONDER_UNLOCKS.filter(def => !def.req || def.req());
+  if (wonderUnlocks.length) {
+    h += '<h2 class="section">Hope-bound discoveries</h2>';
+    h += '<div class="res-note">Hope can preserve a Wonder’s instructions between migrations. The resulting research and buildings still have to be completed in a settlement.</div>';
+    for (const def of wonderUnlocks) {
+      const bought = wonderUnlock(def.id);
+      h += `<div class="card ${bought ? 'done' : ''}"><div class="card-head">` +
+        `<span class="card-title has-tooltip" data-tooltip="${attrText(def.desc)}">${def.name}</span>` +
+        `<span class="card-effect">${def.effect}</span></div>` +
+        `<div class="card-cost">${bought ? 'purchased' : `cost: ${def.cost} Hope`}</div>` +
+        `<div class="card-actions"><button data-action="wonder-unlock" data-id="${def.id}" ${!bought && state.migrating && state.hope >= def.cost ? '' : 'disabled'}>${bought ? 'Purchased' : 'Purchase'}</button></div></div>`;
+    }
+  }
   for (const u of UPGRADES) {
     if (u.id === 'farHorizons' && !LINEAGES.some(l => l.id !== 'human' && lineageUnlocked(l.id))) continue;
     if (u.id === 'fearOfTheConqueror' && !fearOfTheConquerorAvailable()) continue;
@@ -3782,17 +3811,26 @@ function updateContent(element, html) {
 
 function renderLog() {
   const el = document.getElementById('log');
+  const filter = document.querySelector('[data-log-filter].active')?.dataset.logFilter || 'all';
   let h = '';
-  for (const e of state.log.slice(0, 80)) {
+  for (const e of state.log.slice(0, 80).filter(e => filter === 'all' || e.c === `log-${filter}` || (filter === 'events' && !['log-progress', 'log-queue', 'log-building', 'log-research', 'log-combat', 'log-espionage'].includes(e.c)))) {
     h += `<div class="log-entry ${e.c}"><span class="log-day">d${e.d}</span>${esc(e.t)}</div>`;
   }
   updateContent(el, h);
 }
 
+function renderSidePanel() {
+  for (const type of ['build', 'research', 'expedition']) {
+    const el = document.getElementById(`queue-${type}`);
+    const label = type === 'build' ? 'Building Queue' : type === 'research' ? 'Research Queue' : 'Expedition Queue';
+    updateContent(el, `<div class="queue-label">${label} (${state.queues[type].length}/${queueCapacity(type)})</div>${renderQueue(type)}`);
+  }
+}
+
 function loadLatestUpdatesTooltip() {
   const button = document.getElementById('btn-updates');
   if (!button || typeof fetch !== 'function' || typeof DOMParser !== 'function') return;
-  fetch('changelog.html?v=publish-20260908u17')
+  fetch('changelog.html?v=publish-20260909u01')
     .then(response => response.ok ? response.text() : Promise.reject(new Error('changelog unavailable')))
     .then(source => {
       const doc = new DOMParser().parseFromString(source, 'text/html');
@@ -3833,6 +3871,7 @@ function render() {
     settings: renderSettings,
   };
   updateContent(document.getElementById('panel-' + activeTab), panels[activeTab]());
+  renderSidePanel();
   renderLog();
 }
 
@@ -3893,6 +3932,7 @@ const automationActionFns = {
   wonderObstacle: attemptWonderObstacle,
   wonderExpedition: buyWonderExpedition,
   chooseWonderFate,
+  buyWonderUnlock,
   setBuildingPower,
   assignDiplomat: doAssignDiplomat,
   assignExplorer: doAssignExplorer,
@@ -3971,11 +4011,12 @@ window.emberhold = {
     wonderObstacle: attemptWonderObstacle,
     wonderExpedition: buyWonderExpedition,
     chooseWonderFate,
+    buyWonderUnlock,
   },
   render,
   switchTab,
   definitions: { RESOURCES, JOBS, BUILDINGS, CRAFTS, TECHS, CIVICS, GOVERNORS,
-    COUNCILORS, TRIALS, EXPEDITIONS, WONDERS, LANDINGS, LINEAGES, UPGRADES, FACTORY_RECIPES },
+    COUNCILORS, TRIALS, EXPEDITIONS, WONDERS, WONDER_UNLOCKS, LANDINGS, LINEAGES, UPGRADES, FACTORY_RECIPES },
 };
 
 // ---------- events ----------
@@ -4034,6 +4075,7 @@ function runAction(btn) {
     case 'lineage': chooseLineage(btn.dataset.id); render(); break;
     case 'landing': chooseLanding(btn.dataset.id); render(); break;
     case 'migration-buy': migrationBuy(btn.dataset.id); render(); break;
+    case 'wonder-unlock': buyWonderUnlock(btn.dataset.id); render(); break;
     case 'migration-refund': migrationRefund(btn.dataset.id); render(); break;
     case 'shop-tab': state.shopTab = btn.dataset.shopTab === 'purchased' ? 'purchased' : 'buy'; render(); break;
     case 'stats-tab': state.statsTab = btn.dataset.statsTab; render(); break;
@@ -4072,6 +4114,23 @@ function repeatStep(meta, startedAt) {
 }
 
 document.addEventListener('click', (e) => {
+  const logFilter = e.target.closest('[data-log-filter]');
+  if (logFilter) {
+    document.querySelectorAll('[data-log-filter]').forEach(button => button.classList.remove('active'));
+    logFilter.classList.add('active');
+    renderLog();
+    return;
+  }
+  const logAction = e.target.closest('[data-log-action]');
+  if (logAction) {
+    if (logAction.dataset.logAction === 'clear-all') state.log = [];
+    else {
+      const filter = document.querySelector('[data-log-filter].active')?.dataset.logFilter || 'all';
+      state.log = state.log.filter(entry => !(filter === 'all' || entry.c === `log-${filter}` || (filter === 'events' && !['log-progress', 'log-queue', 'log-building', 'log-research', 'log-combat', 'log-espionage'].includes(entry.c))));
+    }
+    render();
+    return;
+  }
   const btn = e.target.closest('[data-action]');
   if (!btn || btn.disabled) return;
   if (suppressQueueClick && btn.dataset.action === 'queue-cancel') {

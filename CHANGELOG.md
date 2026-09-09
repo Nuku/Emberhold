@@ -2,6 +2,13 @@
 
 All notable changes to Emberhold are recorded here, with the newest changes first.
 
+## 2026-09-09
+
+- Added the Living Alloy reset-layer unlock: Grayrocks restoration can now preserve access to Living Alloy research between migrations, which unlocks the Living Alloy Mine and its dedicated miners and storage.
+- Added Hope-bound discoveries to the Ancestral Shop, including persistent purchase state, save migration, automation support, and API definitions.
+- Moved construction, research, and expedition queues into a persistent utility rail beside the game panels, with a responsive mobile layout.
+- Added message-log filters plus Clear and Clear All controls for managing the chronicle.
+
 ## 2026-09-08
 
 - Wonder obstacle construction can now be queued when materials are not yet available, and queued obstacles resume safely after loading.

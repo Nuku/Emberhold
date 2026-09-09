@@ -25,6 +25,7 @@ const RESOURCES = [
   { id: 'coal',      name: 'Coal',      note: 'burns hotter than wood' },
   { id: 'steel',     name: 'Steel',     note: 'smelted from iron and coal in the Forge' },
   { id: 'machinery', name: 'Machinery', note: 'each unit in storage hums +0.2% to all production' },
+  { id: 'livingAlloy', name: 'Living Alloy', note: 'a metal that remembers the shape of the Ancient forge that made it' },
   { id: 'power',     name: 'Power',     note: 'available capacity from plants and dynamos; powered industry shuts off when capacity is insufficient' },
   { id: 'goods',     name: 'Industrial Goods', note: 'made only by a powered Factory' },
   { id: 'aether',    name: 'Aether',    note: 'gathered by those who watch the sky' },
@@ -65,6 +66,7 @@ const STORAGE = {
   steel:     { base: 50,  per: 100, bld: 'deepStore' },
   machinery: { base: 10,  per: 50,  bld: 'vault' },
   aether:    { base: 25,  per: 50,  bld: 'vault' },
+  livingAlloy: { base: 50, per: 150, bld: 'alloyMine' },
 };
 
 // --- jobs (per assigned worker, per second) ---
@@ -103,6 +105,9 @@ const JOBS = {
   ironminer:   { name: 'Iron Miner',   res: 'iron',      base: 0.11, desc: 'chases red veins into the dark',
                  max: () => bld('deepStore') + 3,
                  unlock: () => bld('deepMine') > 0 },
+  alloyminer:   { name: 'Living Alloy Miner', res: 'livingAlloy', base: 0.06, desc: 'coaxes metal that tries to crawl back into the mountain',
+                 max: () => bld('alloyMine') * 2,
+                 unlock: () => bld('alloyMine') > 0 },
   copperminer: { name: 'Copper Digger', res: 'copper',   base: 0.08, desc: 'follows green stains through the shallows',
                  max: () => Math.max(JOBS.miner.max(), JOBS.ironminer.max()),
                  unlock: () => tech('copperProspecting') },
@@ -179,6 +184,11 @@ const BUILDINGS = [
     cost: { stone: 260, tools: 30 },
     effect: () => 'unlocks Iron and Iron Miners',
     req: () => tech('deepMining'), desc: 'the deep rock holds iron' },
+
+  { id: 'alloyMine', name: 'Living Alloy Mine', max: Infinity, scale: 2.0,
+    cost: { steel: 900, machinery: 400, aether: 100, goods: 120 },
+    effect: () => '+2 Living Alloy Miner capacity; +150 Living Alloy storage',
+    req: () => tech('livingAlloy'), desc: 'a shaft sunk beneath the World Anvil, where the metal still remembers being made' },
 
   { id: 'deepStore', name: 'Deep Store', max: 12, scale: 2.0,
     cost: { wood: 400, stone: 300, tools: 25 },
@@ -324,6 +334,9 @@ const TECHS = [
   { id: 'machineryTech', name: 'Mechanism', cost: 1000, materials: { iron: 200, steel: 100, tools: 50 },
     desc: 'Gears begin to turn with a purpose the old ruins seem to recognize. Unlocks the Workshop (Machinery). Enters the Age of Steam.',
     req: () => tech('metallurgy') },
+  { id: 'livingAlloy', name: 'Living Alloy', cost: 6000, materials: { steel: 300, machinery: 180, aether: 100, tools: 80 },
+    desc: 'The World Anvil’s restored rhythm has left a door open in the old records. Unlocks the Living Alloy Mine after the Beacon has been understood.',
+    req: () => wonderUnlock('livingAlloy') && tech('optics') },
   { id: 'understandingHome', name: 'Understanding Home', cost: 1300, materials: { machinery: 25, tools: 30 },
     desc: 'We have learned the whispers of this place, and they speak clearly once you care to listen. Trait tooltips reveal their direct effects on the current location.',
     req: () => tech('machineryTech') && currentPlaceTraits().length > 0 },
@@ -1240,6 +1253,13 @@ const WONDERS = [
       become: 'Your leader steps beneath the dark star. For a moment, everyone near Windmere sees two horizons looking back.',
     },
   },
+];
+
+const WONDER_UNLOCKS = [
+  { id: 'livingAlloy', name: 'The Anvil’s Living Alloy', cost: 1,
+    effect: 'Makes Living Alloy research available in future settlements.',
+    req: () => wonderChoice('grayrocks', 'restore'),
+    desc: 'Hope preserves the World Anvil’s instructions between migrations. The mine itself must still be researched and built.' },
 ];
 
 // --- season food multipliers ---

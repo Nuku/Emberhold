@@ -1737,6 +1737,16 @@ test('Wonder guards can save workers, wounded-only guards face doubled death wei
   assert.equal(run('state.hope'), 3);
   assert.equal(run('solarPowerAvailable()'), true);
   assert.equal(run(`BUILDING_BY_ID.get('solarArray').req()`), true);
+  assert.equal(run(`state.wonderUnlocks.livingAlloy === true`), false);
+  assert.equal(run(`TECHS.find(t => t.id === 'livingAlloy').req()`), false);
+  assert.equal(run(`BUILDING_BY_ID.get('alloyMine').req()`), false);
+  run(`state.migrating = true; state.hope = 1; buyWonderUnlock('livingAlloy'); state.techs.optics = true;`);
+  assert.equal(run('state.hope'), 0);
+  assert.equal(run(`state.wonderUnlocks.livingAlloy`), true);
+  assert.equal(run(`TECHS.find(t => t.id === 'livingAlloy').req()`), true);
+  assert.equal(run(`BUILDING_BY_ID.get('alloyMine').req()`), false);
+  run(`state.techs.livingAlloy = true`);
+  assert.equal(run(`BUILDING_BY_ID.get('alloyMine').req()`), true);
 });
 
 test('factories throttle to available materials and storage and stop without Power capacity', () => {

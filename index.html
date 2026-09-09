@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Emberhold — a text incremental</title>
-    <link rel="stylesheet" href="style.css?v=publish-20260908u17">
+    <link rel="stylesheet" href="style.css?v=publish-20260909u01">
 </head>
 <body>
 <div id="app">
@@ -67,15 +67,24 @@
     <section id="panel-settings" class="panel hidden"></section>
   </main>
 
-  <aside id="log-panel">
-    <h2>Chronicle</h2>
-    <div id="log"></div>
+  <aside id="side-panel" aria-label="Queues and message log">
+    <section id="queue-panel" aria-labelledby="queue-heading">
+      <h2 id="queue-heading">Detailed Queue</h2>
+      <div id="queue-build" class="side-queue"></div>
+      <div id="queue-research" class="side-queue"></div>
+      <div id="queue-expedition" class="side-queue"></div>
+    </section>
+    <section id="log-panel" aria-labelledby="log-heading">
+      <h2 id="log-heading">Message Log <span class="log-tools"><button type="button" data-log-action="clear">Clear</button><button type="button" data-log-action="clear-all">Clear All</button></span></h2>
+      <div class="log-filters" role="tablist" aria-label="Message log filters"><button type="button" class="active" data-log-filter="all">All</button><button type="button" data-log-filter="progress">Progress</button><button type="button" data-log-filter="queue">Queue</button><button type="button" data-log-filter="building">Building Queue</button><button type="button" data-log-filter="research">Research Queue</button><button type="button" data-log-filter="combat">Combat</button><button type="button" data-log-filter="espionage">Espionage</button><button type="button" data-log-filter="events">Events</button></div>
+      <div id="log"></div>
+    </section>
   </aside>
 
   <footer id="banner" class="hidden"></footer>
 </div>
 
-<script src="js/data.js?v=publish-20260908u17"></script>
-<script src="js/game.js?v=publish-20260908u17"></script>
+<script src="js/data.js?v=publish-20260909u01"></script>
+<script src="js/game.js?v=publish-20260909u01"></script>
 </body>
 </html>
