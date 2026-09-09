@@ -258,6 +258,7 @@ you'll have them.
 | Solitude | once | population capped at 10 | stockpile 800 knowledge | Huts grant +2 cap each |
 | Haste | once | all production −30% | reach Age of Light in 20,000 days | Blueprints (−15% building costs) |
 | Industrialization | once | coal production −80%; low morale can trigger coal riots | produce 100 Industrial Goods, no deadline | factories remain available permanently |
+| Conquest | once, after Hope or Ancient | three nearby nations begin at 0 relations and cannot be reconciled | conquer all three nations | +10% Guard recruitment speed permanently |
 
 ## Files
 

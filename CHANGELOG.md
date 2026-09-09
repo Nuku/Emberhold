@@ -4,6 +4,7 @@ All notable changes to Emberhold are recorded here, with the newest changes firs
 
 ## 2026-09-09
 
+- Added the Trial of Conquest, unlocked after Hope or Ancient, which fixes three nearby nations at zero relations until all are conquered and permanently increases Guard recruitment speed by 10% on completion.
 - Added Here and Known elsewhere tabs to Diplomacy so nearby and distant contacts are easier to browse.
 - Limited Tinkerers to one worker plus one additional worker for every five Woodcutters.
 - Fixed research completion messages being classified as combat when their research description mentioned raids, guards, or other combat terms.

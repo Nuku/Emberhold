@@ -83,6 +83,8 @@ function defaultState() {
     rapture: { landing: null, workers: 0, tabSeen: false },
     hope: 0,
     ancient: 0,
+    hopeEver: false,
+    ancientEver: false,
     echoes: 0,
     upgrades: {},
     landing: 'emberplain',
@@ -265,7 +267,7 @@ function armorLevel() { return Math.max(0, Number(state.armor) || 0); }
 function tradeAvailable() { return tech('currency') && localTribeIds().length > 0; }
 function guardCap() { return bld('barracks') * 2; }
 function guardRecruitmentRate() {
-  return 1 / (120 * Math.pow(0.9, bld('trainingYard'))) * lineageSpecialValue('guardRecruitment') *
+  return 1 / (120 * Math.pow(0.9, bld('trainingYard'))) * Math.pow(1.1, trialCount('conquest')) * lineageSpecialValue('guardRecruitment') *
     currentPlaceTraits().reduce((rate, trait) => rate * (trait.guardRecruitment || 1), 1);
 }
 function updateGuardRecruitment(dt) {
@@ -378,7 +380,7 @@ function spyKilled(id) {
   const entry = state.diplomacy && state.diplomacy[id];
   if (!entry || Math.random() >= 0.5) return;
   const loss = 3 + Math.floor(Math.random() * 3);
-  entry.disposition = Math.max(-100, entry.disposition - loss);
+  if (!conquestTrialRelationsLocked()) entry.disposition = Math.max(-100, entry.disposition - loss);
   addLog(`The captured spy betrays Emberhold's involvement in the ${tribeDef(id).name}; relations fall by ${loss}.`, 'log-bad');
 }
 function resolveEspionage(id) {
@@ -756,7 +758,9 @@ function chooseWonderFate(choice) {
   if (!def || !wonderReadyForDecision(record) || !remainingWonderChoices(record).includes(choice)) return false;
   record.outcomes[choice] = true;
   state.hope = (state.hope || 0) + 1;
+  state.hopeEver = true;
   if (choice === 'become') state.ancient = (state.ancient || 0) + 1;
+  if (choice === 'become') state.ancientEver = true;
   addLog(def.aftermath[choice], 'log-important');
   addLog(`Hope gained. The Wonder has touched Emberhold, and the road opens without asking.`, 'log-good');
   record.found = false;
@@ -848,6 +852,10 @@ function perm(key) {
   return false;
 }
 function trialActive(id) { return state.trial && state.trial.id === id; }
+function conquestTrialRelationsLocked() { return trialActive('conquest'); }
+function conquestTrialAvailable() {
+  return !!(state.hopeEver || state.ancientEver || state.hope > 0 || state.ancient > 0);
+}
 
 // ---------- storage ----------
 function capacityOf(id) {
@@ -1917,19 +1925,24 @@ function updateTrial(dt) {
       if (state.era >= 5) { endTrial(true); return; }
       if (tr.daysActive > 20000) { endTrial(false); return; }
       break;
+    case 'conquest':
+      if ((tr.targets || []).length && tr.targets.every(id => state.diplomacy?.[id]?.conquered)) { endTrial(true); return; }
+      break;
   }
 }
 
 function updateDiplomacy(dt) {
   if (!state.diplomacy) return;
+  const relationsLocked = conquestTrialRelationsLocked();
   for (const id of localTribeIds()) {
     if (!localTribe(id) || !state.diplomacy[id]) continue;
     const entry = state.diplomacy[id];
     if (entry.conquered) continue;
-    const nudged = diplomatCount(id) * 0.05 * dt;
+    const nudged = relationsLocked ? 0 : diplomatCount(id) * 0.05 * dt;
     if (nudged) entry.disposition = Math.min(100, entry.disposition + nudged);
   }
   if (state.guardInjuries > 0) state.guardInjuries = Math.max(0, state.guardInjuries - dt / guardHealingNeed());
+  if (relationsLocked) return;
   state.diplomacyEventT = (state.diplomacyEventT || 0) + dt;
   if (state.diplomacyEventT < 180) return;
   state.diplomacyEventT = 0;
@@ -1962,7 +1975,7 @@ function resolveTribeRaid(id) {
   // curve made a merely adequate garrison pay an outsized price on a loss.
   const raidPower = (militaryStrength(entry) / 20 + (50 - entry.disposition) / 20 + Math.random() * 4) * 0.8;
   if (defense >= raidPower) {
-    entry.disposition = Math.max(-100, entry.disposition - 2);
+    if (!conquestTrialRelationsLocked()) entry.disposition = Math.max(-100, entry.disposition - 2);
     if (isMephit()) state.diplomacyEventT = -mephitRaidDelay();
     addLog(`The ${tribe.name} test Emberhold's walls, but ${able} able Guard${able === 1 ? '' : 's'} drive them off.`, 'log-good');
     return;
@@ -1986,7 +1999,7 @@ function resolveTribeRaid(id) {
     state.res[pick] -= amount;
     loot.push(`${fmt(amount)} ${resourceName(pick)}`);
   }
-  entry.disposition = Math.max(-100, entry.disposition - 6);
+  if (!conquestTrialRelationsLocked()) entry.disposition = Math.max(-100, entry.disposition - 6);
   if (isMephit()) state.diplomacyEventT = -mephitRaidDelay();
   addLog(`The ${tribe.name} raid Emberhold! ${deaths} Guard${deaths === 1 ? '' : 's'} die${deaths === 1 ? 's' : ''}, ${injuries} suffer injuries, and they make off with ${loot.join(' and ') || 'nothing'}.`, 'log-bad');
 }
@@ -2016,6 +2029,7 @@ function trialProgressText() {
     case 'wayfinding': return expDone('oldForest') ? 'The Old Forest has been mapped.' : 'The Old Forest expedition must return';
     case 'industrialization': return `${fmt(state.res.goods)} / 100 Industrial Goods — no deadline; coal production 20%`;
     case 'haste': return `${Math.floor(tr.daysActive)} / 20000 days to reach the Age of Light`;
+    case 'conquest': return `${(tr.targets || []).filter(id => state.diplomacy?.[id]?.conquered).length} / ${(tr.targets || []).length} nations conquered`;
   }
   return '';
 }
@@ -2138,6 +2152,7 @@ function setOut(trialId = null) {
     beaconsLit: state.beaconsLit, beaconRevisited: state.beaconRevisited, wonders: state.wonders,
     wonderUnlocks: state.wonderUnlocks,
     hope: state.hope, ancient: state.ancient,
+    hopeEver: state.hopeEver, ancientEver: state.ancientEver,
     landingsSeen: state.landingsSeen,
     species: state.species, tribesSeen: state.tribesSeen,
     diplomacy: state.diplomacy,
@@ -2159,6 +2174,8 @@ function setOut(trialId = null) {
   state.wonderUnlocks = keep.wonderUnlocks;
   state.hope = keep.hope;
   state.ancient = keep.ancient;
+  state.hopeEver = keep.hopeEver;
+  state.ancientEver = keep.ancientEver;
   state.landingsSeen = keep.landingsSeen;
   state.species = keep.species;
   state.species = newSpecies;
@@ -2178,6 +2195,20 @@ function setOut(trialId = null) {
   state.placeTraits = trialId ? [...(keep.placeTraits || [])] : [...(selectedLanding?.traits || traitsForLanding(landing.id))];
   if (settings) Object.assign(state, settings);
   if (trialId) state.trial = { id: trialId, startDay: state.day, daysActive: 0, buildings: 0 };
+  if (trialId === 'conquest') {
+    const targets = TRIBES.filter(tribe => habitatAllows(tribe, state.landing)).slice(0, 3);
+    state.tradePartners = targets.map(tribe => tribe.id);
+    state.tradePartner = state.tradePartners[0];
+    state.trial.targets = state.tradePartners;
+    for (const [index, id] of state.tradePartners.entries()) {
+      state.tribesSeen[id] = true;
+      const entry = ensureDiplomacyEntry(id, index);
+      entry.disposition = 0;
+      entry.conquered = false;
+      entry.siegeReady = false;
+    }
+    addLog('Three nations surround the new Emberhold. Their relations are fixed at 0; only conquest can settle the matter.', 'log-important');
+  }
   if (trialId === 'silence') state.trial.steelProduced = 0;
   for (const t in ERA_GATE) if (state.techs[t] && ERA_GATE[t] > state.era) state.era = ERA_GATE[t];
 
@@ -2259,7 +2290,7 @@ function startGameClock() {
   // lose time; it only wakes the simulation to account for elapsed time.
   if (typeof Worker === 'function') {
     try {
-      gameClockWorker = new Worker('js/game-clock.worker.js?v=publish-20260909u13');
+      gameClockWorker = new Worker('js/game-clock.worker.js?v=publish-20260909u14');
       gameClockWorker.addEventListener('message', () => {
         updateGameClock(true);
         renderBonusTimer();
@@ -2645,7 +2676,7 @@ function doRaid(id, stageId = 'raid') {
   const casualties = applyRaidCasualties(losses, injuries);
   const actualDeaths = casualties.deaths;
   const actualInjuries = casualties.injuries;
-  entry.disposition = Math.max(-100, entry.disposition - (succeeded ? 28 : 18));
+  if (!conquestTrialRelationsLocked()) entry.disposition = Math.max(-100, entry.disposition - (succeeded ? 28 : 18));
 
   if (succeeded) {
     if (upg('fearOfTheConqueror') > 0) {
@@ -2682,7 +2713,7 @@ function doRaid(id, stageId = 'raid') {
 }
 
 function supplyDiplomacyRequest(id) {
-  if (!tech('currency') || !localTribe(id) || !state.diplomacy || !state.diplomacy[id]) return;
+  if (conquestTrialRelationsLocked() || !tech('currency') || !localTribe(id) || !state.diplomacy || !state.diplomacy[id]) return;
   const entry = state.diplomacy[id];
   if (!canAfford({ [entry.request.res]: entry.request.amount })) return;
   payCost({ [entry.request.res]: entry.request.amount });
@@ -2812,6 +2843,8 @@ function normalizeSave(s) {
   if (s.won && !Object.keys(s.beaconsLit).length) s.beaconsLit[s.landing] = true;
   s.hope = Math.max(0, Number(s.hope) || 0);
   s.ancient = Math.max(0, Number(s.ancient) || 0);
+  s.hopeEver = !!s.hopeEver || s.hope > 0;
+  s.ancientEver = !!s.ancientEver || s.ancient > 0;
   s.wonderUnlocks = object(s.wonderUnlocks) ? Object.fromEntries(
     Object.entries(s.wonderUnlocks).filter(([id, unlocked]) => WONDER_UNLOCK_BY_ID.has(id) && unlocked === true)
   ) : {};
@@ -3372,6 +3405,7 @@ function renderResearch() {
 function renderDiplomacy() {
   let h = '<h2 class="section">Diplomacy — neighbors and foreign courts</h2>';
   h += '<div class="res-note">Local contacts can trade, receive diplomats, or be raided at the same time. Departed tribes remain in the chronicle, and their alliances still unlock lineages for future migrations.</div>';
+  if (conquestTrialRelationsLocked()) h += '<div class="trial-mod">The three nations hate Emberhold for reasons known only to the Ancients. Relations are fixed at 0 until they are conquered.</div>';
   const knownEntries = Object.entries(state.diplomacy || {});
   const nearbyCount = knownEntries.filter(([id]) => localTribe(id)).length;
   const distantCount = knownEntries.length - nearbyCount;
@@ -3391,7 +3425,7 @@ function renderDiplomacy() {
     if ((tab === 'nearby') !== local) continue;
     visible++;
     const requestCost = { [entry.request.res]: entry.request.amount };
-    const canSupply = local && tradeAvailable() && canAfford(requestCost);
+    const canSupply = !conquestTrialRelationsLocked() && local && tradeAvailable() && canAfford(requestCost);
     h += `<div class="card ${local ? '' : 'dimmed'}"><div class="card-head"><span class="card-title has-tooltip" data-tooltip="${attrText(tribe.text)}">${tribe.name}</span>` +
       (local ? '<span class="card-count">nearby</span>' : '<span class="card-count">departed</span>') +
       `<span class="card-count">disposition ${Math.round(entry.disposition)} / 100</span></div>` +
@@ -3438,7 +3472,7 @@ function renderDiplomacy() {
         }
       }
     }
-    if (local && tech('diplomacy')) {
+    if (local && tech('diplomacy') && !conquestTrialRelationsLocked()) {
       h += `<div class="res-note">${JOBS.diplomat.name}s assigned: ${diplomatCount(id)} — each adds +3 relations per minute</div>` +
         `<div class="card-actions"><button data-action="diplomat-dec" data-tribe="${id}" ${diplomatCount(id) > 0 ? '' : 'disabled'}>−</button> ` +
         `<button data-action="diplomat-inc" data-tribe="${id}" ${unassigned() > 0 ? '' : 'disabled'}>Assign Diplomat</button></div>`;
@@ -3465,16 +3499,21 @@ function renderGovernance() {
 }
 
 function renderTrials() {
-  if (!state.trial && bld('monument') < 1 && !(era() >= 2 && bld('quarry') > 0)) {
+  if (!state.trial && bld('monument') < 1 && !(era() >= 2 && bld('quarry') > 0) && !conquestTrialAvailable()) {
     return '<h2 class="section">Trials</h2>' +
       '<div class="card"><div class="card-desc">A stone monument, and oaths sworn upon it, would test this village against itself. ' +
       'The Monument becomes possible in the Age of Iron.</div></div>';
   }
-  const earlyWayfinding = !state.trial && bld('monument') < 1;
-  let h = `<h2 class="section">Trials${earlyWayfinding ? ' — an oath for the far roads' : ' — oaths sworn upon the Monument'}</h2>`;
+  const earlyWayfinding = !state.trial && bld('monument') < 1 && era() >= 2 && bld('quarry') > 0;
+  const earlyConquest = !state.trial && bld('monument') < 1 && conquestTrialAvailable();
+  let h = `<h2 class="section">Trials${earlyConquest ? ' — an oath of force' : earlyWayfinding ? ' — an oath for the far roads' : ' — oaths sworn upon the Monument'}</h2>`;
   if (earlyWayfinding) h += '<div class="res-note">A Stone-age expedition has revealed a trial that can be sworn before the Monument is raised.</div>';
+  if (earlyConquest) h += '<div class="res-note">Hope has opened an oath that can be sworn before the Monument is raised.</div>';
   h += `<div class="res-note">Starting a trial restarts your migration in the same location with the same settings, after confirmation. One trial may be sworn at a time. Completing a trial grants its reward forever; failing one costs nothing but time.${upg('oathkeepers') ? ' The Oathkeepers remember: repeatable trials may be sworn once more.' : ''}</div>`;
-  for (const t of (earlyWayfinding ? TRIALS.filter(t => t.id === 'wayfinding') : TRIALS)) {
+  const visibleTrials = earlyConquest || earlyWayfinding
+    ? TRIALS.filter(t => (earlyConquest && t.id === 'conquest') || (earlyWayfinding && t.id === 'wayfinding'))
+    : TRIALS;
+  for (const t of visibleTrials) {
     const active = trialActive(t.id);
     const done = trialCount(t.id);
     const max = trialMax(t);
@@ -3867,7 +3906,7 @@ function renderSidePanel() {
 function loadLatestUpdatesTooltip() {
   const button = document.getElementById('btn-updates');
   if (!button || typeof fetch !== 'function' || typeof DOMParser !== 'function') return;
-  fetch('changelog.html?v=publish-20260909u13')
+  fetch('changelog.html?v=publish-20260909u14')
     .then(response => response.ok ? response.text() : Promise.reject(new Error('changelog unavailable')))
     .then(source => {
       const doc = new DOMParser().parseFromString(source, 'text/html');

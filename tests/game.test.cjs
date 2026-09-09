@@ -1292,6 +1292,21 @@ test('guards recruit slowly through ticks, cap without banking recruits, and rep
   assert.equal(run('state.jobs.guard'), 2);
 });
 
+test('Conquest trial unlocks after Hope, fixes three enemies at zero relations, and rewards recruitment speed', () => {
+  const { run } = game();
+  assert.equal(run("TRIAL_BY_ID.get('conquest').req()"), false);
+  run('state.hope = 1; state.bld.monument = 1; state.landing = "emberplain"; state.migrating = true; state.pendingLandings = [{ id: "emberplain" }]; state.pendingLanding = "emberplain"; state.pendingSpecies = "human"; setOut("conquest")');
+  assert.equal(run('state.trial.targets.length'), 3);
+  assert.deepEqual(JSON.parse(run('JSON.stringify(state.trial.targets.map(id => state.diplomacy[id].disposition))')), [0, 0, 0]);
+  run('state.techs.diplomacy = true; state.diplomats[state.trial.targets[0]] = 3; updateDiplomacy(600)');
+  assert.deepEqual(JSON.parse(run('JSON.stringify(state.trial.targets.map(id => state.diplomacy[id].disposition))')), [0, 0, 0]);
+  assert.ok(Math.abs(run('guardRecruitmentRate()') / (1 / 120) - 1) < 1e-12);
+  run('for (const id of state.trial.targets) state.diplomacy[id].conquered = true; updateTrial(0)');
+  assert.equal(run('state.trial'), null);
+  assert.equal(run('trialCount("conquest")'), 1);
+  assert.ok(Math.abs(run('guardRecruitmentRate()') / (1 / 120) - 1.1) < 1e-12);
+});
+
 test('Training Yards compound replacement Guard recruitment time without a cap', () => {
   const { run } = game();
   run(`state.techs.guards = true; state.bld.barracks = 1;

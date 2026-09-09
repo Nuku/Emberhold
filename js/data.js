@@ -667,6 +667,13 @@ const TRIALS = [
     goal: 'Complete 5 research projects while the trial is active.',
     reward: 'Grand Archive: unlocks one additional research queue slot, permanently.',
     req: () => bld('monument') > 0 },
+
+  { id: 'conquest', name: 'Trial of Conquest', repeat: 0,
+    text: 'Three nations meet Emberhold at the edge of the old roads, and hatred is the only greeting they share. Why they hate you, only the Ancients know for certain. But learning how to use force has its place.',
+    mod: 'Three nearby nations begin at 0 relations, and their relations cannot change while the oath stands.',
+    goal: 'Conquer all three nations.',
+    reward: 'Conquest: Guard recruitment speed increases by 10%, permanently.',
+    req: () => conquestTrialAvailable() },
 ];
 
 // --- landings: where the migration ends up. Modifiers multiply production
