@@ -4,6 +4,7 @@ All notable changes to Emberhold are recorded here, with the newest changes firs
 
 ## 2026-09-09
 
+- Added Lightning Metal research, increasing factory Steel output and material costs by 50%.
 - Added the Living Alloy reset-layer unlock: Grayrocks restoration can now preserve access to Living Alloy research between migrations, which unlocks the Living Alloy Mine and its dedicated miners and storage.
 - Added Hope-bound discoveries to the Ancestral Shop, including persistent purchase state, save migration, automation support, and API definitions.
 - Moved construction, research, and expedition queues into a persistent utility rail beside the game panels, with a responsive mobile layout.

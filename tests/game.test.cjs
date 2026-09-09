@@ -1678,6 +1678,22 @@ test('factories switch outputs and consume recipe materials without multiplying 
   }
 });
 
+test('Lightning Metal boosts factory Steel output and input costs', () => {
+  const { run } = game();
+  run(`state.bld.factory = 1; state.bld.steamPlant = 1; state.res.power = 10;
+    state.res.iron = 100; state.res.coal = 100; state.res.steel = 0;
+    state.techs.metallurgy = true; state.techs.machineryTech = true;
+    chooseFactoryRecipe('steel'); const before = production(1);
+    state.techs.lightningMetal = true; const after = production(1)`);
+  assert.equal(run('before.steel'), 0.04);
+  assert.equal(run('before.iron'), -0.6);
+  assert.equal(run('before.coal'), -0.4);
+  assert.equal(run('after.steel'), 0.06);
+  assert.equal(run('after.iron'), -0.9);
+  assert.equal(run('after.coal'), -0.6);
+  assert.equal(run("TECHS.find(t => t.id === 'lightningMetal').req()"), true);
+});
+
 test('Wonders require beacon hints, scale their search by distinct beacons, and expose six landing-specific definitions', () => {
   const { run } = game();
   assert.equal(run('WONDERS.length'), 6);

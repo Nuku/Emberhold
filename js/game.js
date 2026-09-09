@@ -1687,8 +1687,12 @@ function production(dt = 0.25, breakdown = null) {
     const recipe = factoryRecipe();
     const factors = settlementProductionFactors(recipe.id);
     const activeFactories = power.factory;
-    const output = factors.reduce((value, [, factor]) => value * factor, activeFactories * recipe.rate);
-    const inputs = { ...recipe.inputs };
+    const lightningMetal = recipe.id === 'steel' && tech('lightningMetal');
+    const recipeFactor = lightningMetal ? 1.5 : 1;
+    const output = factors.reduce((value, [, factor]) => value * factor, activeFactories * recipe.rate * recipeFactor);
+    const inputs = Object.fromEntries(Object.entries(recipe.inputs).map(([resource, amount]) =>
+      [resource, amount * recipeFactor]));
+    const recipeFactors = lightningMetal ? [...factors, ['Lightning Metal', recipeFactor]] : factors;
     let fraction = output > 0 ? Math.min(1, Math.max(0, capacityOf(recipe.id) - state.res[recipe.id]) / (output * dt)) : 0;
     let limitation = fraction < 1 ? `${recipe.name} storage space` : 'Factory utilization';
     for (const r in inputs) {
@@ -1701,8 +1705,9 @@ function production(dt = 0.25, breakdown = null) {
       limitation = buildingPowerCount('factory') < bld('factory') ? 'Power disabled' : 'Power shortage';
       if (!activeFactories) fraction = 0;
     }
-    add(recipe.id, `Factories (${recipe.name}): ${activeFactories} active × ${recipe.rate}/s`, activeFactories * recipe.rate, [...factors, [limitation, fraction]]);
-    for (const r in inputs) add(r, `Factory inputs (${recipe.name}): ${activeFactories} active × ${inputs[r]}/s`, -inputs[r] * activeFactories, [[limitation, fraction]]);
+    add(recipe.id, `Factories (${recipe.name}): ${activeFactories} active × ${recipe.rate}/s`, activeFactories * recipe.rate, [...recipeFactors, [limitation, fraction]]);
+    for (const r in inputs) add(r, `Factory inputs (${recipe.name}): ${activeFactories} active × ${inputs[r]}/s`, -inputs[r] * activeFactories, [
+      ...(lightningMetal ? [['Lightning Metal', recipeFactor]] : []), [limitation, fraction]]);
   }
   if (state.pop) add('food', `Villager upkeep: ${state.pop} × ${FOOD_PER_POP}/s`, -state.pop * FOOD_PER_POP);
   return rates;
@@ -2248,7 +2253,7 @@ function startGameClock() {
   // lose time; it only wakes the simulation to account for elapsed time.
   if (typeof Worker === 'function') {
     try {
-      gameClockWorker = new Worker('js/game-clock.worker.js?v=publish-20260909u03');
+      gameClockWorker = new Worker('js/game-clock.worker.js?v=publish-20260909u04');
       gameClockWorker.addEventListener('message', () => {
         updateGameClock(true);
         renderBonusTimer();
@@ -3197,10 +3202,11 @@ function renderVillage() {
     for (const recipe of FACTORY_RECIPES) {
       const unlocked = !recipe.tech || tech(recipe.tech);
       const selected = factoryRecipe().id === recipe.id;
-      const inputs = Object.entries(recipe.inputs).map(([r, n]) => `${n} ${resourceName(r)}/s`).join(', ');
+      const recipeFactor = recipe.id === 'steel' && tech('lightningMetal') ? 1.5 : 1;
+      const inputs = Object.entries(recipe.inputs).map(([r, n]) => `${n * recipeFactor} ${resourceName(r)}/s`).join(', ');
       const powerText = `${FACTORY_POWER_REQUIREMENT} Power capacity per factory`;
       h += `<div class="card"><div class="card-head"><span class="card-title">${recipe.name}</span><span class="card-count">${selected ? 'Active' : unlocked ? 'Available' : `Requires ${recipe.unlock}`}</span></div>` +
-        `<div class="card-desc">Produces ${recipe.rate}/s; requires ${powerText}${inputs ? ` and consumes ${inputs}` : ''}.</div>` +
+        `<div class="card-desc">Produces ${recipe.rate * recipeFactor}/s; requires ${powerText}${inputs ? ` and consumes ${inputs}` : ''}${recipeFactor > 1 ? ' (Lightning Metal)' : ''}.</div>` +
         `<div class="card-actions"><button data-action="factory-recipe" data-id="${recipe.id}" ${!unlocked || selected ? 'disabled' : ''}>${selected ? 'Producing ' : 'Produce '}${recipe.name}</button></div></div>`;
     }
   }
@@ -3845,7 +3851,7 @@ function renderSidePanel() {
 function loadLatestUpdatesTooltip() {
   const button = document.getElementById('btn-updates');
   if (!button || typeof fetch !== 'function' || typeof DOMParser !== 'function') return;
-  fetch('changelog.html?v=publish-20260909u03')
+  fetch('changelog.html?v=publish-20260909u04')
     .then(response => response.ok ? response.text() : Promise.reject(new Error('changelog unavailable')))
     .then(source => {
       const doc = new DOMParser().parseFromString(source, 'text/html');
