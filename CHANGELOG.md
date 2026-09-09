@@ -4,6 +4,7 @@ All notable changes to Emberhold are recorded here, with the newest changes firs
 
 ## 2026-09-09
 
+- Fixed factory recipe cards so production rates and material costs use the game's compact number formatting.
 - Added the Steel Hearted achievement: holding 1,000 Steel grants +20% Steel production from factories and Forges.
 - Added a dedicated Achievements message-log filter and display for achievement-specific effects.
 - Updated the escaped-farm-animal event so each occurrence can feature chickens, ducks, goats, sheep, or pigs.

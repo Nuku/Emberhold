@@ -3209,10 +3209,10 @@ function renderVillage() {
       const unlocked = !recipe.tech || tech(recipe.tech);
       const selected = factoryRecipe().id === recipe.id;
       const recipeFactor = recipe.id === 'steel' && tech('lightningMetal') ? 1.5 : 1;
-      const inputs = Object.entries(recipe.inputs).map(([r, n]) => `${n * recipeFactor} ${resourceName(r)}/s`).join(', ');
+      const inputs = Object.entries(recipe.inputs).map(([r, n]) => `${fmt(n * recipeFactor)} ${resourceName(r)}/s`).join(', ');
       const powerText = `${FACTORY_POWER_REQUIREMENT} Power capacity per factory`;
       h += `<div class="card"><div class="card-head"><span class="card-title">${recipe.name}</span><span class="card-count">${selected ? 'Active' : unlocked ? 'Available' : `Requires ${recipe.unlock}`}</span></div>` +
-        `<div class="card-desc">Produces ${recipe.rate * recipeFactor}/s; requires ${powerText}${inputs ? ` and consumes ${inputs}` : ''}${recipeFactor > 1 ? ' (Lightning Metal)' : ''}.</div>` +
+        `<div class="card-desc">Produces ${fmt(recipe.rate * recipeFactor)}/s; requires ${powerText}${inputs ? ` and consumes ${inputs}` : ''}.</div>` +
         `<div class="card-actions"><button data-action="factory-recipe" data-id="${recipe.id}" ${!unlocked || selected ? 'disabled' : ''}>${selected ? 'Producing ' : 'Produce '}${recipe.name}</button></div></div>`;
     }
   }
