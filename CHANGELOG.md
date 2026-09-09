@@ -4,6 +4,7 @@ All notable changes to Emberhold are recorded here, with the newest changes firs
 
 ## 2026-09-09
 
+- Added Here and Known elsewhere tabs to Diplomacy so nearby and distant contacts are easier to browse.
 - Limited Tinkerers to one worker plus one additional worker for every five Woodcutters.
 - Fixed research completion messages being classified as combat when their research description mentioned raids, guards, or other combat terms.
 - Adjusted beacon completion so the end-state banner no longer interrupts continued play.

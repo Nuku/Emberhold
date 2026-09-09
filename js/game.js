@@ -2259,7 +2259,7 @@ function startGameClock() {
   // lose time; it only wakes the simulation to account for elapsed time.
   if (typeof Worker === 'function') {
     try {
-      gameClockWorker = new Worker('js/game-clock.worker.js?v=publish-20260909u12');
+      gameClockWorker = new Worker('js/game-clock.worker.js?v=publish-20260909u13');
       gameClockWorker.addEventListener('message', () => {
         updateGameClock(true);
         renderBonusTimer();
@@ -3372,13 +3372,24 @@ function renderResearch() {
 function renderDiplomacy() {
   let h = '<h2 class="section">Diplomacy — neighbors and foreign courts</h2>';
   h += '<div class="res-note">Local contacts can trade, receive diplomats, or be raided at the same time. Departed tribes remain in the chronicle, and their alliances still unlock lineages for future migrations.</div>';
+  const knownEntries = Object.entries(state.diplomacy || {});
+  const nearbyCount = knownEntries.filter(([id]) => localTribe(id)).length;
+  const distantCount = knownEntries.length - nearbyCount;
+  const tab = state.diplomacyTab === 'distant' ? 'distant' : 'nearby';
+  state.diplomacyTab = tab;
+  h += `<div class="subtabs" role="tablist" aria-label="Diplomacy contacts">` +
+    `<button class="subtab ${tab === 'nearby' ? 'active' : ''}" data-action="diplomacy-tab" data-diplomacy-tab="nearby" role="tab" aria-selected="${tab === 'nearby'}">Here <span class="subtab-count">${nearbyCount}</span></button>` +
+    `<button class="subtab ${tab === 'distant' ? 'active' : ''}" data-action="diplomacy-tab" data-diplomacy-tab="distant" role="tab" aria-selected="${tab === 'distant'}">Known elsewhere <span class="subtab-count">${distantCount}</span></button>` +
+    '</div>';
   if (!tech('currency')) {
     h += '<div class="card"><div class="card-desc">The tribes will speak, but trade requires Currency. Research it to honor their requests with goods.</div></div>';
   }
-  for (const id in (state.diplomacy || {})) {
+  let visible = 0;
+  for (const [id, entry] of knownEntries) {
     const tribe = tribeDef(id);
-    const entry = state.diplomacy[id];
     const local = localTribe(id);
+    if ((tab === 'nearby') !== local) continue;
+    visible++;
     const requestCost = { [entry.request.res]: entry.request.amount };
     const canSupply = local && tradeAvailable() && canAfford(requestCost);
     h += `<div class="card ${local ? '' : 'dimmed'}"><div class="card-head"><span class="card-title has-tooltip" data-tooltip="${attrText(tribe.text)}">${tribe.name}</span>` +
@@ -3434,6 +3445,7 @@ function renderDiplomacy() {
     }
     h += '</div>';
   }
+  if (!visible) h += `<div class="res-note">${tab === 'nearby' ? 'No contacts are currently here.' : 'No distant contacts are recorded yet.'}</div>`;
   return h;
 }
 
@@ -3855,7 +3867,7 @@ function renderSidePanel() {
 function loadLatestUpdatesTooltip() {
   const button = document.getElementById('btn-updates');
   if (!button || typeof fetch !== 'function' || typeof DOMParser !== 'function') return;
-  fetch('changelog.html?v=publish-20260909u12')
+  fetch('changelog.html?v=publish-20260909u13')
     .then(response => response.ok ? response.text() : Promise.reject(new Error('changelog unavailable')))
     .then(source => {
       const doc = new DOMParser().parseFromString(source, 'text/html');
@@ -4072,6 +4084,7 @@ function runAction(btn) {
     case 'research': attemptResearch(btn.dataset.id); render(); break;
     case 'queue-cancel': cancelQueue(btn.dataset.type, +btn.dataset.index); render(); break;
     case 'diplomacy-supply': supplyDiplomacyRequest(btn.dataset.tribe); render(); break;
+    case 'diplomacy-tab': state.diplomacyTab = btn.dataset.diplomacyTab === 'distant' ? 'distant' : 'nearby'; render(); break;
     case 'spy-hire': hireSpy(btn.dataset.tribe); render(); break;
     case 'espionage': beginEspionage(btn.dataset.tribe); render(); break;
     case 'raid': doRaid(btn.dataset.tribe, btn.dataset.stage); render(); break;
@@ -4270,6 +4283,7 @@ function boot() {
   state.achievements = state.achievements || {};
   state.shopTab = ['buy', 'purchased'].includes(state.shopTab) ? state.shopTab : 'buy';
   state.statsTab = ['stats', 'achievements', 'perks'].includes(state.statsTab) ? state.statsTab : 'stats';
+  state.diplomacyTab = ['nearby', 'distant'].includes(state.diplomacyTab) ? state.diplomacyTab : 'nearby';
   applySettings();
   state.tribesSeen = state.tribesSeen || { human: true };
   state.species = state.species || 'human';
