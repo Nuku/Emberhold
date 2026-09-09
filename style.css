@@ -89,7 +89,7 @@ header { grid-area: header; }
 #stores-panel .res-amount { white-space: nowrap; }
 #stores-panel .res-rate { grid-column: 1/-1; justify-self: end; margin: 0; padding: 0; font-size: 12px; }
 #stores-panel .has-tooltip::after { max-width: 250px; }
-#stores-panel .res-rate.has-tooltip::after { width: 250px; }
+#stores-panel .res-rate.has-tooltip::after { position: fixed; left: var(--stores-tooltip-left, 0px); right: auto; top: var(--stores-tooltip-top, 0px); width: 250px; }
 @media (min-width:821px) and (max-width:1100px) {
   .job-row { grid-template-columns: minmax(92px,1fr) auto auto; gap: 8px; }
   .job-rate { grid-column: 1/-1; grid-row: 2; }

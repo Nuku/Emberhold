@@ -2303,7 +2303,7 @@ function startGameClock() {
   // lose time; it only wakes the simulation to account for elapsed time.
   if (typeof Worker === 'function') {
     try {
-      gameClockWorker = new Worker('js/game-clock.worker.js?v=publish-20260909u15');
+      gameClockWorker = new Worker('js/game-clock.worker.js?v=publish-20260909u16');
       gameClockWorker.addEventListener('message', () => {
         updateGameClock(true);
         renderBonusTimer();
@@ -3935,7 +3935,7 @@ function renderSidePanel() {
 function loadLatestUpdatesTooltip() {
   const button = document.getElementById('btn-updates');
   if (!button || typeof fetch !== 'function' || typeof DOMParser !== 'function') return;
-  fetch('changelog.html?v=publish-20260909u15')
+  fetch('changelog.html?v=publish-20260909u16')
     .then(response => response.ok ? response.text() : Promise.reject(new Error('changelog unavailable')))
     .then(source => {
       const doc = new DOMParser().parseFromString(source, 'text/html');
@@ -4357,12 +4357,36 @@ document.addEventListener('pointerdown', (e) => {
 });
 
 document.addEventListener('mouseover', (e) => {
-  if (e.target.closest('.has-tooltip')) tooltipHover = true;
+  const tip = e.target.closest('.has-tooltip');
+  if (tip) {
+    tooltipHover = true;
+    positionStoresTooltip(tip);
+  }
 });
+document.addEventListener('focusin', (e) => {
+  const tip = e.target.closest('.has-tooltip');
+  if (tip) positionStoresTooltip(tip);
+});
+if (typeof window.addEventListener === 'function') {
+  window.addEventListener('resize', () => {
+    const tip = document.querySelector('#stores-panel .res-rate.has-tooltip:hover, #stores-panel .res-rate.has-tooltip:focus');
+    if (tip) positionStoresTooltip(tip);
+  });
+}
 document.addEventListener('mouseout', (e) => {
   const tip = e.target.closest('.has-tooltip');
   if (tip && !e.relatedTarget?.closest?.('.has-tooltip')) tooltipHover = false;
 });
+
+function positionStoresTooltip(tip) {
+  if (!tip.matches('#stores-panel .res-rate.has-tooltip')) return;
+  const rect = tip.getBoundingClientRect();
+  const width = 250;
+  const gutter = 8;
+  const left = Math.max(gutter, Math.min(rect.right - width, window.innerWidth - width - gutter));
+  document.getElementById('stores-panel')?.style.setProperty('--stores-tooltip-left', `${left}px`);
+  document.getElementById('stores-panel')?.style.setProperty('--stores-tooltip-top', `${rect.bottom}px`);
+}
 document.addEventListener('pointerup', () => {
   pointerDown = false;
   stopRepeating();
