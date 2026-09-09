@@ -24,7 +24,7 @@ header { display: grid; grid-template-columns: minmax(200px,1fr) minmax(330px,au
 #btn-updates.has-tooltip::after { left: auto; right: 0; max-width: min(330px, calc(100vw - 32px)); }
 button { border: 1px solid var(--border); border-radius: 6px; background: var(--panel-raised); color: var(--text); padding: 7px 12px; font: inherit; font-size: 12px; cursor: pointer; transition: border-color .16s,background .16s,color .16s,transform .16s; }
 button:hover:not(:disabled) { border-color: var(--amber); background: #29241d; color: var(--amber); transform: translateY(-1px); } button:disabled { opacity: .38; cursor: default; }
-nav#tabs { display: flex; gap: 4px; overflow-x: auto; padding: 14px 0 0; scrollbar-width: thin; }
+nav#tabs { display: flex; align-items: flex-start; gap: 4px; overflow-x: auto; padding: 14px 0 0; scrollbar-width: thin; }
 button.tab { flex: 0 0 auto; border: 0; border-bottom: 2px solid transparent; border-radius: 6px 6px 0 0; background: transparent; color: var(--dim); padding: 10px 14px 11px; font-size: 13px; }
 button.tab.active { border-bottom-color: var(--amber); background: rgba(242,164,71,.08); color: var(--amber); } button.tab:hover { background: rgba(242,164,71,.06); color: var(--amber); transform: none; }
 main { min-height: 420px; } .panel { padding: 28px 0 20px; } .hidden { display: none; }
@@ -81,7 +81,7 @@ body.tooltips-off .has-tooltip { cursor: inherit; } body.tooltips-off .has-toolt
 /* Persistent resource column alongside every tab. */
 #app { display: grid; grid-template-columns: 300px minmax(0,1fr); grid-template-areas: "header header" "stores tabs" "stores main" "stores log"; column-gap: 28px; }
 header { grid-area: header; }
-#tabs { grid-area: tabs; min-width: 0; }
+#tabs { grid-area: tabs; align-self: start; min-width: 0; }
 #main { grid-area: main; min-width: 0; }
 #log-panel { grid-area: log; min-width: 0; }
 #stores-panel { grid-area: stores; align-self: start; position: sticky; top: 16px; margin-top: 20px; padding: 16px 12px; max-height: calc(100dvh - 32px); overflow-y: auto; scrollbar-width: thin; border: 1px solid var(--border); border-radius: 9px; background: var(--bg-soft); box-shadow: var(--shadow); }
