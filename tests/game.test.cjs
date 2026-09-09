@@ -1067,6 +1067,20 @@ test('thinkers are limited to one more than the number of libraries', () => {
   assert.equal(run('state.jobs.thinker'), 3);
 });
 
+test('tinkerers are limited to one plus one per five woodcutters', () => {
+  const { run } = game();
+  run("state.trial = { id: 'tinkering' }; state.bld.workbench = 1; state.pop = 20");
+  assert.equal(run('jobCapacity("tinkerer")'), 1);
+  run('state.jobs.woodcutter = 4');
+  assert.equal(run('jobCapacity("tinkerer")'), 1);
+  run('state.jobs.woodcutter = 5');
+  assert.equal(run('jobCapacity("tinkerer")'), 2);
+  run('state.jobs.tinkerer = 20; reconcileWorkers()');
+  assert.equal(run('state.jobs.tinkerer'), 2);
+  run('state.jobs.woodcutter = 10; doAssign("tinkerer", 1)');
+  assert.equal(run('state.jobs.tinkerer'), 3);
+});
+
 test('advanced science unlocks uncapped instrument halls and hall-limited experimentalists', () => {
   const { run } = game();
   run(`state.techs.machineryTech = true; state.techs.writing = true; state.res.knowledge = 2200;
