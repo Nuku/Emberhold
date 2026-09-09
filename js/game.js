@@ -1823,9 +1823,9 @@ function guardHealingNeed() { return 90 * hospitalTimeMod(); }
 function logCategory(text) {
   const value = String(text).toLowerCase();
   if (/spy|espionage/.test(value)) return 'espionage';
+  if (/research complete|research completed|wonder research completed|technology/.test(value)) return 'research';
   if (/raid|attack|siege|guard|injur|killed|die|combat|riot/.test(value)) return 'combat';
   if (/queue|queued/.test(value)) return 'queue';
-  if (/research complete|research completed|wonder research completed|technology/.test(value)) return 'research';
   if (/completed \(\d+\)|build|built|construction|beacon/.test(value)) return 'building';
   if (/achievement/.test(value)) return 'achievements';
   if (/chronicle resumes|village has grown|era|migration|expedition returned|saved|imported|exported/.test(value)) return 'progress';

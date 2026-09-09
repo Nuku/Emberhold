@@ -780,6 +780,12 @@ test('Fertility Rites and Hospitals unlock, compound timers, and persist through
   assert.equal(run('state.pop'), 5);
 });
 
+test('research completion messages stay in the research log category', () => {
+  const { run } = game();
+  assert.equal(run("logCategory(`Research complete: ${TECH_BY_ID.get('hospital').name}. ${TECH_BY_ID.get('hospital').desc}`)"), 'research');
+  assert.equal(run("logCategory(`Research complete: ${TECH_BY_ID.get('trainingYard').name}. ${TECH_BY_ID.get('trainingYard').desc}`)"), 'research');
+});
+
 test('morale speeds or slows population growth and stacks with fertility bonuses', () => {
   const { run } = game();
   const neutral = run('popGrowthNeed()');
