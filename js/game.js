@@ -1815,9 +1815,9 @@ function logCategory(text) {
   if (/spy|espionage/.test(value)) return 'espionage';
   if (/raid|attack|siege|guard|injur|killed|die|combat|riot/.test(value)) return 'combat';
   if (/queue|queued/.test(value)) return 'queue';
-  if (/research|technology|knowledge/.test(value)) return 'research';
-  if (/build|built|construction|beacon/.test(value)) return 'building';
-  if (/complete|completed|grows|grown|era|migration|expedition returned|achievement|resumes|saved|imported|exported/.test(value)) return 'progress';
+  if (/research complete|research completed|wonder research completed|technology/.test(value)) return 'research';
+  if (/completed \(\d+\)|build|built|construction|beacon/.test(value)) return 'building';
+  if (/winter has come|spring returns|high summer|autumn|chronicle resumes|village has grown|grows|grown|era|migration|expedition returned|achievement|saved|imported|exported/.test(value)) return 'progress';
   return 'events';
 }
 
@@ -2248,7 +2248,7 @@ function startGameClock() {
   // lose time; it only wakes the simulation to account for elapsed time.
   if (typeof Worker === 'function') {
     try {
-      gameClockWorker = new Worker('js/game-clock.worker.js?v=publish-20260909u02');
+      gameClockWorker = new Worker('js/game-clock.worker.js?v=publish-20260909u03');
       gameClockWorker.addEventListener('message', () => {
         updateGameClock(true);
         renderBonusTimer();
@@ -3845,7 +3845,7 @@ function renderSidePanel() {
 function loadLatestUpdatesTooltip() {
   const button = document.getElementById('btn-updates');
   if (!button || typeof fetch !== 'function' || typeof DOMParser !== 'function') return;
-  fetch('changelog.html?v=publish-20260909u02')
+  fetch('changelog.html?v=publish-20260909u03')
     .then(response => response.ok ? response.text() : Promise.reject(new Error('changelog unavailable')))
     .then(source => {
       const doc = new DOMParser().parseFromString(source, 'text/html');
