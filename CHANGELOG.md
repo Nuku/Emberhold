@@ -4,6 +4,7 @@ All notable changes to Emberhold are recorded here, with the newest changes firs
 
 ## 2026-09-09
 
+- Adjusted beacon completion so the end-state banner no longer interrupts continued play.
 - Added Tree Husbandry research after the Aqueduct, increasing wood income by 20%; automation now prioritizes it when available.
 - Fixed factory recipe cards so production rates and material costs use the game's compact number formatting.
 - Added the Steel Hearted achievement: holding 1,000 Steel grants +20% Steel production from factories and Forges.

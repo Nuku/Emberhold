@@ -2419,10 +2419,6 @@ function doBuild(id) {
     state.won = true;
     state.beaconsLit = state.beaconsLit || {};
     state.beaconsLit[state.landing] = true;
-    addLog('THE BEACON BURNS. A light on the horizon that no darkness in the chronicle can name. The story of Emberhold is told — and it is not over.', 'log-important');
-    document.getElementById('banner').textContent =
-      '✦ THE BEACON BURNS — Emberhold endures. You may keep playing. ✦';
-    document.getElementById('banner').classList.remove('hidden');
   }
   return true;
 }
@@ -4289,11 +4285,6 @@ function boot() {
   } else {
     addLog('A handful of survivors halts in the shelter of a burnt palisade. They name the place Emberhold.', 'log-important');
     addLog('Assign Foragers and Woodcutters below, keep food in the store, and raise Huts as children arrive. Knowledge is written in Libraries, and every store has a ceiling the Storehouse raises.', '');
-  }
-  if (state.won) {
-    document.getElementById('banner').textContent =
-      '✦ THE BEACON BURNS — Emberhold endures. You may keep playing. ✦';
-    document.getElementById('banner').classList.remove('hidden');
   }
   document.getElementById('btn-save').addEventListener('click', () => { saveGame(); render(); });
   document.getElementById('btn-pause').addEventListener('click', togglePause);
