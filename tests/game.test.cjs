@@ -564,6 +564,23 @@ test('migration shop separates available upgrades from fully purchased ones', ()
   assert.doesNotMatch(run('renderShop()'), /Wandering Kin/);
 });
 
+test('Clever Storage is an uncapped, increasingly expensive Echo upgrade', () => {
+  const { run } = game();
+  run(`state.migrating = true; state.echoes = 3; state.res.currency = 0;
+    migrationBuy('cleverStorage'); migrationBuy('cleverStorage'); migrationBuy('cleverStorage');`);
+  assert.equal(run("upg('cleverStorage')"), 2, 'the first two levels cost 1 and 2 Echoes');
+  assert.equal(run('state.echoes'), 0);
+  assert.equal(run('capacityOf("food")'), 204);
+  assert.equal(run('capacityOf("currency")'), 2040);
+  run('state.echoes = 4');
+  assert.match(run('renderShop()'), /Clever Storage/);
+  run('migrationBuy("cleverStorage")');
+  assert.equal(run("upg('cleverStorage')"), 3, 'the next level costs 4 Echoes');
+  run('migrationRefund("cleverStorage")');
+  assert.equal(run('state.echoes'), 4);
+  assert.equal(run("upg('cleverStorage')"), 2);
+});
+
 test('multiple local tribes can be active at once', () => {
   const { run } = game();
   run(`state.techs = { currency: true, diplomacy: true };
@@ -679,7 +696,11 @@ test('successful sieges unlock conquest and conquered realms become allies', () 
   run('state.res.food = 10; updateMorale(1, 0)');
   assert.equal(run('state.morale'), run('69 + dailyWeather().morale'));
   assert.equal(run('alliedTribes()'), 1);
-  assert.match(run('renderDiplomacy()'), /CONQUERED/);
+  const diplomacy = run('renderDiplomacy()');
+  assert.match(diplomacy, /CONQUERED/);
+  assert.doesNotMatch(diplomacy, /Relations are strained/);
+  assert.doesNotMatch(diplomacy, /Spies stationed/);
+  assert.doesNotMatch(diplomacy, /Assign Diplomat/);
 
   run(`state.tradePartner = 'clocklings'; ensureDiplomacyEntry('clocklings');
     state.diplomacy.clocklings.disposition = -50; state.diplomacy.clocklings.conquered = true;

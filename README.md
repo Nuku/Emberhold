@@ -284,6 +284,7 @@ are rolled and locked immediately, then "Set out" founds the new Emberhold.
 
 Shop upgrades: Deep Roots (+5% all production ×5), Wandering Kin (+2 starting
 villagers and +2 population cap ×5), Grand Designs (+1 Hut cap ×3), Deep Cellars (+15% storage ×3),
+Clever Storage (+1% all storage per level, with an uncapped rising Echo cost),
 Lorekeepers (start with Library + Knowledge), Pack Caravans (start with
 supplies), Oathkeepers (repeatable trials +1 use each), Old Maps (expeditions
 −25% cost).

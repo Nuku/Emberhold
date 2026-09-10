@@ -4,6 +4,7 @@ All notable changes to Emberhold are recorded here, with the newest changes firs
 
 ## 2026-09-10
 
+- Added the uncapped Clever Storage Ancestral Shop upgrade: each level adds 1% to all storage, with costs starting at 1 Echo and doubling per level.
 - Conquest now requires 15 healthy Guards plus 200 Food and 10 Tools; the diplomacy UI shows the cost and marks conquered realms clearly.
 - Exposed the current conquest cost through the automation API and included it in successful conquest results.
 - Fixed the desktop Stores panel so it fills the available height and keeps scrolling contained within its own panel.

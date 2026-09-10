@@ -165,6 +165,7 @@ function solarPowerAvailable() { return wonderChoice('emberplain', 'restore') &&
   ['steamPlant', 'dynamo', 'windDevice', 'livingBlock', 'factory'].some(id => bld(id) > 0); }
 function trialCount(id) { return state.trialDone[id] || 0; }
 function upg(id) { return state.upgrades[id] || 0; }
+function upgradeCost(def, level) { return def.cost ? def.cost(level) : def.costs[level]; }
 function civicDef(id) { return CIVIC_BY_ID.get(id) || CIVICS[0]; }
 function governorDef(id) { return GOVERNOR_BY_ID.get(id); }
 function councilorDef(id) { return COUNCILOR_BY_ID.get(id); }
@@ -884,7 +885,8 @@ function conquestTrialAvailable() {
 
 // ---------- storage ----------
 function currencyCapacity(jobs = state?.jobs) {
-  return Math.ceil(CURRENCY_BASE_CAP * (1 + 0.10 * (jobs?.banker || 0)));
+  const storageBonus = state?.trial?.id === 'overflow' ? 1 : 1 + 0.01 * upg('cleverStorage');
+  return Math.ceil(CURRENCY_BASE_CAP * (1 + 0.10 * (jobs?.banker || 0)) * storageBonus);
 }
 
 function capacityOf(id) {
@@ -897,6 +899,7 @@ function capacityOf(id) {
   const governanceStorage = overflowActive ? 1 : governanceStorageMod();
   return Math.ceil((s.base + s.per * bld(s.bld)) *
     permanentStorage * runStorage * governanceStorage *
+    (overflowActive ? 1 : 1 + 0.01 * upg('cleverStorage')) *
     (overflowActive ? trialDifficulty('overflow') : 1));
 }
 function isFull(id) { return state.res[id] >= capacityOf(id) - 0.001; }
@@ -2194,7 +2197,7 @@ function migrationBuy(id) {
   if (id === 'animalHusbandry' && !animalHusbandryAvailable()) return;
   const lvl = upg(id);
   if (lvl >= def.max) return;
-  const cost = def.costs[lvl];
+  const cost = upgradeCost(def, lvl);
   if (state.echoes < cost) return;
   state.echoes -= cost;
   state.upgrades[id] = lvl + 1;
@@ -2217,13 +2220,14 @@ function migrationRefund(id) {
   if (lvl <= 0) return;
   state.upgrades[id] = lvl - 1;
   if (state.upgrades[id] === 0) delete state.upgrades[id];
-  state.echoes += def.costs[lvl - 1];
+  state.echoes += upgradeCost(def, lvl - 1);
 }
 
 function totalMigrationEchoes() {
   return state.echoes + UPGRADES.reduce((total, u) => {
-    const levels = Math.min(upg(u.id), u.costs.length);
-    return total + u.costs.slice(0, levels).reduce((spent, cost) => spent + cost, 0);
+    const levels = upg(u.id);
+    return total + Array.from({ length: levels }, (_, level) => upgradeCost(u, level))
+      .reduce((spent, cost) => spent + cost, 0);
   }, 0);
 }
 
@@ -3586,11 +3590,11 @@ function renderDiplomacy() {
       `<div class="res-note">Military strength: ${entry.militaryKnown ? Math.round(militaryStrength(entry)) : 'unknown'} · Economic strength: ${entry.economicKnown ? Math.round(economicStrength(entry)) : 'unknown'}</div>` +
       `<div class="trial-reward">${lineageDef(id).name} lineage traits: ${lineageTraitsHtml(lineageDef(id))}. ${lineageUnlocked(id) ? 'Unlocked for future migrations.' : 'Migrate with disposition 80+ to unlock for future migrations.'}</div>` +
       (local && (entry.disposition >= 80 || entry.conquered) ? `<div class="trial-reward">Active ally: +${Math.round(alliedIncomeBonus() * 1000) / 10}% to all village incomes.</div>` : '') +
-      (local && entry.disposition < 0 ? `<div class="trial-mod">Relations are strained: the ${tribe.name} may raid the village.</div>` : '') +
+      (local && !entry.conquered && entry.disposition < 0 ? `<div class="trial-mod">Relations are strained: the ${tribe.name} may raid the village.</div>` : '') +
       (local && !entry.conquered ? `<div class="trial-goal">${diplomacyRequestText(tribe, entry)}</div>` : local ? '<div class="res-note">This realm is under Emberhold rule; it no longer sends diplomatic requests.</div>' : '<div class="res-note">Only a few nice letters can reach them for now.</div>') +
       (local && !entry.conquered ? `<div class="card-cost">offer: ${costHtml(requestCost)} — +15 relations</div>` : '') +
       (local && !entry.conquered ? `<div class="card-actions"><button data-action="diplomacy-supply" data-tribe="${id}" ${canSupply ? '' : 'disabled'}>Supply the request</button></div>` : '');
-    if (local && tech('spies')) {
+    if (local && tech('spies') && !entry.conquered) {
       const spyTraining = state.spyTraining?.target === id;
       const spyCost = spyTrainingCost(id);
       const canHire = !state.spyTraining && canAfford(spyCost);
@@ -3625,7 +3629,7 @@ function renderDiplomacy() {
         }
       }
     }
-    if (local && tech('diplomacy') && !conquestTrialRelationsLocked()) {
+    if (local && tech('diplomacy') && !entry.conquered && !conquestTrialRelationsLocked()) {
       h += `<div class="res-note">${JOBS.diplomat.name}s assigned: ${diplomatCount(id)} — each adds +3 relations per minute</div>` +
         `<div class="card-actions"><button data-action="diplomat-dec" data-tribe="${id}" ${diplomatCount(id) > 0 ? '' : 'disabled'}>−</button> ` +
         `<button data-action="diplomat-inc" data-tribe="${id}" ${unassigned() > 0 ? '' : 'disabled'}>Assign Diplomat</button></div>`;
@@ -3929,7 +3933,7 @@ function renderShop() {
     if (u.id === 'animalHusbandry' && !animalHusbandryAvailable()) continue;
     const lvl = upg(u.id);
     const maxed = lvl >= u.max;
-    const nextCost = maxed ? null : u.costs[lvl];
+    const nextCost = maxed ? null : upgradeCost(u, lvl);
     if (state.migrating && !maxed && nextCost > totalMigrationEchoes()) continue;
     const card = `<div class="card ${maxed ? 'done' : ''}"><div class="card-head">` +
       `<span class="card-title has-tooltip" data-tooltip="${attrText(u.desc)}">${u.name}</span>` +
