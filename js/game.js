@@ -2313,7 +2313,7 @@ function startGameClock() {
   // lose time; it only wakes the simulation to account for elapsed time.
   if (typeof Worker === 'function') {
     try {
-      gameClockWorker = new Worker('js/game-clock.worker.js?v=publish-20260909u17');
+      gameClockWorker = new Worker('js/game-clock.worker.js?v=publish-20260909u18');
       gameClockWorker.addEventListener('message', () => {
         updateGameClock(true);
         renderBonusTimer();
@@ -3198,8 +3198,9 @@ function renderHeader() {
   const year = Math.floor(state.day / DAYS_PER_YEAR) + 1;
   const traitLabels = currentPlaceTraits().map(trait =>
     `<span class="has-tooltip" tabindex="0" data-tooltip="${attrText(placeTraitTooltip(trait))}">${esc(trait.name)}</span>`).join(', ');
+  document.getElementById('location-line').textContent = landingDef().name;
   document.getElementById('era-line').innerHTML =
-    `Year ${year} of the ${esc(ERAS[state.era - 1].name)} — ${esc(landingDef().name)}${traitLabels ? ` (${traitLabels})` : ''} — ${esc(lineageDef(state.species).name)}`;
+    `Year ${year} of the ${esc(ERAS[state.era - 1].name)}${traitLabels ? ` — ${traitLabels}` : ''} — ${esc(lineageDef(state.species).name)}`;
   document.getElementById('time-line').textContent =
     `${state.paused ? 'Paused · ' : ''}Day ${doy % DAYS_PER_SEASON + 1} of ${season} — chronicle day ${Math.floor(state.day)} — ${weatherSummary()}`;
   document.getElementById('pop-line').textContent =
@@ -3945,7 +3946,7 @@ function renderSidePanel() {
 function loadLatestUpdatesTooltip() {
   const button = document.getElementById('btn-updates');
   if (!button || typeof fetch !== 'function' || typeof DOMParser !== 'function') return;
-  fetch('changelog.html?v=publish-20260909u17')
+  fetch('changelog.html?v=publish-20260909u18')
     .then(response => response.ok ? response.text() : Promise.reject(new Error('changelog unavailable')))
     .then(source => {
       const doc = new DOMParser().parseFromString(source, 'text/html');

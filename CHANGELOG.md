@@ -4,6 +4,8 @@ All notable changes to Emberhold are recorded here, with the newest changes firs
 
 ## 2026-09-09
 
+- Added a dedicated location line beneath the Emberhold title so the current landing remains visible while the chronicle details stay focused on era, lineage, and place traits.
+- Updated the desktop layout to keep the header and utility rail fixed while the Stores, main, and side panels scroll independently; mobile layouts retain natural page scrolling.
 - Increased Knowledge costs 15× for research discovered after the Stone Age so later technologies better match the game's progression curve.
 - Fixed Stores production-rate tooltips so they remain visible within the viewport when hovered or focused.
 - Expanded the automation API with structured combat and espionage actions, guard deployment limits, attack/siege predictions, conquerability state, and live military/espionage intel fields.
