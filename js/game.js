@@ -880,7 +880,7 @@ function conquestTrialAvailable() {
 
 // ---------- storage ----------
 function currencyCapacity() {
-  return CURRENCY_BASE_CAP;
+  return Math.ceil(CURRENCY_BASE_CAP * (1 + 0.10 * (state.jobs.banker || 0)));
 }
 
 function capacityOf(id) {
@@ -2343,7 +2343,7 @@ function startGameClock() {
   // lose time; it only wakes the simulation to account for elapsed time.
   if (typeof Worker === 'function') {
     try {
-      gameClockWorker = new Worker('js/game-clock.worker.js?v=publish-20260909u23');
+      gameClockWorker = new Worker('js/game-clock.worker.js?v=publish-20260909u24');
       gameClockWorker.addEventListener('message', () => {
         updateGameClock(true);
         renderBonusTimer();
@@ -3983,7 +3983,7 @@ function renderSidePanel() {
 function loadLatestUpdatesTooltip() {
   const button = document.getElementById('btn-updates');
   if (!button || typeof fetch !== 'function' || typeof DOMParser !== 'function') return;
-  fetch('changelog.html?v=publish-20260909u23')
+  fetch('changelog.html?v=publish-20260909u24')
     .then(response => response.ok ? response.text() : Promise.reject(new Error('changelog unavailable')))
     .then(source => {
       const doc = new DOMParser().parseFromString(source, 'text/html');

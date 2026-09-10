@@ -37,6 +37,9 @@ test('paused real-time clock does not advance or bank time', () => {
 test('currency uses a 2000 base cap and does not accumulate past it', () => {
   const { run } = game();
   assert.equal(run('capacityOf("currency")'), 2000);
+  run('state.jobs.banker = 2');
+  assert.equal(run('capacityOf("currency")'), 2400);
+  run('state.jobs.banker = 0');
   run(`state.techs.currency = true; state.seen.currency = true;
     state.res.currency = 1999; tickStep(100);`);
   assert.equal(run('state.res.currency'), 2000);

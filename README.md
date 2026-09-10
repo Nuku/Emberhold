@@ -143,7 +143,8 @@ invalid imports, storage failures, and offline time accounting.
   Machinery all raise production everywhere; Frugality/Blueprints cut
   building costs.
 - **Capped stores.** Every store except Knowledge and Power has a ceiling;
-  Currency starts with a 2,000-unit cap. Material stores have ceilings raised
+  Currency starts with a 2,000-unit cap and each Banker raises it by 10%.
+  Material stores have ceilings raised
   by buildings and upgrades, and surplus
   flowing into a full store is wasted. The **Storehouse** (wood, costs that
   multiply ×2.1 each) raises food/wood/stone/tools capacity; the **Deep
