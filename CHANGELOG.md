@@ -4,6 +4,7 @@ All notable changes to Emberhold are recorded here, with the newest changes firs
 
 ## 2026-09-09
 
+- Added live morale telemetry to the automation API, including the aggregate rate, current cap, component pressures, and marginal effects for supported jobs and settlement factors.
 - Fixed Currency save normalization so Banker capacity bonuses are preserved when loading a save before the active state is assigned.
 - Bankers now increase Currency capacity by 10% each, starting from the 2,000-unit base cap.
 - Added a 2,000-unit base cap for Currency, including save normalization and overflow-safe production.

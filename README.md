@@ -192,6 +192,22 @@ Changes refresh the UI and emit the standard action event. Enabled counts are
 saved; active counts reflect current supply. Returned snapshots are detached
 from game state and are calculated immediately, without waiting for a tick.
 
+### Morale telemetry API
+
+`window.emberhold.helpers.morale()` returns the live morale value, ceiling,
+current rate in morale per second, and detached component values:
+
+```js
+const morale = window.emberhold.helpers.morale();
+// { value, max, rate, pressures: [{ id, label, count?, rate }] }
+```
+
+`moraleRate()` and `moraleBreakdown()` provide the aggregate and component
+values directly. `marginalMorale('performer')` returns the current per-unit
+effect of adding one performer. These values remain available when morale is
+clamped at zero and describe ongoing rates only; one-time event changes are
+reported through the normal event log and action state updates.
+
 ### Combat and espionage API
 
 The diplomacy records in `api.getState().diplomacy[id]` include the saved fields

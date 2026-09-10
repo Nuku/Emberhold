@@ -1371,55 +1371,73 @@ function moraleLabel() {
 function crowdMoralePenalty() {
   return Math.max(0, state.pop - 20) * 0.01;
 }
-function moraleTooltip(foodRate = production(0.25).food) {
+function moralePressures(foodRate = production(0.25).food) {
   const weather = dailyWeather();
   const season = SEASONS[seasonIndex()].name;
+  const pressures = [];
+  const add = (id, label, rate, count) => {
+    const pressure = { id, label, rate };
+    if (count !== undefined) pressure.count = count;
+    pressures.push(pressure);
+  };
+  add('weather', `${weather.name} weather`, weather.morale);
+  const foodRateValue = state.res.food <= 0.0001 ? -0.22 : foodRate < 0 ? -0.025 : state.res.food > 20 ? (state.morale < 70 ? 0.035 : -0.008) : 0;
+  add('foodStores', state.res.food <= 0.0001 ? 'Empty food stores' : foodRate < 0 ? 'Food production falling short' : 'Secure food stores', foodRateValue);
+  add('season', season, season === 'Winter' ? -0.006 : season === 'Summer' ? 0.006 : 0);
+  add('shrine', 'Shrines', bld('shrine') > 0 && state.morale < 75 ? 0.012 : 0, bld('shrine'));
+  add('hospital', 'Hospitals', bld('hospital') > 0 && state.morale < 50 ? 0.01 : 0, bld('hospital'));
+  add('performers', 'Performers', performerCount() * 0.10, performerCount());
+  const activeLivingBlocks = powerAllocation().livingBlock;
+  add('livingBlocks', 'Living Blocks', -activeLivingBlocks * 0.1, activeLivingBlocks);
+  const beyond20 = Math.max(0, state.pop - 20);
+  add('population', 'Villagers beyond 20', -crowdMoralePenalty(), beyond20);
+  const fullCrews = Object.keys(JOBS).filter(workplaceEthicsFull).length;
+  add('workplaceEthics', 'Workplace Ethics full mining crews', -fullCrews * 0.15, fullCrews);
+  for (const trait of currentPlaceTraits()) add(`placeTrait:${trait.id}`, trait.name, trait.morale || 0);
+  add('airOfRage', 'Air of Rage', airOfRageMorale());
+  add('rapture', 'Rapture workers fleeing back to town', (state.raptureFleeMoraleT || 0) > 0 ? -3 : 0);
+  const conquered = localTribeIds().filter(id => state.diplomacy?.[id]?.conquered && !commonalityActive()).length;
+  add('conqueredTowns', 'Conquered towns', -conquered, conquered);
+  return pressures;
+}
+function moraleBreakdown(foodRate = production(0.25).food) {
+  return moralePressures(foodRate).map(pressure => ({ ...pressure }));
+}
+function moraleRate(foodRate = production(0.25).food) {
+  return moralePressures(foodRate).reduce((sum, pressure) => sum + pressure.rate, 0);
+}
+function moraleTelemetry() {
+  return { value: Number(state.morale) || 0, max: moraleCap(), rate: moraleRate(), pressures: moraleBreakdown() };
+}
+function marginalMorale(id) {
+  const aliases = { performer: 'performers', performers: 'performers', villager: 'population', population: 'population', workplaceEthics: 'workplaceEthics' };
+  const key = aliases[id] || id;
+  if (key === 'performers') return 0.10;
+  if (key === 'population') return -0.01;
+  if (key === 'workplaceEthics') return -0.15;
+  if (key === 'livingBlocks') return -0.10;
+  if (key === 'conqueredTowns') return -1;
+  return moralePressures().find(pressure => pressure.id === key)?.rate || 0;
+}
+function moraleTooltip(foodRate = production(0.25).food) {
+  const weather = dailyWeather();
   const up = [];
   const down = [];
-  const add = (amount, label) => {
-    if (amount > 0) up.push(`+${amount.toFixed(3)} morale/s — ${label}`);
-    else if (amount < 0) down.push(`−${Math.abs(amount).toFixed(3)} morale/s — ${label}`);
-  };
-  add(weather.morale, `${weather.name} weather`);
-  if (state.res.food <= 0.0001) add(-0.22, 'food store empty');
-  else if (foodRate < 0) add(-0.025, 'food production is falling short');
-  else if (state.res.food > 20) add(state.morale < 70 ? 0.035 : -0.008, state.morale < 70 ? 'secure food stores' : 'secure food stores at high morale');
-  if (season === 'Winter') add(-0.006, 'winter');
-  if (season === 'Summer') add(0.006, 'summer');
-  if (bld('shrine') > 0 && state.morale < 75) add(0.012, 'Shrine');
-  if (bld('hospital') > 0 && state.morale < 50) add(0.01, 'Hospital');
-  add(performerCount() * 0.10, `${performerCount()} Performer${performerCount() === 1 ? '' : 's'}`);
-  const activeLivingBlocks = powerAllocation().livingBlock;
-  add(-activeLivingBlocks * 0.1, `${activeLivingBlocks} Living Block${activeLivingBlocks === 1 ? '' : 's'}`);
-  add(-crowdMoralePenalty(), `${Math.max(0, state.pop - 20)} villager${Math.max(0, state.pop - 20) === 1 ? '' : 's'} beyond 20`);
-  add(-workplaceEthicsMoralePenalty(), 'Workplace Ethics full mining crews');
-  for (const trait of currentPlaceTraits()) add(trait.morale || 0, trait.name);
-  add(airOfRageMorale(), 'Air of Rage');
-  if ((state.raptureFleeMoraleT || 0) > 0) add(-3, 'Rapture workers fleeing back to town');
-  const conquered = localTribeIds().filter(id => state.diplomacy?.[id]?.conquered && !commonalityActive()).length;
-  add(-conquered, conquered === 1 ? 'conquered town' : `${conquered} conquered towns`);
+  for (const pressure of moralePressures(foodRate)) {
+    const { rate, label } = pressure;
+    const displayLabel = pressure.id === 'population' ? `${pressure.count} villager${pressure.count === 1 ? '' : 's'} beyond 20` :
+      pressure.id === 'performers' ? `${pressure.count} Performer${pressure.count === 1 ? '' : 's'}` :
+      pressure.id === 'livingBlocks' ? `${pressure.count} Living Block${pressure.count === 1 ? '' : 's'}` :
+      pressure.id === 'conqueredTowns' ? `${pressure.count} conquered town${pressure.count === 1 ? '' : 's'}` : label;
+    if (rate > 0) up.push(`+${rate.toFixed(3)} morale/s — ${displayLabel}`);
+    else if (rate < 0) down.push(`−${Math.abs(rate).toFixed(3)} morale/s — ${displayLabel}`);
+  }
   const weatherNote = weather.morale ? `${weather.name} weather` : `${weather.name} weather — no morale pressure`;
   return ['Current morale pressures', `Weather: ${weatherNote}`, '', 'Up:', ...(up.length ? up : ['None']), '', 'Down:', ...(down.length ? down : ['None'])].join('\n');
 }
 function updateMorale(dt, foodRate) {
-  const season = SEASONS[seasonIndex()].name;
-  let delta = dailyWeather().morale;
-  if (state.res.food <= 0.0001) delta -= 0.22;
-  else if (foodRate < 0) delta -= 0.025;
-  else if (state.res.food > 20) delta += state.morale < 70 ? 0.035 : -0.008;
-  if (season === 'Winter') delta -= 0.006;
-  if (season === 'Summer') delta += 0.006;
-  if (bld('shrine') > 0) delta += state.morale < 75 ? 0.012 : 0;
-  if (bld('hospital') > 0 && state.morale < 50) delta += 0.01;
-  delta += performerCount() * 0.10;
-  delta -= powerAllocation().livingBlock * 0.1;
-  delta -= crowdMoralePenalty();
-  delta -= workplaceEthicsMoralePenalty();
-  delta -= localTribeIds().filter(id => state.diplomacy?.[id]?.conquered && !commonalityActive()).length;
-  delta += currentPlaceTraits().reduce((sum, trait) => sum + (trait.morale || 0), 0);
-  delta += airOfRageMorale();
+  const delta = moraleRate(foodRate);
   if ((state.raptureFleeMoraleT || 0) > 0) {
-    delta -= 3;
     state.raptureFleeMoraleT = Math.max(0, state.raptureFleeMoraleT - dt);
   }
   const before = moraleBand(state.morale);
@@ -3983,7 +4001,7 @@ function renderSidePanel() {
 function loadLatestUpdatesTooltip() {
   const button = document.getElementById('btn-updates');
   if (!button || typeof fetch !== 'function' || typeof DOMParser !== 'function') return;
-  fetch('changelog.html?v=publish-20260909u24')
+  fetch('changelog.html?v=publish-20260909u27')
     .then(response => response.ok ? response.text() : Promise.reject(new Error('changelog unavailable')))
     .then(source => {
       const doc = new DOMParser().parseFromString(source, 'text/html');
@@ -4180,6 +4198,10 @@ window.emberhold = {
     jobProduction,
     jobCapacity,
     queueDemand,
+    morale: moraleTelemetry,
+    moraleRate,
+    moraleBreakdown,
+    marginalMorale,
     researchCost,
     tech,
     trialActive,

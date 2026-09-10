@@ -1722,6 +1722,24 @@ test('crowding applies a stacking morale penalty beyond 20 villagers', () => {
   assert.match(run('moraleTooltip()'), /3 villagers beyond 20/);
 });
 
+test('morale telemetry exposes live aggregate and component rates at the clamp', () => {
+  const { run } = game();
+  run(`state.morale = 0; state.res.food = 0; state.pop = 25; state.jobs.performer = 2;
+    state.techs.civics = true; state.techs.civicHarmony = true; state.techs.workplaceEthics = true;
+    state.bld.quarry = 1; state.jobs.miner = 2;`);
+  const telemetry = run('window.emberhold.helpers.morale()');
+  assert.equal(telemetry.value, 0);
+  assert.equal(telemetry.max, 120);
+  assert.ok(telemetry.rate < 0);
+  assert.equal(telemetry.rate, run('window.emberhold.helpers.moraleRate()'));
+  assert.equal(telemetry.pressures.find(p => p.id === 'population').count, 5);
+  assert.equal(telemetry.pressures.find(p => p.id === 'performers').rate, 0.2);
+  assert.equal(run('window.emberhold.helpers.marginalMorale("performer")'), 0.1);
+  const before = telemetry.rate;
+  run('state.randomEventT = 60; state.randomEventNext = 60; Math.random = () => 0; updateRandomEvents(0)');
+  assert.equal(run('window.emberhold.helpers.moraleRate()'), before);
+});
+
 test('Forge input costs are not scaled by expedition production bonuses', () => {
   const { run } = game();
   run(`state.bld.forge = 1; state.techs.metallurgy = true;
