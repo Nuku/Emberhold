@@ -34,6 +34,16 @@ test('paused real-time clock does not advance or bank time', () => {
   assert.equal(run('lastGameAt'), 6000);
 });
 
+test('currency uses a 2000 base cap and does not accumulate past it', () => {
+  const { run } = game();
+  assert.equal(run('capacityOf("currency")'), 2000);
+  run(`state.techs.currency = true; state.seen.currency = true;
+    state.res.currency = 1999; tickStep(100);`);
+  assert.equal(run('state.res.currency'), 2000);
+  run('tickStep(100)');
+  assert.equal(run('state.res.currency'), 2000);
+});
+
 test('tutorial next-step card can be dismissed permanently', () => {
   const { run } = game();
   run('state.jobs.forager = state.pop');

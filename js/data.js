@@ -42,6 +42,7 @@ const LIVING_BLOCK_POWER_REQUIREMENT = 1;
 const INDUSTRIALIZATION_COAL_MULTIPLIER = 0.2;
 const INDUSTRIALIZATION_RIOT_CHANCE = 0.2;
 const INDUSTRIALIZATION_RIOT_LOSS = [0.10, 0.25];
+const CURRENCY_BASE_CAP = 2000;
 
 // --- eras ---
 const ERAS = [
@@ -53,7 +54,8 @@ const ERAS = [
 ];
 const ERA_GATE = { stoneWorking: 2, metallurgy: 3, machineryTech: 4, astronomy: 5 };
 
-// --- storage: every store except knowledge has a ceiling.
+// --- storage: material stores use building-based ceilings; Currency has its
+// own base cap so it can gain separate modifiers later.
 // capacity = (base + per * buildingLevel) * (1 + 0.2 per Overflow completion)
 const STORAGE = {
   food:      { base: 200, per: 400, bld: 'storehouse' },

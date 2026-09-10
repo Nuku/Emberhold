@@ -4,6 +4,8 @@ All notable changes to Emberhold are recorded here, with the newest changes firs
 
 ## 2026-09-09
 
+- Added a 2,000-unit base cap for Currency, including save normalization and overflow-safe production.
+- Updated storage guidance throughout the game and README to reflect Currency's cap alongside material-store ceilings.
 - Added Workplace Ethics after Civic Harmony: mining jobs gain one additional slot, full mining crews produce 10% more, and each full crew applies a −0.15 morale/s penalty.
 - Prevented one-off buildings from being queued more than once, and cleaned duplicate or already-completed entries from loaded construction queues.
 - Fixed Dynamos so their factory production bonus increases output without multiplying the factory's material consumption.

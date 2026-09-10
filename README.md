@@ -142,8 +142,9 @@ invalid imports, storage failures, and offline time accounting.
 - **Compounding back-path ease.** Tools, Tinkerers, Shrines, Factories and stored
   Machinery all raise production everywhere; Frugality/Blueprints cut
   building costs.
-- **Capped stores.** Every store except Knowledge, Currency, Power, and
-  Industrial Goods has a ceiling; surplus
+- **Capped stores.** Every store except Knowledge and Power has a ceiling;
+  Currency starts with a 2,000-unit cap. Material stores have ceilings raised
+  by buildings and upgrades, and surplus
   flowing into a full store is wasted. The **Storehouse** (wood, costs that
   multiply ×2.1 each) raises food/wood/stone/tools capacity; the **Deep
   Store** (Age of Iron) covers iron/coal/steel; the **Vault** (Age of Steam)

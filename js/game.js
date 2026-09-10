@@ -879,7 +879,12 @@ function conquestTrialAvailable() {
 }
 
 // ---------- storage ----------
+function currencyCapacity() {
+  return CURRENCY_BASE_CAP;
+}
+
 function capacityOf(id) {
+  if (id === 'currency') return currencyCapacity();
   const s = STORAGE[id];
   if (!s) return Infinity; // knowledge
   const overflowActive = trialActive('overflow');
@@ -1439,8 +1444,8 @@ function randomRange(pair) {
 }
 function randomEventResourceAmount(resource, pair) {
   const storage = STORAGE[resource];
-  // Currency has no storage ceiling, so scale setbacks with the settlement's
-  // current holdings instead of leaving them permanently stuck at starter size.
+  // Currency has no material storage scaling, so scale setbacks with the
+  // settlement's current holdings instead of leaving them stuck at starter size.
   const scale = storage ? capacityOf(resource) / storage.base
     : resource === 'currency' ? Math.max(1, state.res.currency / 100) : 1;
   return Math.round(randomRange(pair) * scale);
@@ -2338,7 +2343,7 @@ function startGameClock() {
   // lose time; it only wakes the simulation to account for elapsed time.
   if (typeof Worker === 'function') {
     try {
-      gameClockWorker = new Worker('js/game-clock.worker.js?v=publish-20260909u22');
+      gameClockWorker = new Worker('js/game-clock.worker.js?v=publish-20260909u23');
       gameClockWorker.addEventListener('message', () => {
         updateGameClock(true);
         renderBonusTimer();
@@ -2908,6 +2913,7 @@ function normalizeSave(s) {
     return true;
   });
   for (const r of RESOURCES) if (s.res[r.id] === undefined) s.res[r.id] = 0;
+  s.res.currency = Math.min(currencyCapacity(), s.res.currency);
   s.beaconsLit = Object.fromEntries(Object.entries(s.beaconsLit || {})
     .filter(([id, lit]) => LANDING_BY_ID.has(id) && lit === true));
   s.beaconRevisited = Object.fromEntries(Object.entries(s.beaconRevisited || {})
@@ -3385,7 +3391,7 @@ function renderVillage() {
       `<div class="res-row"><span class="res-name">Guards</span><span class="res-amount">${guards} / ${guardCap()} (${Math.floor(ableGuards())} able)</span><span class="res-rate">${recruitment}</span></div>` +
       `<div class="res-note">Guards recruit automatically, one every ${fmt(1 / guardRecruitmentRate())} seconds, and replace losses up to barracks capacity. They use no villager assignments or population housing. Build Barracks to raise their capacity.</div>`;
   }
-  h += `<div class="res-note" style="margin-top:6px">Every villager eats ${fmt(FOOD_PER_POP)} food/s, working or not. Each Guard requires ${fmt(JOBS.guard.upkeep)} food/s, but their hunting is not reduced by winter. Weaponry and Leather Armor research strengthen the watch; injuries heal over time. Every store but Knowledge and Currency has a ceiling — what flows in past a full store is wasted. Storehouses raise the ceilings.</div>`;
+  h += `<div class="res-note" style="margin-top:6px">Every villager eats ${fmt(FOOD_PER_POP)} food/s, working or not. Each Guard requires ${fmt(JOBS.guard.upkeep)} food/s, but their hunting is not reduced by winter. Weaponry and Leather Armor research strengthen the watch; injuries heal over time. Every store has a ceiling — what flows in past a full store is wasted. Storehouses raise most material ceilings.</div>`;
 
   return h;
 }
@@ -3977,7 +3983,7 @@ function renderSidePanel() {
 function loadLatestUpdatesTooltip() {
   const button = document.getElementById('btn-updates');
   if (!button || typeof fetch !== 'function' || typeof DOMParser !== 'function') return;
-  fetch('changelog.html?v=publish-20260909u22')
+  fetch('changelog.html?v=publish-20260909u23')
     .then(response => response.ok ? response.text() : Promise.reject(new Error('changelog unavailable')))
     .then(source => {
       const doc = new DOMParser().parseFromString(source, 'text/html');
