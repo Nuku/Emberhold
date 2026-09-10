@@ -376,6 +376,16 @@ test('physical research requires its material inputs in addition to Knowledge', 
   assert.equal(run('state.res.tools'), 0);
 });
 
+test('research cannot be queued more than once and stale duplicates are removed', () => {
+  const { run } = game();
+  run(`state.trialDone.scholarship = 1; state.res.knowledge = 0;
+    attemptResearch('writing'); attemptResearch('writing');`);
+  assert.equal(run('state.queues.research.filter(entry => entry.id === "writing").length'), 1);
+  run(`state.queues.research.push({ type: 'research', id: 'writing' });
+    state = normalizeSave(JSON.parse(JSON.stringify(state)))`);
+  assert.equal(run('state.queues.research.filter(entry => entry.id === "writing").length'), 1);
+});
+
 test('queued actions keep their displayed cost when price modifiers change', () => {
   const { run } = game();
   run(`state.trial = { id: 'frugality', buildings: 0 }; state.res.wood = 0;

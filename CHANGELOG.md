@@ -4,6 +4,7 @@ All notable changes to Emberhold are recorded here, with the newest changes firs
 
 ## 2026-09-10
 
+- Fixed Research so the same technology cannot be queued more than once, including duplicate entries in loaded saves.
 - Reworked the Trial of Scarcity: while active, weather is always Stormy, Wood production is reduced alongside Food, and mining workers can be lost at increasing rates with each completion.
 - Updated the Scarcity trial UI text and README guidance to describe its storm, production, and mining-worker penalties.
 - Rebalanced Great Migration preparations: Caravan provisions now require 60,000 Food and Caravan frames require 40,000 Wood.

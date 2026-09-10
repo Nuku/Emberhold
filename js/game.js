@@ -1117,7 +1117,8 @@ function queueEntry(type, id) {
     if (!canBuild(id)) return false;
     if (Number.isFinite(def.max) && bld(id) + state.queues.build.filter(entry => entry.id === id).length >= def.max) return false;
   } else if (type === 'research') {
-    if (tech(id) || (def.req && !def.req())) return false;
+    if (tech(id) || state.queues.research.some(entry => entry.id === id) ||
+        (def.req && !def.req())) return false;
   } else {
     if (expDone(id) || (def.landing && def.landing !== state.landing) || state.pop < def.reqPop) return false;
   }
@@ -1171,6 +1172,7 @@ function attemptWonderObstacle() {
 function attemptResearch(id) {
   const def = TECH_BY_ID.get(id);
   if (!def) return;
+  if (state.queues.research.some(entry => entry.id === id)) return;
   if (canAfford(researchCost(def))) doResearch(id);
   else if (state.queues.research.length < queueCapacity('research')) queueEntry('research', id);
 }
@@ -2461,7 +2463,7 @@ function startGameClock() {
   // lose time; it only wakes the simulation to account for elapsed time.
   if (typeof Worker === 'function') {
     try {
-  gameClockWorker = new Worker('js/game-clock.worker.js?v=publish-20260910u35');
+  gameClockWorker = new Worker('js/game-clock.worker.js?v=publish-20260910u37');
       gameClockWorker.addEventListener('message', () => {
         updateGameClock(true);
         renderBonusTimer();
@@ -3058,6 +3060,12 @@ function normalizeSave(s) {
     queuedBuildings[entry.id] = kept + 1;
     return true;
   });
+  const queuedResearch = new Set();
+  s.queues.research = s.queues.research.filter(entry => {
+    if (s.techs[entry.id] || queuedResearch.has(entry.id)) return false;
+    queuedResearch.add(entry.id);
+    return true;
+  });
   for (const r of RESOURCES) if (s.res[r.id] === undefined) s.res[r.id] = 0;
   s.res.currency = Math.min(currencyCapacity(s.jobs), s.res.currency);
   s.beaconsLit = Object.fromEntries(Object.entries(s.beaconsLit || {})
@@ -3618,7 +3626,7 @@ function renderResearch() {
     const queued = state.queues.research.some(entry => entry.id === t.id);
     const cost = researchCost(t);
     const ready = canAfford(cost);
-    const ok = ready || state.queues.research.length < queueCapacity('research');
+    const ok = !queued && (ready || state.queues.research.length < queueCapacity('research'));
     h += `<div class="card"><div class="card-head">` +
       `<span class="card-title has-tooltip" data-tooltip="${attrText(t.desc)}">${t.name}</span>` +
       `<span class="card-count">${costHtml(cost)}</span></div>` +
@@ -4156,7 +4164,7 @@ function renderSidePanel() {
 function loadLatestUpdatesTooltip() {
   const button = document.getElementById('btn-updates');
   if (!button || typeof fetch !== 'function' || typeof DOMParser !== 'function') return;
-  fetch('changelog.html?v=publish-20260910u35')
+  fetch('changelog.html?v=publish-20260910u37')
     .then(response => response.ok ? response.text() : Promise.reject(new Error('changelog unavailable')))
     .then(source => {
       const doc = new DOMParser().parseFromString(source, 'text/html');
