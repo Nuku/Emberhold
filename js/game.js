@@ -144,7 +144,7 @@ function era() { return state.era; }
 function expDone(id) { return !!state.expeditions[id]; }
 const POST_STONE_AGE_KNOWLEDGE_COST_MULTIPLIER = 15;
 const POST_STONE_AGE_RESEARCH = new Set([
-  'metallurgy', 'ironMites', 'weaponry', 'machineryTech', 'lightningMetal',
+  'metallurgy', 'ironMites', 'weaponry', 'chainmail', 'machineryTech', 'lightningMetal',
   'livingAlloy', 'understandingHome', 'awakenAncients', 'advancedScience',
   'windHarness', 'banking', 'diplomacy', 'spies', 'espionage', 'civics',
   'council', 'commonality', 'festivals', 'civicHarmony', 'workplaceEthics', 'weaponEfficiency',
@@ -2361,7 +2361,7 @@ function startGameClock() {
   // lose time; it only wakes the simulation to account for elapsed time.
   if (typeof Worker === 'function') {
     try {
-      gameClockWorker = new Worker('js/game-clock.worker.js?v=publish-20260909u24');
+    gameClockWorker = new Worker('js/game-clock.worker.js?v=publish-20260909u28');
       gameClockWorker.addEventListener('message', () => {
         updateGameClock(true);
         renderBonusTimer();
@@ -2551,6 +2551,7 @@ function doResearch(id) {
   state.techs[id] = true;
   if (state.trial && state.trial.id === 'scholarship') state.trial.researches = (state.trial.researches || 0) + 1;
   if (id === 'leatherArmor') state.armor = Math.max(armorLevel(), 1);
+  if (id === 'chainmail') state.armor = Math.max(armorLevel(), 2);
   addLog(`Research complete: ${def.name}. ${def.desc}`, 'log-good');
   if (ERA_GATE[id] && ERA_GATE[id] > state.era) {
     state.era = ERA_GATE[id];
@@ -2990,7 +2991,7 @@ function normalizeSave(s) {
     throw new Error('Invalid chronicle');
   delete s.res.weapons;
   delete s.res.armor;
-  s.armor = Math.max(s.armor, s.techs.leatherArmor ? 1 : 0);
+  s.armor = Math.max(s.armor, s.techs.chainmail ? 2 : s.techs.leatherArmor ? 1 : 0);
   if (!FACTORY_RECIPES.some(r => r.id === s.factoryRecipe && (!r.tech || s.techs[r.tech]))) s.factoryRecipe = 'goods';
   return s;
 }
@@ -3409,7 +3410,7 @@ function renderVillage() {
       `<div class="res-row"><span class="res-name">Guards</span><span class="res-amount">${guards} / ${guardCap()} (${Math.floor(ableGuards())} able)</span><span class="res-rate">${recruitment}</span></div>` +
       `<div class="res-note">Guards recruit automatically, one every ${fmt(1 / guardRecruitmentRate())} seconds, and replace losses up to barracks capacity. They use no villager assignments or population housing. Build Barracks to raise their capacity.</div>`;
   }
-  h += `<div class="res-note" style="margin-top:6px">Every villager eats ${fmt(FOOD_PER_POP)} food/s, working or not. Each Guard requires ${fmt(JOBS.guard.upkeep)} food/s, but their hunting is not reduced by winter. Weaponry and Leather Armor research strengthen the watch; injuries heal over time. Every store has a ceiling — what flows in past a full store is wasted. Storehouses raise most material ceilings.</div>`;
+  h += `<div class="res-note" style="margin-top:6px">Every villager eats ${fmt(FOOD_PER_POP)} food/s, working or not. Each Guard requires ${fmt(JOBS.guard.upkeep)} food/s, but their hunting is not reduced by winter. Weaponry, Leather Armor, and Chainmail research strengthen the watch; injuries heal over time. Every store has a ceiling — what flows in past a full store is wasted. Storehouses raise most material ceilings.</div>`;
 
   return h;
 }
@@ -4001,7 +4002,7 @@ function renderSidePanel() {
 function loadLatestUpdatesTooltip() {
   const button = document.getElementById('btn-updates');
   if (!button || typeof fetch !== 'function' || typeof DOMParser !== 'function') return;
-  fetch('changelog.html?v=publish-20260909u27')
+  fetch('changelog.html?v=publish-20260909u28')
     .then(response => response.ok ? response.text() : Promise.reject(new Error('changelog unavailable')))
     .then(source => {
       const doc = new DOMParser().parseFromString(source, 'text/html');

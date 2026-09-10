@@ -124,7 +124,7 @@
   const RESEARCH_ORDER = [
     'stoneWorking', 'writing', 'craftsmanship', 'masonry', 'copperProspecting',
     'currency', 'guards', 'leatherArmor', 'deepMining', 'seamMining',
-    'metallurgy', 'ironMites', 'weaponry', 'banking', 'diplomacy', 'civics', 'council',
+    'metallurgy', 'ironMites', 'weaponry', 'chainmail', 'banking', 'diplomacy', 'civics', 'council',
     'machineryTech', 'advancedScience', 'windHarness', 'hydraulics', 'treeHusbandry', 'weaponEfficiency', 'electricalEngineering',
     'astronomy', 'optics', 'aphrodisiac', 'hospital',
   ];

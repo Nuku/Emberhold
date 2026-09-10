@@ -1318,6 +1318,17 @@ test('old saves receive new resources and researched armor', () => {
   assert.equal(run('totalDiplomats()'), 0);
 });
 
+test('Chainmail unlocks after Metallurgy and raises armor to level two', () => {
+  const { run } = game();
+  const chainmail = run("TECHS.find(t => t.id === 'chainmail')");
+  assert.deepEqual(JSON.parse(run("JSON.stringify({ cost: TECHS.find(t => t.id === 'chainmail').cost, materials: TECHS.find(t => t.id === 'chainmail').materials })")),
+    { cost: 450, materials: { steel: 60, tools: 30 } });
+  run('state.techs.guards = true; state.techs.metallurgy = true');
+  assert.equal(run("TECHS.find(t => t.id === 'chainmail').req()"), true);
+  run('state.techs.chainmail = true; state.armor = 0; state = normalizeSave(state)');
+  assert.equal(run('state.armor'), 2);
+});
+
 test('guards remain separate from a fully assigned population and cannot be assigned manually', () => {
   const { run } = game();
   run(`state.pop = 2; state.jobs = { forager: 2, guard: 4 };
