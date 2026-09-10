@@ -1929,13 +1929,117 @@ test('Wonder guards can save workers, wounded-only guards face doubled death wei
   assert.equal(run(`state.wonderUnlocks.livingAlloy === true`), false);
   assert.equal(run(`TECHS.find(t => t.id === 'livingAlloy').req()`), false);
   assert.equal(run(`BUILDING_BY_ID.get('alloyMine').req()`), false);
-  run(`state.migrating = true; state.hope = 1; buyWonderUnlock('livingAlloy'); state.techs.optics = true;`);
+  run(`state.migrating = true; state.hope = 4; buyWonderUnlock('livingAlloy'); state.techs.optics = true;`);
   assert.equal(run('state.hope'), 0);
   assert.equal(run(`state.wonderUnlocks.livingAlloy`), true);
   assert.equal(run(`TECHS.find(t => t.id === 'livingAlloy').req()`), true);
   assert.equal(run(`BUILDING_BY_ID.get('alloyMine').req()`), false);
   run(`state.techs.livingAlloy = true`);
   assert.equal(run(`BUILDING_BY_ID.get('alloyMine').req()`), true);
+});
+
+test('every Wonder fate grants the normal migration Echoes', () => {
+  for (const choice of ['silence', 'become', 'restore']) {
+    const { run } = game();
+    run(`state.landing = 'emberplain'; state.pop = 30;
+      const record = wonderRecord(); record.found = true;
+      record.sections = [true, true, true, true, true];
+      chooseWonderFate('${choice}');`);
+    assert.equal(run('state.echoes'), 4, choice);
+  }
+});
+
+test('restored Wonders carry their old purposes into future production', () => {
+  const restored = [
+    ['greenfold', 'wood', 'Restored Worldroot', 1.25, 'woodcutter'],
+    ['floodmeadows', 'food', 'Restored River Crown', 1.20, 'forager'],
+    ['ashfen', 'tools', 'Restored Renewal Basin', 1.25, 'tinkerer'],
+    ['windmere', 'knowledge', 'Restored Mirrored Orrery', 1.20, 'thinker'],
+    ['windmere', 'aether', 'Restored Mirrored Orrery', 1.20, 'astronomer'],
+  ];
+  for (const [landing, resource, label, factor, job] of restored) {
+    const { run } = game();
+    run(`state.landing = '${landing}'; state.wonders.${landing} = { outcomes: { restore: true } }; state.jobs.${job} = 1;`);
+    const detail = JSON.parse(run(`JSON.stringify((() => { const d = {}; production(1, d); return d; })())`));
+    const entry = detail[resource].find(item => item.factors.some(([name]) => name === '${label}'));
+    assert.ok(entry, `${landing} should affect ${resource}`);
+    assert.equal(entry.factors.find(([name]) => name === '${label}')[1], factor, `${landing} multiplier`);
+  }
+});
+
+test('selected restored Wonders can preserve a material branch with Hope', () => {
+  for (const [landing, unlock, research, building] of [
+    ['greenfold', 'heartwood', 'heartwood', 'heartwoodGrove'],
+    ['windmere', 'starGlass', 'starGlass', 'starLens'],
+    ['ashfen', 'basinTempering', 'basinTempering', null],
+  ]) {
+    const { run } = game();
+    const cost = { heartwood: 3, starGlass: 5, basinTempering: 4 }[unlock];
+    run(`state.landing = '${landing}'; state.wonders.${landing} = { outcomes: { restore: true } };
+      state.migrating = true; state.hope = ${cost}; buyWonderUnlock('${unlock}'); state.techs.optics = true;`);
+    assert.equal(run(`state.wonderUnlocks.${unlock}`), true, `${landing} purchase`);
+    assert.equal(run(`TECHS.find(t => t.id === '${research}').req()`), true, `${landing} research`);
+    if (building) assert.equal(run(`BUILDING_BY_ID.get('${building}').req()`), false, `${landing} waits for research`);
+    run(`state.techs.${research} = true`);
+    if (building) assert.equal(run(`BUILDING_BY_ID.get('${building}').req()`), true, `${landing} building`);
+    else assert.ok(run(`settlementProductionFactors('steel').some(([name, factor]) => name === 'Basin Tempering' && factor === 1.35)`), `${landing} steel bonus`);
+  }
+});
+
+test('silencing the Worldroot unlocks expensive Animal Husbandry', () => {
+  const { run } = game();
+  run(`state.landing = 'greenfold'; state.wonders.greenfold = { outcomes: { silence: true } };
+    state.migrating = true; state.echoes = 750; migrationBuy('animalHusbandry');`);
+  assert.equal(run("upg('animalHusbandry')"), 1);
+  assert.equal(run("BUILDING_BY_ID.get('ranch').req()"), true);
+  run(`state.bld.ranch = 1; state.jobs.rancher = 2; const detail = {}; production(1, detail);`);
+  assert.equal(run("jobCapacity('rancher')"), 2);
+  assert.equal(run('capacityOf(\'fur\')'), 1000);
+  assert.ok(run("detail.fur.some(entry => entry.label.startsWith('Ranchers:'))"));
+  assert.ok(run("moralePressures().some(entry => entry.id === 'ranch' && entry.rate === 0.008)"));
+});
+
+test('silencing the Mirrored Orrery makes Explorers document discoveries', () => {
+  const { run } = game();
+  run(`state.landing = 'windmere'; state.wonders.windmere = { outcomes: { silence: true } };
+    state.trialDone.wayfinding = 1; state.jobs.explorer = 2; const detail = {}; production(1, detail);`);
+  assert.equal(run("detail.knowledge.find(entry => entry.label.startsWith('Explorers documenting discoveries')).base"), 0.12);
+  run('state.surveyPoints = 0; updateExploration(1)');
+  assert.equal(run('state.surveyPoints'), 0.05);
+});
+
+test('silencing the River Crown turns Foragers into morale-boosting Farmers without extra Food', () => {
+  const { run } = game();
+  run(`state.landing = 'floodmeadows'; state.wonders.floodmeadows = { outcomes: { silence: true } };
+    state.jobs.forager = 2; const detail = {}; production(1, detail);`);
+  assert.equal(run("jobName('forager')"), 'Farmer');
+  assert.equal(run("detail.food.find(entry => entry.label.startsWith('Farmer:')).base"), 1.1);
+  assert.ok(run("moralePressures().some(entry => entry.id === 'farming' && entry.rate === 0.1)"));
+});
+
+test('silencing the Renewal Basin returns factory-made construction materials', () => {
+  const { run } = game();
+  run(`state.landing = 'ashfen'; state.wonders.ashfen = { outcomes: { silence: true } };
+    state.techs.metallurgy = true; state.res.stone = 1000; state.res.iron = 100; state.res.tools = 50; state.res.currency = 100;
+    doBuild('forge');`);
+  assert.equal(run('state.bld.forge'), 1);
+  assert.equal(run('state.res.tools'), 27.5);
+});
+
+test('silencing the World Anvil lets Tinkerers run factory recipes slowly', () => {
+  const { run } = game();
+  run(`state.landing = 'grayrocks'; state.wonders.grayrocks = { outcomes: { silence: true } };
+    state.trial = { id: 'tinkering', startDay: 0, daysActive: 0, buildings: 0 };
+    state.bld.workbench = 1; state.jobs.woodcutter = 5; state.jobs.tinkerer = 1;
+    state.techs.machineryTech = true; state.res.steel = 10; state.res.coal = 100; chooseFactoryRecipe('machinery');
+    const detail = {}; production(1, detail);`);
+  assert.equal(run('factoryRecipe().id'), 'machinery');
+  assert.equal(run("detail.machinery.find(entry => entry.label.startsWith('Tinkerers')).base"), 0.01);
+  assert.equal(run("detail.steel.find(entry => entry.label.startsWith('Tinkerer inputs')).base"), -0.05);
+  assert.equal(run("jobProduction('tinkerer')"), 0.01);
+  run(`state.techs.craftsmanship = true; state.res.wood = 100; chooseFactoryRecipe('tools'); const toolDetail = {}; production(1, toolDetail);`);
+  assert.equal(run("toolDetail.tools.find(entry => entry.label.startsWith('Tinkerers')).base"), 0.025);
+  assert.equal(run("toolDetail.wood.find(entry => entry.label.startsWith('Tinkerer inputs')).base"), -0.06);
 });
 
 test('factories throttle to available materials and storage and stop without Power capacity', () => {

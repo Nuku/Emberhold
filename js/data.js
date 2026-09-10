@@ -26,6 +26,9 @@ const RESOURCES = [
   { id: 'steel',     name: 'Steel',     note: 'smelted from iron and coal in the Forge' },
   { id: 'machinery', name: 'Machinery', note: 'each unit in storage hums +0.2% to all production' },
   { id: 'livingAlloy', name: 'Living Alloy', note: 'a metal that remembers the shape of the Ancient forge that made it' },
+  { id: 'heartwood', name: 'Heartwood', note: 'wood that grows in the shape of a tree no living forest has seen' },
+  { id: 'starGlass', name: 'Star Glass', note: 'dark glass that remembers stars which have not yet risen' },
+  { id: 'fur', name: 'Fur', note: 'warm hides, carefully prepared and traded wherever people still endure' },
   { id: 'power',     name: 'Power',     note: 'available capacity from plants and dynamos; powered industry shuts off when capacity is insufficient' },
   { id: 'goods',     name: 'Industrial Goods', note: 'made only by a powered Factory' },
   { id: 'aether',    name: 'Aether',    note: 'gathered by those who watch the sky' },
@@ -69,6 +72,9 @@ const STORAGE = {
   machinery: { base: 10,  per: 50,  bld: 'vault' },
   aether:    { base: 25,  per: 50,  bld: 'vault' },
   livingAlloy: { base: 50, per: 150, bld: 'alloyMine' },
+  heartwood: { base: 50, per: 150, bld: 'heartwoodGrove' },
+  starGlass: { base: 50, per: 150, bld: 'starLens' },
+  fur: { base: 0, per: 1000, bld: 'ranch' },
 };
 
 // --- jobs (per assigned worker, per second) ---
@@ -77,6 +83,9 @@ const JOBS = {
                  unlock: () => true },
   woodcutter:  { name: 'Woodcutter',   res: 'wood',      base: 0.45, desc: 'fells and splits timber',
                  unlock: () => true },
+  rancher:     { name: 'Rancher',       res: 'food',      base: 0.18, desc: 'raises animals for food and Fur',
+                 max: () => bld('ranch') * 2,
+                 unlock: () => bld('ranch') > 0 },
   miner:       { name: 'Miner',        res: 'stone',     base: 0.28, mining: true, desc: 'pulls stone from the quarry',
                  max: () => bld('stoneWorks') + 1,
                  unlock: () => bld('quarry') > 0 },
@@ -110,12 +119,18 @@ const JOBS = {
   alloyminer:   { name: 'Living Alloy Miner', res: 'livingAlloy', base: 0.06, mining: true, desc: 'coaxes metal that tries to crawl back into the mountain',
                  max: () => bld('alloyMine') * 2,
                  unlock: () => bld('alloyMine') > 0 },
+  heartwoodcutter: { name: 'Heartwood Cutter', res: 'heartwood', base: 0.06, mining: true, desc: 'coaxes impossible timber from the Conservatory’s roots',
+                    max: () => bld('heartwoodGrove') * 2,
+                    unlock: () => bld('heartwoodGrove') > 0 },
+  starglasscutter: { name: 'Star Glass Cutter', res: 'starGlass', base: 0.06, mining: true, desc: 'cuts dark glass from reflections that do not belong to this sky',
+                    max: () => bld('starLens') * 2,
+                    unlock: () => bld('starLens') > 0 },
   copperminer: { name: 'Copper Digger', res: 'copper',   base: 0.08, mining: true, desc: 'follows green stains through the shallows',
                  max: () => Math.max(JOBS.miner.max(), JOBS.ironminer.max()),
                  unlock: () => tech('copperProspecting') },
   astronomer:  { name: 'Astronomer',   res: 'aether',    base: 0.05, desc: 'listens to the sky at night',
                  unlock: () => bld('observatory') > 0 },
-  tinkerer:    { name: 'Tinkerer',    res: 'tools',      base: 0.025, desc: 'steadily assembles tools from wood and stone',
+  tinkerer:    { name: 'Tinkerer',    res: 'tools',      base: 0.025, factoryLike: true, desc: 'steadily assembles tools from wood and stone',
                  inputs: { wood: 0.06, stone: 0.02 },
                  max: () => 1 + Math.floor((state.jobs.woodcutter || 0) / 5),
                  unlock: () => (perm('tinkerers') || trialActive('tinkering')) && bld('workbench') > 0 },
@@ -137,6 +152,11 @@ const BUILDINGS = [
   { id: 'foragerLodge', name: 'Forager Lodge', max: 5, scale: 1.7,
     cost: { wood: 45 },
     effect: () => '+10% food production', desc: 'drying racks and seed lore' },
+
+  { id: 'ranch', name: 'Ranch', max: Infinity, scale: 2.0,
+    cost: { wood: 600, stone: 300, tools: 40, currency: 80 },
+    effect: () => `+2 Rancher capacity; +${fmt(1000 * bld('ranch'))} Fur storage; +0.008 morale/s per Ranch`,
+    req: () => upg('animalHusbandry') > 0, desc: 'fences, sheds, and patient hands teach animals to live alongside Emberhold' },
 
   { id: 'lumberYard', name: 'Lumber Yard', max: 5, scale: 1.7,
     cost: { wood: 70, tools: 10 },
@@ -192,6 +212,16 @@ const BUILDINGS = [
     cost: { steel: 900, machinery: 400, aether: 100, goods: 120 },
     effect: () => '+2 Living Alloy Miner capacity; +150 Living Alloy storage',
     req: () => tech('livingAlloy'), desc: 'a shaft sunk beneath the World Anvil, where the metal still remembers being made' },
+
+  { id: 'heartwoodGrove', name: 'Heartwood Grove', max: Infinity, scale: 2.0,
+    cost: { steel: 260, machinery: 160, aether: 80, goods: 100 },
+    effect: () => '+2 Heartwood Cutter capacity; +150 Heartwood storage',
+    req: () => tech('heartwood'), desc: 'a cultivated wound in the Conservatory, where impossible timber grows on command' },
+
+  { id: 'starLens', name: 'Star Glass Lensworks', max: Infinity, scale: 2.0,
+    cost: { steel: 320, machinery: 190, aether: 120, goods: 130 },
+    effect: () => '+2 Star Glass Cutter capacity; +150 Star Glass storage',
+    req: () => tech('starGlass'), desc: 'a cutting hall beneath the Orrery, where the reflected sky can be harvested' },
 
   { id: 'deepStore', name: 'Deep Store', max: 12, scale: 2.0,
     cost: { wood: 400, stone: 300, tools: 25 },
@@ -349,6 +379,15 @@ const TECHS = [
   { id: 'livingAlloy', name: 'Living Alloy', cost: 6000, materials: { steel: 300, machinery: 180, aether: 100, tools: 80 },
     desc: 'The World Anvil’s restored rhythm has left a door open in the old records. Unlocks the Living Alloy Mine after the Beacon has been understood.',
     req: () => wonderUnlock('livingAlloy') && tech('optics') },
+  { id: 'heartwood', name: 'Heartwood', cost: 5600, materials: { steel: 240, machinery: 140, aether: 80, tools: 70 },
+    desc: 'The restored Conservatory remembers how to cultivate material for an Ancient world. Unlocks the Heartwood Grove after the Beacon has been understood.',
+    req: () => wonderUnlock('heartwood') && tech('optics') },
+  { id: 'starGlass', name: 'Star Glass', cost: 6400, materials: { steel: 300, machinery: 180, aether: 130, tools: 90 },
+    desc: 'The restored Orrery teaches the settlement to cut material from reflected heavens. Unlocks Star Glass Lensworks after the Beacon has been understood.',
+    req: () => wonderUnlock('starGlass') && tech('optics') },
+  { id: 'basinTempering', name: 'Basin Tempering', cost: 6800, materials: { steel: 350, machinery: 220, aether: 120, tools: 90 },
+    desc: 'The Renewal Basin can be taught to finish steel without wasting the shape of its first making. Forges and Factories produce 35% more Steel.',
+    req: () => wonderUnlock('basinTempering') && tech('optics') },
   { id: 'understandingHome', name: 'Understanding Home', cost: 1300, materials: { machinery: 25, tools: 30 },
     desc: 'We have learned the whispers of this place, and they speak clearly once you care to listen. Trait tooltips reveal their direct effects on the current location.',
     req: () => tech('machineryTech') && currentPlaceTraits().length > 0 },
@@ -1048,6 +1087,9 @@ const UPGRADES = [
   { id: 'journalOfOldTimes', name: 'Journal of Old Times', max: 1, costs: [500],
     effect: '+0.2 Knowledge/s permanently',
     desc: 'scribblings of the Before Times with untold clues into the nature of things' },
+  { id: 'animalHusbandry', name: 'Animal Husbandry', max: 1, costs: [750],
+    effect: 'unlocks Ranches, which produce Food and Fur and improve morale',
+    desc: 'The Worldroot is silent, but the people remember how to care for living things without asking an Ancient machine to do it.' },
 ];
 
 // --- expeditions: one-time, expand the playing field permanently ---
@@ -1216,7 +1258,7 @@ const WONDERS = [
     decisionText: 'The lever waits above the waterline. The Crown offers to remember every shore, if someone will tell it what a shore is for.',
     aftermath: {
       restore: 'The River Crown turns, and the floodwaters withdraw into ordered paths. The meadows breathe easier beneath an old command.',
-      silence: 'The lever breaks under your hands. Water keeps its own counsel, and the river forgets that it was ever ruled.',
+      silence: 'The lever breaks under your hands. But you can pull more than wood from the land. Your people are rising, so too can what sustains them. Let us all rise as one, animal and plant. A small thing, the smallest, but so vital.',
       become: 'Your leader wades into the map of light. Every channel in the Floodmeadows begins carrying a second reflection.',
     },
   },
@@ -1279,10 +1321,22 @@ const WONDERS = [
 ];
 
 const WONDER_UNLOCKS = [
-  { id: 'livingAlloy', name: 'The Anvil’s Living Alloy', cost: 1,
+  { id: 'livingAlloy', name: 'The Anvil’s Living Alloy', cost: 4,
     effect: 'Makes Living Alloy research available in future settlements.',
     req: () => wonderChoice('grayrocks', 'restore'),
     desc: 'Hope preserves the World Anvil’s instructions between migrations. The mine itself must still be researched and built.' },
+  { id: 'heartwood', name: 'The Conservatory’s Heartwood', cost: 3,
+    effect: 'Makes Heartwood research available in future settlements.',
+    req: () => wonderChoice('greenfold', 'restore'),
+    desc: 'Hope preserves the Worldroot’s cultivation instructions between migrations. The grove still has to be researched and built.' },
+  { id: 'starGlass', name: 'The Orrery’s Star Glass', cost: 5,
+    effect: 'Makes Star Glass research available in future settlements.',
+    req: () => wonderChoice('windmere', 'restore'),
+    desc: 'Hope preserves the Orrery’s cutting instructions between migrations. The lensworks still has to be researched and built.' },
+  { id: 'basinTempering', name: 'The Basin’s Tempering', cost: 4,
+    effect: 'Makes Basin Tempering research available in future settlements.',
+    req: () => wonderChoice('ashfen', 'restore'),
+    desc: 'Hope preserves the Renewal Basin’s method for finishing steel. The research still has to be completed in a later settlement.' },
 ];
 
 // --- season food multipliers ---

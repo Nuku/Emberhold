@@ -2,6 +2,17 @@
 
 All notable changes to Emberhold are recorded here, with the newest changes first.
 
+## 2026-09-10
+
+- Restored Wonder outcomes now carry their old purposes into future settlements: the Worldroot boosts Wood, the River Crown boosts Food, the Renewal Basin boosts Tools and Coal, and the Mirrored Orrery boosts Knowledge and Aether.
+- Added four Hope-bound Wonder discoveries: Heartwood, Star Glass, Basin Tempering, and the associated Heartwood Grove and Star Glass Lensworks buildings; Basin Tempering increases Steel production.
+- Added the Animal Husbandry Ancestral Shop upgrade, unlocked by silencing the Worldroot, with Ranches, Ranchers, Fur production, expanded Fur storage, and a morale bonus.
+- Silencing the River Crown turns Foragers into morale-boosting Farmers, while silencing the Mirrored Orrery lets Explorers document discoveries for Knowledge.
+- Silencing the World Anvil lets Tinkerers run the selected factory recipe at half speed without Power, including recipe-aware rates, inputs, and production tooltips.
+- Silencing the Renewal Basin returns 10% of factory-material construction costs, and Wonder obstacle costs now receive the same reclamation refund.
+- Every Wonder fate now grants the normal migration Echoes, including forced migrations after a Wonder is completed.
+- Updated Wonder unlock costs and migrated the new reset-layer state safely between settlements.
+
 ## 2026-09-09
 
 - Added Chainmail research after Metallurgy: Guards gain a second level of armor, reducing their death odds by an additional 8%; automation now researches it when available.

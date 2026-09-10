@@ -145,7 +145,7 @@ function expDone(id) { return !!state.expeditions[id]; }
 const POST_STONE_AGE_KNOWLEDGE_COST_MULTIPLIER = 15;
 const POST_STONE_AGE_RESEARCH = new Set([
   'metallurgy', 'ironMites', 'weaponry', 'chainmail', 'machineryTech', 'lightningMetal',
-  'livingAlloy', 'understandingHome', 'awakenAncients', 'advancedScience',
+  'livingAlloy', 'heartwood', 'starGlass', 'basinTempering', 'understandingHome', 'awakenAncients', 'advancedScience',
   'windHarness', 'banking', 'diplomacy', 'spies', 'espionage', 'civics',
   'council', 'commonality', 'festivals', 'civicHarmony', 'workplaceEthics', 'weaponEfficiency',
   'electricalEngineering', 'astronomy', 'optics',
@@ -160,6 +160,7 @@ function beaconsLitCount() { return Object.keys(state.beaconsLit || {}).filter(i
 function wonderHintsAvailable() { return tech('optics') && !!state.beaconRevisited?.[state.landing]; }
 function wonderChoice(id, choice) { return !!state.wonders?.[id]?.outcomes?.[choice]; }
 function wonderUnlock(id) { return !!state.wonderUnlocks?.[id]; }
+function animalHusbandryAvailable() { return wonderChoice('greenfold', 'silence'); }
 function solarPowerAvailable() { return wonderChoice('emberplain', 'restore') &&
   ['steamPlant', 'dynamo', 'windDevice', 'livingBlock', 'factory'].some(id => bld(id) > 0); }
 function trialCount(id) { return state.trialDone[id] || 0; }
@@ -760,6 +761,7 @@ function buildWonderObstacle() {
   const obstacle = currentWonderObstacle(record);
   if (!obstacle || !record.found || record.obstacles?.[obstacle.key] || !canAfford(obstacle.cost)) return false;
   payCost(obstacle.cost);
+  applyReclamation(obstacle.cost);
   record.obstacles[obstacle.key] = true;
   delete record.obstacleNotices[obstacle.key];
   state.paused = false;
@@ -805,7 +807,9 @@ function beginForcedWonderMigration() {
   state.pendingLandings = [{ ...landing, traits: traitsForLanding(landing.id) }];
   state.pendingLanding = landing.id;
   state.migrating = true;
-  state.pendingEchoes = 0;
+  state.pendingEchoes = echoesEarned();
+  state.echoes += state.pendingEchoes;
+  addLog(`The Wonder's deeds will echo: ${state.pendingEchoes} Echo${state.pendingEchoes === 1 ? '' : 's'} gained.`, 'log-important');
   addLog(`The Wonder has been decided. There is no vote on the road ahead; it carries Emberhold toward ${landing.name}.`, 'log-important');
   setOut();
 }
@@ -911,6 +915,9 @@ function assignedWorkers() {
   for (const j in state.jobs) if (JOBS[j] && !JOBS[j].targeted && j !== 'guard') n += state.jobs[j];
   return n + totalDiplomats() + performerCount() + explorerCount() + raptureWorkers();
 }
+function jobName(id) {
+  return id === 'forager' && wonderChoice('floodmeadows', 'silence') ? 'Farmer' : JOBS[id]?.name || id;
+}
 function unassigned() { return state.pop - assignedWorkers(); }
 function raptureWorkers() { return Math.max(0, Math.floor(state.rapture?.workers || 0)); }
 function raptureActiveHere() {
@@ -993,6 +1000,13 @@ function canBuild(id) {
 }
 function payCost(cost) {
   for (const r in cost) state.res[r] -= cost[r];
+}
+function applyReclamation(cost) {
+  if (!wonderChoice('ashfen', 'silence')) return;
+  for (const resource of ['tools', 'steel', 'machinery', 'goods']) {
+    if (!cost[resource]) continue;
+    state.res[resource] = Math.min(capacityOf(resource), state.res[resource] + cost[resource] * 0.10);
+  }
 }
 
 function queueDef(entry) {
@@ -1319,6 +1333,7 @@ function globalProductionFactors() {
 function settlementProductionFactors(res, outgoing = false) {
   const factors = [[landingDef().name, landingMod(res)], [lineageDef(state.species).name, baseLineageMod(res)]];
   if (res === 'steel' && !outgoing && steelHearted()) factors.push(['Steel Hearted', 1.20]);
+  if (res === 'steel' && tech('basinTempering')) factors.push(['Basin Tempering', 1.35]);
   if (!outgoing) for (const trait of currentPlaceTraits()) {
     const modifier = trait.mods?.[res];
     if (modifier) factors.push([trait.name, modifier]);
@@ -1340,6 +1355,7 @@ function settlementProductionFactors(res, outgoing = false) {
 function forgeProductionFactors() {
   const factors = [[landingDef().name, landingMod('steel')], [lineageDef(state.species).name, baseLineageMod('steel')]];
   if (steelHearted()) factors.push(['Steel Hearted', 1.20]);
+  if (tech('basinTempering')) factors.push(['Basin Tempering', 1.35]);
   if (lineageSpecialValue('forgeOutput') !== 1) factors.push(['Banked Heat', lineageSpecialValue('forgeOutput')]);
   const conquered = conqueredLineage();
   if (conquered && conqueredLineageMod('steel') > 1) factors.push([`${conquered.name} (Commonality)`, conqueredLineageMod('steel')]);
@@ -1385,6 +1401,8 @@ function moralePressures(foodRate = production(0.25).food) {
   add('foodStores', state.res.food <= 0.0001 ? 'Empty food stores' : foodRate < 0 ? 'Food production falling short' : 'Secure food stores', foodRateValue);
   add('season', season, season === 'Winter' ? -0.006 : season === 'Summer' ? 0.006 : 0);
   add('shrine', 'Shrines', bld('shrine') > 0 && state.morale < 75 ? 0.012 : 0, bld('shrine'));
+  add('farming', 'Farming', wonderChoice('floodmeadows', 'silence') ? 0.1 : 0);
+  add('ranch', 'Ranches', bld('ranch') * 0.008, bld('ranch'));
   add('hospital', 'Hospitals', bld('hospital') > 0 && state.morale < 50 ? 0.01 : 0, bld('hospital'));
   add('performers', 'Performers', performerCount() * 0.10, performerCount());
   const activeLivingBlocks = powerAllocation().livingBlock;
@@ -1542,9 +1560,12 @@ function factoryRecipe() {
   const recipe = FACTORY_RECIPE_BY_ID.get(state.factoryRecipe);
   return recipe && (!recipe.tech || tech(recipe.tech)) ? recipe : FACTORY_RECIPES[0];
 }
+function tinkererFactoryAvailable() {
+  return wonderChoice('grayrocks', 'silence') && JOBS.tinkerer.unlock();
+}
 function chooseFactoryRecipe(id) {
   const recipe = FACTORY_RECIPE_BY_ID.get(id);
-  if (!bld('factory') || !recipe || (recipe.tech && !tech(recipe.tech))) return;
+  if ((!bld('factory') && !tinkererFactoryAvailable()) || !recipe || (recipe.tech && !tech(recipe.tech))) return;
   state.factoryRecipe = id;
 }
 
@@ -1660,17 +1681,29 @@ function production(dt = 0.25, breakdown = null) {
     const n = state.jobs[j] || 0;
     if (job.targeted) continue;
     if (n > 0) {
-      if (!job.winterproof) {
+      const tinkererFactory = j === 'tinkerer' && tinkererFactoryAvailable();
+      if (!job.winterproof && tinkererFactory) {
+        const recipe = factoryRecipe();
+        const recipeFactor = recipe.id === 'steel' && tech('lightningMetal') ? 1.5 : 1;
+        const keepsToolWork = recipe.id === 'tools';
+        const rate = keepsToolWork ? job.base : recipe.rate * 0.5 * recipeFactor;
+        const recipeInputs = keepsToolWork ? job.inputs : recipe.inputs;
+        add(recipe.id, `Tinkerers (${recipe.name}): ${n} × ${rate}/s`, n * rate);
+        for (const r in recipeInputs) {
+          const inputRate = keepsToolWork ? recipeInputs[r] : recipeInputs[r] * 0.5 * recipeFactor;
+          add(r, `Tinkerer inputs (${recipe.name}): ${n} × ${inputRate}/s`, -n * inputRate);
+        }
+      } else if (!job.winterproof) {
         const supplied = !job.inputs || (state.res.wood > 0 && state.res.stone > 0);
         const factors = [
           ...(j === 'ironminer' && tech('ironMites') ? [['Iron Mites', 1.30]] : []),
           ...(workplaceEthicsFull(j) ? [['Workplace Ethics', 1.10]] : []),
         ];
-        add(job.res, `${job.name}: ${n} × ${job.base}/s`, n * job.base,
+        add(job.res, `${jobName(j)}: ${n} × ${job.base}/s`, n * job.base,
           [...factors, ...(supplied ? [] : [['Missing wood or stone', 0]])]);
       }
-      if (job.inputs) {
-        for (const r in job.inputs) add(r, `${job.name} inputs: ${n} × ${job.inputs[r]}/s`, -n * job.inputs[r]);
+      if (job.inputs && !tinkererFactory) {
+        for (const r in job.inputs) add(r, `${jobName(j)} inputs: ${n} × ${job.inputs[r]}/s`, -n * job.inputs[r]);
       }
     }
   }
@@ -1682,6 +1715,11 @@ function production(dt = 0.25, breakdown = null) {
   if (upg('journalOfOldTimes')) add('knowledge', 'Journal of Old Times', 0.2 * upg('journalOfOldTimes'));
   if (expDone('emberVein')) add('coal', 'Ember Vein passive', 0.5);
   if (expDone('glacialPeaks')) add('aether', 'Glacial Peaks passive', 0.1);
+  const ranchers = state.jobs.rancher || 0;
+  if (ranchers > 0) add('fur', `Ranchers: ${ranchers} × 0.035/s`, ranchers * 0.035);
+  if (wonderChoice('windmere', 'silence') && explorerCount() > 0) {
+    add('knowledge', `Explorers documenting discoveries: ${explorerCount()} × 0.06/s`, explorerCount() * 0.06);
+  }
   const localIds = localTribeIds();
   if (tradeAvailable()) add('currency', `Trade with ${localIds.map(id => tribeDef(id).name).join(' and ')}`, 0.05 * localIds.length);
   if (bld('moneyLender') > 0) add('currency', `Money Lenders: ${bld('moneyLender')} × ${state.pop} population × 0.001/s`, bld('moneyLender') * state.pop * 0.001);
@@ -1690,28 +1728,34 @@ function production(dt = 0.25, breakdown = null) {
   // per-resource modifiers
   scale('food', [...global, [`${SEASONS[seasonIndex()].name}${trialActive('longnight') ? ' (Long Night)' : perm('everwarm') ? ' (Everwarm)' : ''}`, seasonMult()],
     ['Forager Lodges', 1 + 0.10 * bld('foragerLodge')], ['Aqueducts', 1 + 0.20 * bld('aqueduct')],
-    ['Scarcity completions', 1 + 0.10 * trialCount('scarcity')], ['Scarcity trial', trialActive('scarcity') ? trialDifficulty('scarcity') : 1]]);
+    ['Scarcity completions', 1 + 0.10 * trialCount('scarcity')], ['Scarcity trial', trialActive('scarcity') ? trialDifficulty('scarcity') : 1],
+    ['Restored River Crown', wonderChoice('floodmeadows', 'restore') ? 1.20 : 1]]);
   for (const j in JOBS) {
     const job = JOBS[j], n = state.jobs[j] || 0;
     if (!n || job.targeted) continue;
-    if (job.winterproof) add('food', `${job.name} hunting: ${j === 'guard' ? ableGuards() : n}/${n} able, winterproof`, (j === 'guard' ? ableGuards() : n) * job.base,
+    if (job.winterproof) add('food', `${jobName(j)} hunting: ${j === 'guard' ? ableGuards() : n}/${n} able, winterproof`, (j === 'guard' ? ableGuards() : n) * job.base,
       [...global, ['Weaponry', tech('weaponry') ? 1.50 : 1], ['Weapon Efficiency', tech('weaponEfficiency') ? 1.75 : 1]]);
-    if (job.upkeep) add('food', `${job.name} upkeep: ${n} × ${job.upkeep}/s`, -n * job.upkeep);
+    if (job.upkeep) add('food', `${jobName(j)} upkeep: ${n} × ${job.upkeep}/s`, -n * job.upkeep);
   }
   scale('wood', [...global, ['Lumber Yards', 1 + 0.10 * bld('lumberYard')],
     ['Tree Husbandry', tech('treeHusbandry') ? 1.20 : 1],
-    ['Old Forest', expDone('oldForest') ? 1.15 : 1]]);
+    ['Old Forest', expDone('oldForest') ? 1.15 : 1],
+    ['Restored Worldroot', wonderChoice('greenfold', 'restore') ? 1.25 : 1]]);
   scale('stone', [...global, ['Stone Works', 1 + 0.10 * bld('stoneWorks')], ['Foothills', expDone('foothills') ? 1.15 : 1]]);
   scale('knowledge', [...global, ['Libraries', 1 + 0.10 * bld('library')], ['Writing', tech('writing') ? 1.25 : 1],
-    ['Sunken Ruins', expDone('sunkenRuins') ? 1.15 : 1], ['Oral Tradition', perm('oralTradition') ? 1.5 : 1], ['Silence trial', trialActive('silence') ? 0 : 1]]);
+    ['Sunken Ruins', expDone('sunkenRuins') ? 1.15 : 1], ['Oral Tradition', perm('oralTradition') ? 1.5 : 1],
+    ['Restored Mirrored Orrery', wonderChoice('windmere', 'restore') ? 1.20 : 1], ['Silence trial', trialActive('silence') ? 0 : 1]]);
   // Ancestral Blessing is a flat bonus, so unrelated global production
   // multipliers (such as achievement completion) do not change its value.
   if (state.ancestralBlessing && !trialActive('silence')) add('knowledge', 'Smiling ancestors', 0.33);
   scale('iron', [...global, ['Ember Vein', expDone('emberVein') ? 1.10 : 1]]);
   scale('copper', [...global, ['Copper Prospecting', tech('copperProspecting') ? 1.75 : 1],
     ['Metallurgy', tech('metallurgy') ? 2 : 1], ['Electrical Engineering', tech('electricalEngineering') ? 1.5 : 1]]);
-  scale('aether', [...global, ['Glacial Peaks', expDone('glacialPeaks') ? 1.10 : 1]]);
-  for (const res of ['coal', 'tools', 'currency']) scale(res, global);
+  scale('aether', [...global, ['Glacial Peaks', expDone('glacialPeaks') ? 1.10 : 1],
+    ['Restored Mirrored Orrery', wonderChoice('windmere', 'restore') ? 1.20 : 1]]);
+  scale('coal', [...global, ['Restored Renewal Basin', wonderChoice('ashfen', 'restore') ? 1.15 : 1]]);
+  scale('tools', [...global, ['Restored Renewal Basin', wonderChoice('ashfen', 'restore') ? 1.25 : 1]]);
+  scale('currency', global);
   if (trialActive('industrialization')) {
     scale('coal', [['Industrialization trial', INDUSTRIALIZATION_COAL_MULTIPLIER]]);
   }
@@ -1809,7 +1853,8 @@ function jobProduction(jobId) {
   const breakdown = {};
   production(0, breakdown);
   state.jobs[jobId] = previous;
-  const entry = (breakdown[job.res] || []).find(item => item.label.startsWith(`${job.name}:`));
+  const resultResource = job.factoryLike && tinkererFactoryAvailable() ? factoryRecipe().id : job.res;
+  const entry = (breakdown[resultResource] || []).find(item => item.label.startsWith(`${jobName(jobId)}:`) || item.label.startsWith(`${jobName(jobId)} (`));
   return entry ? entry.amount / (previous + 1) : 0;
 }
 
@@ -2146,6 +2191,7 @@ function migrationBuy(id) {
   if (id === 'farHorizons' && !LINEAGES.some(l => l.id !== 'human' && lineageUnlocked(l.id))) return;
   if (id === 'fearOfTheConqueror' && !fearOfTheConquerorAvailable()) return;
   if (id === 'practicedMigrator' && !practicedMigratorAvailable()) return;
+  if (id === 'animalHusbandry' && !animalHusbandryAvailable()) return;
   const lvl = upg(id);
   if (lvl >= def.max) return;
   const cost = def.costs[lvl];
@@ -2504,10 +2550,12 @@ function doBuild(id) {
   const cost = buildingCost(def);
   if (!canAfford(cost)) return false;
   payCost(cost);
+  applyReclamation(cost);
   const previousCount = bld(id);
   const previousEnabled = state.buildingPower[id];
   state.bld[id] = previousCount + 1;
-  if (id === 'alloyMine') state.seen.livingAlloy = true;
+  const discoveredResource = { alloyMine: 'livingAlloy', heartwoodGrove: 'heartwood', starLens: 'starGlass', ranch: 'fur' }[id];
+  if (discoveredResource) state.seen[discoveredResource] = true;
   // A new copy joins the allocation only when every existing copy was on.
   // Partial or fully disabled allocations remain the player's choice.
   if (Object.hasOwn(POWER_BUILDINGS, id) && Number.isFinite(previousEnabled) &&
@@ -3330,8 +3378,8 @@ function renderVillage() {
     `<div class="res-note" style="margin:2px 0 6px">The land gives: ${modsHtml(L)}</div>` +
     `<div class="res-note" style="margin:2px 0 6px">Guard armor: level ${fmt(armorLevel())} — each level reduces death odds by 8% (minimum 15%).</div>`;
 
-  if (bld('factory') > 0) {
-    h += '<h2 class="section">Factory production</h2><div class="res-note">All factories share one production line. Rates below are per factory before bonuses. Production slows when supplies run short and pauses when output storage is full. The Industrialization trial requires Industrial Goods.</div>';
+  if (bld('factory') > 0 || tinkererFactoryAvailable()) {
+    h += '<h2 class="section">Factory production</h2><div class="res-note">All factories share one production line. After the World Anvil is silenced, Tinkerers can use this same recipe list at half the factory rate without needing Power. Production slows when supplies run short and pauses when output storage is full. The Industrialization trial requires Industrial Goods.</div>';
     for (const recipe of FACTORY_RECIPES) {
       const unlocked = !recipe.tech || tech(recipe.tech);
       const selected = factoryRecipe().id === recipe.id;
@@ -3374,11 +3422,16 @@ function renderVillage() {
     if (!job.unlock()) continue;
     const n = state.jobs[j] || 0;
     const assignment = typeof job.max === 'function' || job.mining ? `${n}/${jobCapacity(j)}` : n;
+    const tinkererFactory = j === 'tinkerer' && tinkererFactoryAvailable();
+    const workRecipe = tinkererFactory ? factoryRecipe() : null;
+    const workRate = workRecipe ? workRecipe.id === 'tools' ? job.base : workRecipe.rate * 0.5 * (workRecipe.id === 'steel' && tech('lightningMetal') ? 1.5 : 1) : job.base;
+    const workResource = workRecipe ? workRecipe.id : job.res;
+    const workInputs = workRecipe ? workRecipe.id === 'tools' ? job.inputs : Object.fromEntries(Object.entries(workRecipe.inputs).map(([r, amount]) => [r, amount * 0.5])) : job.inputs;
     h += `<div class="job-row">` +
-      `<span class="job-name has-tooltip" data-tooltip="${attrText(job.desc)}">${job.name}</span>` +
+      `<span class="job-name has-tooltip" data-tooltip="${attrText(job.desc)}">${jobName(j)}</span>` +
       `<span class="job-assign">${assignment}</span>` +
-      `<span class="job-rate">${fmt(job.base)} ${resourceName(job.res)}/s each` +
-      (job.inputs ? ` (uses ${Object.entries(job.inputs).map(([r, v]) => `${fmt(v)} ${resourceName(r).toLowerCase()}/s`).join(' + ')})` : '') +
+      `<span class="job-rate">${fmt(workRate)} ${resourceName(workResource)}/s each` +
+      (workInputs ? ` (uses ${Object.entries(workInputs).map(([r, v]) => `${fmt(v)} ${resourceName(r).toLowerCase()}/s`).join(' + ')})` : '') +
       `</span>` +
       `<span class="job-btns">` +
       `<button data-action="job-dec" data-job="${j}" data-repeat title="Hold to repeat" ${n > 0 ? '' : 'disabled'}>−</button>` +
@@ -3397,7 +3450,7 @@ function renderVillage() {
     const n = explorerCount();
     h += `<div class="job-row"><span class="job-name has-tooltip" data-tooltip="${attrText(JOBS.explorer.desc)}">${JOBS.explorer.name}</span>` +
       `<span class="job-assign">${n}</span>` +
-      `<span class="job-rate">+0.025 Survey/s each</span>` +
+      `<span class="job-rate">+0.025 Survey/s each${wonderChoice('windmere', 'silence') ? '; +0.06 Knowledge/s each' : ''}</span>` +
       `<span class="job-btns"><button data-action="explorer-dec" data-repeat title="Hold to repeat" ${n > 0 ? '' : 'disabled'}>−</button>` +
       `<button data-action="explorer-inc" data-repeat title="Hold to repeat" ${unassigned() > 0 ? '' : 'disabled'}>+</button></span></div>`;
   }
@@ -3869,6 +3922,7 @@ function renderShop() {
     if (u.id === 'farHorizons' && !LINEAGES.some(l => l.id !== 'human' && lineageUnlocked(l.id))) continue;
     if (u.id === 'fearOfTheConqueror' && !fearOfTheConquerorAvailable()) continue;
     if (u.id === 'practicedMigrator' && !practicedMigratorAvailable()) continue;
+    if (u.id === 'animalHusbandry' && !animalHusbandryAvailable()) continue;
     const lvl = upg(u.id);
     const maxed = lvl >= u.max;
     const nextCost = maxed ? null : u.costs[lvl];
