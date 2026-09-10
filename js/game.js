@@ -498,10 +498,16 @@ function trialDifficulty(id) {
     default: return 1;
   }
 }
+function scarcityWoodMultiplier() {
+  return 0.90 / Math.pow(1.25, trialCount('scarcity'));
+}
+function scarcityMiningLossChance() {
+  return 0.001 * Math.pow(1.25, trialCount('scarcity'));
+}
 function trialModifierText(def) {
   const multiplier = trialDifficulty(def.id);
   switch (def.id) {
-    case 'scarcity': return `Food production is reduced to ${+(multiplier * 100).toFixed(2)}%.`;
+    case 'scarcity': return `Stormy weather reduces food to ${+(multiplier * 100).toFixed(2)}% and wood to ${+(scarcityWoodMultiplier() * 100).toFixed(2)}%; mining workers have a ${(scarcityMiningLossChance() * 100).toFixed(3)}% loss chance per tick.`;
     case 'frugality': return `All building costs are multiplied by ${+multiplier.toFixed(3)}.`;
     case 'overflow': return `${def.mod} Storage ceilings are multiplied by ${+multiplier.toFixed(3)} while sworn.`;
     default: return def.mod;
@@ -1293,6 +1299,7 @@ function dailyWeather(day = state.day, landing = state.landing) {
   // A restored Sunwell catches half of the days that would otherwise become
   // dangerously hot, without making the rest of the climate deterministic.
   if (wonderChoice('emberplain', 'restore') && temperature >= 30 && roll('sunwell-shade') < 0.5) temperature = 29;
+  if (trialActive('scarcity')) sky = WEATHER.find(weather => weather.id === 'storm') || sky;
   const warmth = temperature <= 0 ? 'Freezing' : temperature < 10 ? 'Cold' : temperature < 20 ? 'Mild' : temperature < 30 ? 'Warm' : 'Hot';
   const mods = { ...sky.mods };
   if (temperature <= 0) mods.food = (mods.food || 1) * 0.90;
@@ -1746,7 +1753,8 @@ function production(dt = 0.25, breakdown = null) {
   scale('wood', [...global, ['Lumber Yards', 1 + 0.10 * bld('lumberYard')],
     ['Tree Husbandry', tech('treeHusbandry') ? 1.20 : 1],
     ['Old Forest', expDone('oldForest') ? 1.15 : 1],
-    ['Restored Worldroot', wonderChoice('greenfold', 'restore') ? 1.25 : 1]]);
+    ['Restored Worldroot', wonderChoice('greenfold', 'restore') ? 1.25 : 1],
+    ['Scarcity trial', trialActive('scarcity') ? scarcityWoodMultiplier() : 1]]);
   scale('stone', [...global, ['Stone Works', 1 + 0.10 * bld('stoneWorks')], ['Foothills', expDone('foothills') ? 1.15 : 1]]);
   scale('knowledge', [...global, ['Libraries', 1 + 0.10 * bld('library')], ['Writing', tech('writing') ? 1.25 : 1],
     ['Sunken Ruins', expDone('sunkenRuins') ? 1.15 : 1], ['Oral Tradition', perm('oralTradition') ? 1.5 : 1],
@@ -2531,6 +2539,24 @@ function tickStep(dt) {
     }
   } else {
     state.starveT = 0;
+  }
+
+  // Mining is dangerous during the Trial of Scarcity. A single worker can be
+  // lost at work per simulation step; scaling the chance by both elapsed time
+  // and the number of miners keeps the rate stable during catch-up.
+  if (trialActive('scarcity')) {
+    const miningJobs = Object.keys(JOBS).filter(id => JOBS[id].mining && (state.jobs[id] || 0) > 0);
+    const miningWorkers = miningJobs.reduce((total, id) => total + (state.jobs[id] || 0), 0);
+    const lossChance = 1 - Math.pow(1 - scarcityMiningLossChance(), miningWorkers * dt);
+    if (state.pop > 1 && miningWorkers > 0 && Math.random() < lossChance) {
+      let pick = Math.random() * miningWorkers;
+      const job = miningJobs.find(id => (pick -= state.jobs[id] || 0) < 0) || miningJobs[miningJobs.length - 1];
+      state.jobs[job] = Math.max(0, (state.jobs[job] || 0) - 1);
+      if (state.jobs[job] === 0) delete state.jobs[job];
+      state.pop--;
+      reconcileWorkers();
+      addLog(`${jobName(job)} lost at work. The Ancients watch over Emberhold.`, 'log-bad');
+    }
   }
 
   // growth

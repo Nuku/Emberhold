@@ -652,7 +652,7 @@ const CRAFTS = [
 const TRIALS = [
   { id: 'scarcity', name: 'Trial of Scarcity', repeat: 5,
     text: 'The ancestors remember the years when the storehouse was an empty promise. Take the oath, and every meal must be earned twice.',
-    mod: 'Food production is halved.',
+    mod: 'The entire trial is stormy; food and wood production are reduced to 90%.',
     goal: 'Keep the village fed for 240 days. If the food ever runs out, the trial fails.',
     reward: '+10% food production, permanently, for each completion.' },
 
@@ -791,7 +791,7 @@ const WEATHER = [
   { id: 'clear', name: 'Clear', morale: 0.025, mods: {} },
   { id: 'cloudy', name: 'Cloudy', morale: 0, mods: {} },
   { id: 'rain', name: 'Rainy', morale: 0, mods: { food: 1.10 } },
-  { id: 'storm', name: 'Stormy', morale: -0.06, mods: { food: 0.90 } },
+  { id: 'storm', name: 'Stormy', morale: -0.06, mods: { food: 0.90, wood: 0.90 } },
   { id: 'fog', name: 'Foggy', morale: 0, mods: { currency: 0.90 } },
   { id: 'aurora', name: 'Aurora', morale: 0.015, mods: { knowledge: 1.10, aether: 1.15 } },
 ];
