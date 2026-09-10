@@ -45,6 +45,7 @@ const WONDER_UNLOCK_BY_ID = indexById(WONDER_UNLOCKS);
 const FACTORY_RECIPE_BY_ID = indexById(FACTORY_RECIPES);
 const PLACE_TRAIT_BY_ID = indexById(PLACE_TRAITS);
 const LINEAGE_TRAIT_BY_ID = indexById(LINEAGE_TRAITS);
+const RESOURCE_PROJECT_BY_ID = indexById(RESOURCE_PROJECTS);
 
 function resourceName(id) { return RESOURCE_BY_ID.get(id)?.name || id; }
 
@@ -121,6 +122,8 @@ function defaultState() {
     migrationChallengePending: false,
     armor: 0,
     migrating: false,
+    migrationPreparation: false,
+    projects: {},
     pendingEchoes: 0,
     shopTab: 'buy',
     won: false,
@@ -164,7 +167,7 @@ function animalHusbandryAvailable() { return wonderChoice('greenfold', 'silence'
 function solarPowerAvailable() { return wonderChoice('emberplain', 'restore') &&
   ['steamPlant', 'dynamo', 'windDevice', 'livingBlock', 'factory'].some(id => bld(id) > 0); }
 function trialCount(id) { return state.trialDone[id] || 0; }
-function upg(id) { return state.upgrades[id] || 0; }
+function upg(id) { return state?.upgrades?.[id] || 0; }
 function upgradeCost(def, level) { return def.cost ? def.cost(level) : def.costs[level]; }
 function civicDef(id) { return CIVIC_BY_ID.get(id) || CIVICS[0]; }
 function governorDef(id) { return GOVERNOR_BY_ID.get(id); }
@@ -2154,6 +2157,40 @@ function trialProgressText() {
 }
 
 // ---------- migration (the loop) ----------
+function projectProgress(id) {
+  return Math.max(0, Math.min(100, Math.floor(state.projects?.[id] || 0)));
+}
+
+function projectPartCost(project) {
+  return project.total / 100;
+}
+
+function advanceResourceProject(id, parts = 1) {
+  const project = RESOURCE_PROJECT_BY_ID.get(id);
+  if (!project || !Number.isFinite(parts) || parts < 1) return 0;
+  state.projects = state.projects || {};
+  let completed = 0;
+  const cost = projectPartCost(project);
+  while (completed < Math.floor(parts) && projectProgress(id) < 100 &&
+      (state.res[project.resource] || 0) >= cost) {
+    state.res[project.resource] -= cost;
+    state.projects[id] = projectProgress(id) + 1;
+    completed++;
+  }
+  if (completed && projectProgress(id) === 100)
+    addLog(`${project.name} are complete.`, 'log-good');
+  return completed;
+}
+
+function migrationPreparationComplete() {
+  return RESOURCE_PROJECTS.every(project => projectProgress(project.id) >= 100);
+}
+
+function prepareMigration(id, parts = 1) {
+  if (!state.migrating || !state.migrationPreparation) return 0;
+  return advanceResourceProject(id, parts);
+}
+
 function beginMigration() {
   if (!canMigrate()) return;
   state.pendingEchoes = echoesEarned();
@@ -2161,6 +2198,8 @@ function beginMigration() {
   state.pendingSpecies = state.species;
   state.pendingLandings = landingChoicesForMigration();
   state.pendingLanding = (state.pendingLandings.find(l => lineageSelectable(state.pendingSpecies, l.id)) || state.pendingLandings[0]).id;
+  state.migrationPreparation = true;
+  state.projects = Object.fromEntries(RESOURCE_PROJECTS.map(project => [project.id, 0]));
   state.migrating = true;
   addLog(`The Great Migration is declared. The deeds of ${state.pop} villagers will echo: ${state.pendingEchoes} Echo${state.pendingEchoes === 1 ? '' : 's'} gained. Spend them before setting out.`, 'log-important');
 }
@@ -2233,6 +2272,7 @@ function totalMigrationEchoes() {
 
 function setOut(trialId = null) {
   if (!state.migrating && !trialId) return;
+  if (!trialId && state.migrationPreparation && !migrationPreparationComplete()) return;
   if (!trialId && state.rapture?.landing === state.landing && raptureWorkers() > 0) {
     state.rapture.workers = 0;
     resetWonderSection('The migration recalls the last Rapture workers. The active section closes behind them.');
@@ -2370,6 +2410,8 @@ function setOut(trialId = null) {
     addLog(`${newlyUnlocked.join(' and ')} lineage${newlyUnlocked.length === 1 ? '' : 's'} may now be chosen at future migrations.`, 'log-good');
   }
   state.migrating = false;
+  state.migrationPreparation = false;
+  state.projects = {};
   state.pendingEchoes = 0;
   state.pendingSpecies = null;
   state.pendingLandings = [];
@@ -2411,7 +2453,7 @@ function startGameClock() {
   // lose time; it only wakes the simulation to account for elapsed time.
   if (typeof Worker === 'function') {
     try {
-  gameClockWorker = new Worker('js/game-clock.worker.js?v=publish-20260910u33');
+  gameClockWorker = new Worker('js/game-clock.worker.js?v=publish-20260910u34');
       gameClockWorker.addEventListener('message', () => {
         updateGameClock(true);
         renderBonusTimer();
@@ -2927,6 +2969,11 @@ function normalizeSave(s) {
       (Array.isArray(d[key]) ? !Array.isArray(s[key]) : object(d[key]) && !object(s[key]))))
       throw new Error(`Invalid ${key}`);
   }
+  s.projects = Object.fromEntries(RESOURCE_PROJECTS.map(project => {
+    const value = s.projects[project.id];
+    if (value !== undefined && (!Number.isFinite(value) || value < 0)) throw new Error('Invalid project progress');
+    return [project.id, Math.max(0, Math.min(100, Math.floor(Number(value) || 0)))];
+  }));
   // Older saves may not have recorded the initial landing. The current
   // settlement is necessarily known and should count as a return destination.
   s.landingsSeen[s.landing] = true;
@@ -3872,10 +3919,11 @@ function renderMigration() {
   h += `<div class="card trial-active"><div class="card-head">` +
     `<span class="card-title">The migration is prepared</span>` +
     `<span class="card-count">+${state.pendingEchoes} Echoes earned — ${state.echoes} in the pouch</span></div>` +
-    `<div class="card-desc">The departure is sworn and cannot be recalled. You may still tune the Ancestral Shop and choose a lineage, ` +
-    `but the scout reports above are fixed and the old village is already committed to the road.</div>` +
+    `<div class="card-desc">The departure is sworn and cannot be recalled. The village must now provision the road before it can leave. ` +
+    `Each supply is filled in 100 small commitments, so the stores can be gathered and packed over time.</div>` +
+    renderMigrationPreparation() +
     `<div class="card-actions">` +
-    `<button data-action="migration-out" ${lineageSelectable(state.pendingSpecies || state.species) ? '' : 'disabled'}>Set out — found the new Emberhold</button></div>` +
+    `<button data-action="migration-out" ${lineageSelectable(state.pendingSpecies || state.species) && (!state.migrationPreparation || migrationPreparationComplete()) ? '' : 'disabled'}>${state.migrationPreparation && !migrationPreparationComplete() ? 'Finish preparations to set out' : 'Set out — found the new Emberhold'}</button></div>` +
     (!lineageSelectable(state.pendingSpecies || state.species) ? '<div class="res-note">Choose a compatible lineage and landing before setting out.</div>' : '') +
     `</div>`;
   h += '<h2 class="section">Scout reports</h2>' +
@@ -3952,6 +4000,24 @@ function renderShop() {
     `</div>`;
   const visible = tab === 'purchased' ? purchased : available;
   h += visible.length ? visible.join('') : `<div class="res-note">${tab === 'purchased' ? 'No ancestral upgrades are fully learned yet.' : 'Every available ancestral upgrade is fully learned.'}</div>`;
+  return h;
+}
+
+function renderMigrationPreparation() {
+  if (!state.migrationPreparation) return '';
+  let h = '<h2 class="section">Migration preparations</h2>';
+  h += '<div class="res-note">Each 1% consumes one hundredth of the total listed cost. Hold a button to commit available supplies as they arrive.</div>';
+  for (const project of RESOURCE_PROJECTS) {
+    const progress = projectProgress(project.id);
+    const partCost = projectPartCost(project);
+    const affordable = (state.res[project.resource] || 0) >= partCost;
+    h += `<div class="card ${progress >= 100 ? 'done' : ''}">` +
+      `<div class="card-head"><span class="card-title">${project.name}</span><span class="card-count">${progress}%</span></div>` +
+      `<div class="card-desc">${project.desc}. ${fmt(progress * partCost)} / ${fmt(project.total)} ${resourceName(project.resource)} committed.</div>` +
+      `<progress value="${progress}" max="100" aria-label="${attrText(project.name)} progress"></progress>` +
+      `<div class="card-cost">${fmt(partCost)} ${resourceName(project.resource)} per 1% · ${fmt(state.res[project.resource] || 0)} available</div>` +
+      `<div class="card-actions"><button data-action="migration-prepare" data-id="${project.id}" data-repeat ${progress >= 100 || !affordable ? 'disabled' : ''}>${progress >= 100 ? 'Complete' : 'Commit 1%'}</button></div></div>`;
+  }
   return h;
 }
 
@@ -4064,7 +4130,7 @@ function renderSidePanel() {
 function loadLatestUpdatesTooltip() {
   const button = document.getElementById('btn-updates');
   if (!button || typeof fetch !== 'function' || typeof DOMParser !== 'function') return;
-  fetch('changelog.html?v=publish-20260910u33')
+  fetch('changelog.html?v=publish-20260910u34')
     .then(response => response.ok ? response.text() : Promise.reject(new Error('changelog unavailable')))
     .then(source => {
       const doc = new DOMParser().parseFromString(source, 'text/html');
@@ -4203,6 +4269,7 @@ const automationActionFns = {
   councilor: toggleCouncilor,
   expedition: attemptExpedition,
   migrationBegin: beginMigration,
+  migrationPrepare: prepareMigration,
   migrationBuy,
   migrationOut: setOut,
   migrationRefund,
@@ -4291,7 +4358,7 @@ window.emberhold = {
   },
   render,
   switchTab,
-  definitions: { RESOURCES, JOBS, BUILDINGS, CRAFTS, TECHS, CIVICS, GOVERNORS,
+  definitions: { RESOURCES, RESOURCE_PROJECTS, JOBS, BUILDINGS, CRAFTS, TECHS, CIVICS, GOVERNORS,
     COUNCILORS, TRIALS, EXPEDITIONS, WONDERS, WONDER_UNLOCKS, LANDINGS, LINEAGES, UPGRADES, FACTORY_RECIPES },
 };
 
@@ -4349,6 +4416,7 @@ function runAction(btn) {
     case 'exp': attemptExpedition(btn.dataset.id); render(); break;
     case 'migration-begin': beginMigration(); render(); break;
     case 'migration-out': setOut(); render(); break;
+    case 'migration-prepare': prepareMigration(btn.dataset.id); render(); break;
     case 'lineage': chooseLineage(btn.dataset.id); render(); break;
     case 'landing': chooseLanding(btn.dataset.id); render(); break;
     case 'migration-buy': migrationBuy(btn.dataset.id); render(); break;

@@ -277,10 +277,15 @@ What endures: trials and their rewards, expeditions, Echoes, and anything
 bought in the **Ancestral Shop**. What resets: research, villagers, all
 resources, and all buildings.
 
-While the migration is being prepared (and only then), shop points can be
-**bought and refunded freely** — a full respec each loop, ideal for tuning
-before swearing a trial. Declaring the migration is one-way: the scout reports
-are rolled and locked immediately, then "Set out" founds the new Emberhold.
+Declaring the migration is one-way: the scout reports are rolled and locked
+immediately, but the village must still prepare the road before it can leave.
+Four preparations—food, caravan timber, stone roadwork, and departure tools—
+are each filled from 0% to 100% in one-percent commitments. Each commitment
+spends only its small share of the total cost, letting the village gather and
+pack the required resources over time. Only after all four reach 100% can
+"Set out" found the new Emberhold. While this preparation is underway (and
+only then), shop points can be **bought and refunded freely** — a full respec
+each loop, ideal for tuning before swearing a trial.
 
 Shop upgrades: Deep Roots (+5% all production ×5), Wandering Kin (+2 starting
 villagers and +2 population cap ×5), Grand Designs (+1 Hut cap ×3), Deep Cellars (+15% storage ×3),

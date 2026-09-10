@@ -35,6 +35,19 @@ const RESOURCES = [
 ];
 const RESOURCE_NAMES = new Map(RESOURCES.map(resource => [resource.id, resource.name]));
 
+// Reusable staged resource commitments. A project is paid in 100 equal parts,
+// so future long-form preparations can use the same ledger and UI affordances.
+const RESOURCE_PROJECTS = [
+  { id: 'migrationProvisions', name: 'Caravan provisions', resource: 'food', total: 12000,
+    desc: 'food packed and preserved for the road' },
+  { id: 'migrationCaravan', name: 'Caravan frames', resource: 'wood', total: 8000,
+    desc: 'timber shaped into wagons, crates, and shelter' },
+  { id: 'migrationRoadwork', name: 'Roadwork and fittings', resource: 'stone', total: 6000,
+    desc: 'stone, anchors, and durable tools for the crossing' },
+  { id: 'migrationTools', name: 'Departure tools', resource: 'tools', total: 1000,
+    desc: 'axes, picks, needles, and spare parts' },
+];
+
 // Power is capacity, not a stockpile. These baseline values are intentionally
 // separate so research and upgrades can tune generation and demand later.
 const POWER_PER_STEAM_PLANT = 3;
