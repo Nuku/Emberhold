@@ -4,6 +4,7 @@ All notable changes to Emberhold are recorded here, with the newest changes firs
 
 ## 2026-09-09
 
+- Removed the duplicate settlement location summary from the Village panel now that the current landing is shown beneath the Emberhold title.
 - Added a dedicated location line beneath the Emberhold title so the current landing remains visible while the chronicle details stay focused on era, lineage, and place traits.
 - Updated the desktop layout to keep the header and utility rail fixed while the Stores, main, and side panels scroll independently; mobile layouts retain natural page scrolling.
 - Increased Knowledge costs 15× for research discovered after the Stone Age so later technologies better match the game's progression curve.

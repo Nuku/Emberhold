@@ -2313,7 +2313,7 @@ function startGameClock() {
   // lose time; it only wakes the simulation to account for elapsed time.
   if (typeof Worker === 'function') {
     try {
-      gameClockWorker = new Worker('js/game-clock.worker.js?v=publish-20260909u18');
+      gameClockWorker = new Worker('js/game-clock.worker.js?v=publish-20260909u19');
       gameClockWorker.addEventListener('message', () => {
         updateGameClock(true);
         renderBonusTimer();
@@ -3265,11 +3265,7 @@ function renderStores() {
 
 function renderVillage() {
   const L = landingDef();
-  let h = `<h2 class="section">Where you stand — ${L.name}</h2>` +
-    `<div class="res-note">${L.text}</div>` +
-    `<div class="res-note">Climate: ${climateDef().name} — ${climateDef().text} Freezing days reduce food production by 10%; hot days by 5%.</div>` +
-    `<div class="res-note">Place traits: ${traitsHtml(state.placeTraits)}</div>` +
-    renderNextStep() +
+  let h = renderNextStep() +
     `<div class="res-note">Population growth: <span class="has-tooltip" tabindex="0" data-tooltip="${attrText(populationGrowthTooltip())}">${fmt(populationGrowthTime())} seconds</span> per new villager while food and housing are available. Guard healing: ${fmt(guardHealingNeed())} seconds per injury.</div>` +
     `<div class="res-note" style="margin:2px 0 6px">The land gives: ${modsHtml(L)}</div>` +
     `<div class="res-note" style="margin:2px 0 6px">Guard armor: level ${fmt(armorLevel())} — each level reduces death odds by 8% (minimum 15%).</div>`;
@@ -3946,7 +3942,7 @@ function renderSidePanel() {
 function loadLatestUpdatesTooltip() {
   const button = document.getElementById('btn-updates');
   if (!button || typeof fetch !== 'function' || typeof DOMParser !== 'function') return;
-  fetch('changelog.html?v=publish-20260909u18')
+  fetch('changelog.html?v=publish-20260909u19')
     .then(response => response.ok ? response.text() : Promise.reject(new Error('changelog unavailable')))
     .then(source => {
       const doc = new DOMParser().parseFromString(source, 'text/html');
