@@ -147,7 +147,7 @@ const POST_STONE_AGE_RESEARCH = new Set([
   'metallurgy', 'ironMites', 'weaponry', 'machineryTech', 'lightningMetal',
   'livingAlloy', 'understandingHome', 'awakenAncients', 'advancedScience',
   'windHarness', 'banking', 'diplomacy', 'spies', 'espionage', 'civics',
-  'council', 'commonality', 'festivals', 'civicHarmony', 'weaponEfficiency',
+  'council', 'commonality', 'festivals', 'civicHarmony', 'workplaceEthics', 'weaponEfficiency',
   'electricalEngineering', 'astronomy', 'optics',
 ]);
 function wonderDef(id = state.landing) { return WONDER_BY_ID.get(id); }
@@ -916,7 +916,17 @@ function jobCapacity(job) {
   const j = JOBS[job];
   if (!j) return 0;
   if (job === 'guard') return guardCap();
-  return typeof j.max === 'function' ? j.max() : state.pop;
+  const base = typeof j.max === 'function' ? j.max() : state.pop;
+  return base + (workplaceEthicsActive() && j.mining ? 1 : 0);
+}
+function workplaceEthicsActive() { return tech('workplaceEthics'); }
+function workplaceEthicsFull(jobId) {
+  const job = JOBS[jobId];
+  return workplaceEthicsActive() && job?.mining && job.unlock() &&
+    (state.jobs[jobId] || 0) === jobCapacity(jobId);
+}
+function workplaceEthicsMoralePenalty() {
+  return Object.keys(JOBS).filter(workplaceEthicsFull).length * 0.15;
 }
 
 // Reconcile the whole workforce, including specialists, after population loss
@@ -1377,6 +1387,7 @@ function moraleTooltip(foodRate = production(0.25).food) {
   const activeLivingBlocks = powerAllocation().livingBlock;
   add(-activeLivingBlocks * 0.1, `${activeLivingBlocks} Living Block${activeLivingBlocks === 1 ? '' : 's'}`);
   add(-crowdMoralePenalty(), `${Math.max(0, state.pop - 20)} villager${Math.max(0, state.pop - 20) === 1 ? '' : 's'} beyond 20`);
+  add(-workplaceEthicsMoralePenalty(), 'Workplace Ethics full mining crews');
   for (const trait of currentPlaceTraits()) add(trait.morale || 0, trait.name);
   add(airOfRageMorale(), 'Air of Rage');
   if ((state.raptureFleeMoraleT || 0) > 0) add(-3, 'Rapture workers fleeing back to town');
@@ -1398,6 +1409,7 @@ function updateMorale(dt, foodRate) {
   delta += performerCount() * 0.10;
   delta -= powerAllocation().livingBlock * 0.1;
   delta -= crowdMoralePenalty();
+  delta -= workplaceEthicsMoralePenalty();
   delta -= localTribeIds().filter(id => state.diplomacy?.[id]?.conquered && !commonalityActive()).length;
   delta += currentPlaceTraits().reduce((sum, trait) => sum + (trait.morale || 0), 0);
   delta += airOfRageMorale();
@@ -1627,7 +1639,10 @@ function production(dt = 0.25, breakdown = null) {
     if (n > 0) {
       if (!job.winterproof) {
         const supplied = !job.inputs || (state.res.wood > 0 && state.res.stone > 0);
-        const factors = j === 'ironminer' && tech('ironMites') ? [['Iron Mites', 1.30]] : [];
+        const factors = [
+          ...(j === 'ironminer' && tech('ironMites') ? [['Iron Mites', 1.30]] : []),
+          ...(workplaceEthicsFull(j) ? [['Workplace Ethics', 1.10]] : []),
+        ];
         add(job.res, `${job.name}: ${n} × ${job.base}/s`, n * job.base,
           [...factors, ...(supplied ? [] : [['Missing wood or stone', 0]])]);
       }
@@ -2323,7 +2338,7 @@ function startGameClock() {
   // lose time; it only wakes the simulation to account for elapsed time.
   if (typeof Worker === 'function') {
     try {
-      gameClockWorker = new Worker('js/game-clock.worker.js?v=publish-20260909u21');
+      gameClockWorker = new Worker('js/game-clock.worker.js?v=publish-20260909u22');
       gameClockWorker.addEventListener('message', () => {
         updateGameClock(true);
         renderBonusTimer();
@@ -3333,7 +3348,7 @@ function renderVillage() {
     if (job.targeted || j === 'guard') continue;
     if (!job.unlock()) continue;
     const n = state.jobs[j] || 0;
-    const assignment = typeof job.max === 'function' ? `${n}/${job.max()}` : n;
+    const assignment = typeof job.max === 'function' || job.mining ? `${n}/${jobCapacity(j)}` : n;
     h += `<div class="job-row">` +
       `<span class="job-name has-tooltip" data-tooltip="${attrText(job.desc)}">${job.name}</span>` +
       `<span class="job-assign">${assignment}</span>` +
@@ -3342,7 +3357,7 @@ function renderVillage() {
       `</span>` +
       `<span class="job-btns">` +
       `<button data-action="job-dec" data-job="${j}" data-repeat title="Hold to repeat" ${n > 0 ? '' : 'disabled'}>−</button>` +
-      `<button data-action="job-inc" data-job="${j}" data-repeat title="Hold to repeat" ${unassigned() > 0 && (typeof job.max !== 'function' || n < job.max()) ? '' : 'disabled'}>+</button>` +
+      `<button data-action="job-inc" data-job="${j}" data-repeat title="Hold to repeat" ${unassigned() > 0 && n < jobCapacity(j) ? '' : 'disabled'}>+</button>` +
       `</span></div>`;
   }
   if (JOBS.performer.unlock()) {
@@ -3962,7 +3977,7 @@ function renderSidePanel() {
 function loadLatestUpdatesTooltip() {
   const button = document.getElementById('btn-updates');
   if (!button || typeof fetch !== 'function' || typeof DOMParser !== 'function') return;
-  fetch('changelog.html?v=publish-20260909u21')
+  fetch('changelog.html?v=publish-20260909u22')
     .then(response => response.ok ? response.text() : Promise.reject(new Error('changelog unavailable')))
     .then(source => {
       const doc = new DOMParser().parseFromString(source, 'text/html');

@@ -127,6 +127,18 @@ test('policy changes wait one real-time hour, persist through saves and trials, 
   assert.equal(run('policyCooldownRemaining()'), 0);
 });
 
+test('Workplace Ethics adds mining seats, rewards full crews, and lowers morale', () => {
+  const { run } = game();
+  run(`state.techs.civics = true; state.techs.civicHarmony = true; state.techs.workplaceEthics = true;
+    state.bld.quarry = 1; state.bld.stoneWorks = 2; state.jobs.miner = 4; state.pop = 4;`);
+  run(`state.techs.workplaceEthics = false; const withoutEthics = production(0).stone; state.techs.workplaceEthics = true;`);
+  assert.equal(run('jobCapacity("miner")'), 4);
+  assert.ok(Math.abs(run('production(0).stone') / run('withoutEthics') - 1.1) < 1e-9);
+  assert.equal(run('workplaceEthicsMoralePenalty()'), 0.15);
+  run('state.jobs.miner = 3');
+  assert.equal(run('workplaceEthicsMoralePenalty()'), 0);
+});
+
 test('Banking unlocks Money Lenders that cap Bankers and generate population currency', () => {
   const { run } = game();
   assert.equal(run("BUILDINGS.find(b => b.id === 'moneyLender').req()"), false);

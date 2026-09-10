@@ -4,6 +4,7 @@ All notable changes to Emberhold are recorded here, with the newest changes firs
 
 ## 2026-09-09
 
+- Added Workplace Ethics after Civic Harmony: mining jobs gain one additional slot, full mining crews produce 10% more, and each full crew applies a −0.15 morale/s penalty.
 - Prevented one-off buildings from being queued more than once, and cleaned duplicate or already-completed entries from loaded construction queues.
 - Fixed Dynamos so their factory production bonus increases output without multiplying the factory's material consumption.
 - Fixed currency losses from random events scaling with the settlement's current holdings instead of remaining at starter-size amounts.
