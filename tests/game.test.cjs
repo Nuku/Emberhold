@@ -354,6 +354,19 @@ test('queued actions keep their displayed cost when price modifiers change', () 
   assert.equal(run('state.queues.build[0].cost.wood'), 45);
 });
 
+test('one-off buildings cannot be queued more than once and stale duplicates are removed', () => {
+  const { run } = game();
+  run(`state.trialDone.expansion = 1; state.res.copper = 0; state.res.steel = 0;
+    state.res.machinery = 0; state.res.tools = 0; state.res.currency = 0; state.res.goods = 0;
+    state.techs.electricalEngineering = true; attemptBuild('dynamo'); attemptBuild('dynamo');`);
+  assert.equal(run('state.queues.build.filter(entry => entry.id === "dynamo").length'), 1);
+  run(`state.queues.build.push({ type: 'build', id: 'dynamo' });
+    state = normalizeSave(JSON.parse(JSON.stringify(state)))`);
+  assert.equal(run('state.queues.build.filter(entry => entry.id === "dynamo").length'), 1);
+  run(`state.bld.dynamo = 1; state = normalizeSave(JSON.parse(JSON.stringify(state)))`);
+  assert.equal(run('state.queues.build.filter(entry => entry.id === "dynamo").length'), 0);
+});
+
 test('stores display Survey after Explorers are unlocked', () => {
   const { run } = game();
   run(`state.trialDone.wayfinding = 1; state.surveyPoints = 12.5; state.jobs.explorer = 2`);
@@ -1746,6 +1759,17 @@ test('factories switch outputs and consume recipe materials without multiplying 
     if (input) assert.equal(run(`rates['${input}']`), -cost);
     if (id !== 'goods') assert.equal(run('rates.goods'), 0);
   }
+});
+
+test('Dynamos boost factory output without multiplying factory input costs', () => {
+  const { run } = game();
+  run(`state.bld.factory = 1; state.bld.dynamo = 1; state.res.iron = 100; state.res.coal = 100;
+    state.res.steel = 0; state.techs.metallurgy = true; chooseFactoryRecipe('steel');
+    const detail = {}; const rates = production(1, detail)`);
+  assert.ok(Math.abs(run('rates.steel') - 0.046) < 1e-10);
+  assert.equal(run('rates.iron'), -0.6);
+  assert.equal(run('rates.coal'), -0.4);
+  assert.ok(run("detail.steel.find(e => e.label.startsWith('Factories')).factors.some(([label, factor]) => label === 'Dynamos' && factor === 1.15)"));
 });
 
 test('Steel Hearted boosts every Steel output path without increasing costs', () => {

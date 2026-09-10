@@ -4,6 +4,8 @@ All notable changes to Emberhold are recorded here, with the newest changes firs
 
 ## 2026-09-09
 
+- Prevented one-off buildings from being queued more than once, and cleaned duplicate or already-completed entries from loaded construction queues.
+- Fixed Dynamos so their factory production bonus increases output without multiplying the factory's material consumption.
 - Fixed currency losses from random events scaling with the settlement's current holdings instead of remaining at starter-size amounts.
 - Fixed tooltips near the bottom of the viewport by repositioning them above their anchor and keeping Stores tooltips aligned during scrolling.
 - Removed the duplicate settlement location summary from the Village panel now that the current landing is shown beneath the Emberhold title.

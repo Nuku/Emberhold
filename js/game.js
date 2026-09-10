@@ -1074,6 +1074,7 @@ function queueEntry(type, id) {
   if (!def || state.queues[type].length >= queueCapacity(type)) return false;
   if (type === 'build') {
     if (!canBuild(id)) return false;
+    if (Number.isFinite(def.max) && bld(id) + state.queues.build.filter(entry => entry.id === id).length >= def.max) return false;
   } else if (type === 'research') {
     if (tech(id) || (def.req && !def.req())) return false;
   } else {
@@ -1103,6 +1104,8 @@ function reorderQueue(type, fromIndex, toIndex, after = false) {
 function attemptBuild(id) {
   const def = BUILDING_BY_ID.get(id);
   if (!def) return;
+  if (!canBuild(id) || (Number.isFinite(def.max) &&
+      bld(id) + state.queues.build.filter(entry => entry.id === id).length >= def.max)) return;
   const cost = buildingCost(def);
   if (canAfford(cost)) doBuild(id);
   else if (state.queues.build.length < queueCapacity('build')) queueEntry('build', id);
@@ -1149,6 +1152,10 @@ function updateQueues() {
       const entry = state.queues[type][i];
       const def = queueDef(entry);
       if (!def) continue;
+      if (type === 'build' && !isWonderObstacleQueueId(entry.id) && !canBuild(entry.id)) {
+        state.queues[type].splice(i, 1);
+        continue;
+      }
       if (!canAfford(queueCost(entry))) continue;
       const completed = type === 'build' ? doBuild(entry.id) :
         type === 'research' ? doResearch(entry.id) : doExpedition(entry.id);
@@ -1724,7 +1731,7 @@ function production(dt = 0.25, breakdown = null) {
 
   if (bld('factory') > 0 && dt > 0) {
     const recipe = factoryRecipe();
-    const factors = settlementProductionFactors(recipe.id);
+    const factors = [...global, ...settlementProductionFactors(recipe.id)];
     const activeFactories = power.factory;
     const lightningMetal = recipe.id === 'steel' && tech('lightningMetal');
     const recipeFactor = lightningMetal ? 1.5 : 1;
@@ -2316,7 +2323,7 @@ function startGameClock() {
   // lose time; it only wakes the simulation to account for elapsed time.
   if (typeof Worker === 'function') {
     try {
-      gameClockWorker = new Worker('js/game-clock.worker.js?v=publish-20260909u19');
+      gameClockWorker = new Worker('js/game-clock.worker.js?v=publish-20260909u21');
       gameClockWorker.addEventListener('message', () => {
         updateGameClock(true);
         renderBonusTimer();
@@ -2875,6 +2882,16 @@ function normalizeSave(s) {
       if (!object(entry) || entry.type !== type || typeof entry.id !== 'string' || !queueDef(entry))
         throw new Error(`Invalid ${type} queue`);
   }
+  let queuedBuildings = Object.create(null);
+  s.queues.build = s.queues.build.filter(entry => {
+    if (isWonderObstacleQueueId(entry.id)) return true;
+    const def = BUILDING_BY_ID.get(entry.id);
+    if (!def || !Number.isFinite(def.max)) return true;
+    const kept = queuedBuildings[entry.id] || 0;
+    if (s.bld[entry.id] + kept >= def.max) return false;
+    queuedBuildings[entry.id] = kept + 1;
+    return true;
+  });
   for (const r of RESOURCES) if (s.res[r.id] === undefined) s.res[r.id] = 0;
   s.beaconsLit = Object.fromEntries(Object.entries(s.beaconsLit || {})
     .filter(([id, lit]) => LANDING_BY_ID.has(id) && lit === true));
@@ -3945,7 +3962,7 @@ function renderSidePanel() {
 function loadLatestUpdatesTooltip() {
   const button = document.getElementById('btn-updates');
   if (!button || typeof fetch !== 'function' || typeof DOMParser !== 'function') return;
-  fetch('changelog.html?v=publish-20260909u19')
+  fetch('changelog.html?v=publish-20260909u21')
     .then(response => response.ok ? response.text() : Promise.reject(new Error('changelog unavailable')))
     .then(source => {
       const doc = new DOMParser().parseFromString(source, 'text/html');
