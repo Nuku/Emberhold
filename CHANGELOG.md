@@ -4,6 +4,7 @@ All notable changes to Emberhold are recorded here, with the newest changes firs
 
 ## 2026-09-10
 
+- Rebalanced Great Migration preparations: Caravan provisions now require 60,000 Food and Caravan frames require 40,000 Wood.
 - Added staged Great Migration preparations: food, caravan timber, stone roadwork, and departure tools can now be committed one percent at a time before setting out.
 - Added the uncapped Clever Storage Ancestral Shop upgrade: each level adds 1% to all storage, with costs starting at 1 Echo and doubling per level.
 - Conquest now requires 15 healthy Guards plus 200 Food and 10 Tools; the diplomacy UI shows the cost and marks conquered realms clearly.

@@ -38,9 +38,9 @@ const RESOURCE_NAMES = new Map(RESOURCES.map(resource => [resource.id, resource.
 // Reusable staged resource commitments. A project is paid in 100 equal parts,
 // so future long-form preparations can use the same ledger and UI affordances.
 const RESOURCE_PROJECTS = [
-  { id: 'migrationProvisions', name: 'Caravan provisions', resource: 'food', total: 12000,
+  { id: 'migrationProvisions', name: 'Caravan provisions', resource: 'food', total: 60000,
     desc: 'food packed and preserved for the road' },
-  { id: 'migrationCaravan', name: 'Caravan frames', resource: 'wood', total: 8000,
+  { id: 'migrationCaravan', name: 'Caravan frames', resource: 'wood', total: 40000,
     desc: 'timber shaped into wagons, crates, and shelter' },
   { id: 'migrationRoadwork', name: 'Roadwork and fittings', resource: 'stone', total: 6000,
     desc: 'stone, anchors, and durable tools for the crossing' },
