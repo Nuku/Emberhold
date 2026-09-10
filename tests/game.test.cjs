@@ -47,6 +47,13 @@ test('currency uses a 2000 base cap and does not accumulate past it', () => {
   assert.equal(run('state.res.currency'), 2000);
 });
 
+test('currency cap normalization works before the loaded state is assigned', () => {
+  const { run } = game();
+  run(`state = null; const save = defaultState(); save.jobs.banker = 2;
+    save.res.currency = 5000; const loaded = normalizeSave(save);
+    if (loaded.res.currency !== 2400) throw new Error('currency save normalization failed');`);
+});
+
 test('tutorial next-step card can be dismissed permanently', () => {
   const { run } = game();
   run('state.jobs.forager = state.pop');

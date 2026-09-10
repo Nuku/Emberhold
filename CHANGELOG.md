@@ -4,6 +4,7 @@ All notable changes to Emberhold are recorded here, with the newest changes firs
 
 ## 2026-09-09
 
+- Fixed Currency save normalization so Banker capacity bonuses are preserved when loading a save before the active state is assigned.
 - Bankers now increase Currency capacity by 10% each, starting from the 2,000-unit base cap.
 - Added a 2,000-unit base cap for Currency, including save normalization and overflow-safe production.
 - Updated storage guidance throughout the game and README to reflect Currency's cap alongside material-store ceilings.

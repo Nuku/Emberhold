@@ -879,8 +879,8 @@ function conquestTrialAvailable() {
 }
 
 // ---------- storage ----------
-function currencyCapacity() {
-  return Math.ceil(CURRENCY_BASE_CAP * (1 + 0.10 * (state.jobs.banker || 0)));
+function currencyCapacity(jobs = state?.jobs) {
+  return Math.ceil(CURRENCY_BASE_CAP * (1 + 0.10 * (jobs?.banker || 0)));
 }
 
 function capacityOf(id) {
@@ -2913,7 +2913,7 @@ function normalizeSave(s) {
     return true;
   });
   for (const r of RESOURCES) if (s.res[r.id] === undefined) s.res[r.id] = 0;
-  s.res.currency = Math.min(currencyCapacity(), s.res.currency);
+  s.res.currency = Math.min(currencyCapacity(s.jobs), s.res.currency);
   s.beaconsLit = Object.fromEntries(Object.entries(s.beaconsLit || {})
     .filter(([id, lit]) => LANDING_BY_ID.has(id) && lit === true));
   s.beaconRevisited = Object.fromEntries(Object.entries(s.beaconRevisited || {})
