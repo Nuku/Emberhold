@@ -969,6 +969,17 @@ test('lineage happenings respect timing, storage, morale, discovery and save/loa
   assert.ok(run('state.log[0].t').includes(run('RANDOM_EVENTS[0].text')), 'general happenings remain available');
 });
 
+test('currency losses from random events scale with current holdings', () => {
+  const { run } = game();
+  run(`state.randomEventT = 60; state.randomEventNext = 60; state.seen.currency = true;
+    state.res.currency = 100; Math.random = () => 0.75; updateRandomEvents(0);`);
+  assert.equal(run('state.res.currency'), 97);
+
+  run(`state.randomEventT = 60; state.randomEventNext = 60; state.res.currency = 1000;
+    Math.random = () => 0.75; updateRandomEvents(0);`);
+  assert.equal(run('state.res.currency'), 970);
+});
+
 test('resource happenings scale with the affected resource storage capacity', () => {
   const { run } = game();
   run(`state.species = 'human'; state.seen.wood = true; state.res.wood = 0;

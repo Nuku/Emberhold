@@ -1420,7 +1420,10 @@ function randomRange(pair) {
 }
 function randomEventResourceAmount(resource, pair) {
   const storage = STORAGE[resource];
-  const scale = storage ? capacityOf(resource) / storage.base : 1;
+  // Currency has no storage ceiling, so scale setbacks with the settlement's
+  // current holdings instead of leaving them permanently stuck at starter size.
+  const scale = storage ? capacityOf(resource) / storage.base
+    : resource === 'currency' ? Math.max(1, state.res.currency / 100) : 1;
   return Math.round(randomRange(pair) * scale);
 }
 function updateRandomEvents(dt) {
@@ -4367,18 +4370,32 @@ document.addEventListener('mouseover', (e) => {
   const tip = e.target.closest('.has-tooltip');
   if (tip) {
     tooltipHover = true;
+    positionTooltip(tip);
     positionStoresTooltip(tip);
   }
 });
 document.addEventListener('focusin', (e) => {
   const tip = e.target.closest('.has-tooltip');
-  if (tip) positionStoresTooltip(tip);
+  if (tip) {
+    positionTooltip(tip);
+    positionStoresTooltip(tip);
+  }
 });
 if (typeof window.addEventListener === 'function') {
   window.addEventListener('resize', () => {
     const tip = document.querySelector('#stores-panel .res-rate.has-tooltip:hover, #stores-panel .res-rate.has-tooltip:focus');
-    if (tip) positionStoresTooltip(tip);
+    if (tip) {
+      positionTooltip(tip);
+      positionStoresTooltip(tip);
+    }
   });
+  window.addEventListener('scroll', () => {
+    const tip = document.querySelector('.has-tooltip:hover, .has-tooltip:focus');
+    if (tip) {
+      positionTooltip(tip);
+      positionStoresTooltip(tip);
+    }
+  }, true);
 }
 document.addEventListener('mouseout', (e) => {
   const tip = e.target.closest('.has-tooltip');
@@ -4393,6 +4410,19 @@ function positionStoresTooltip(tip) {
   const left = Math.max(gutter, Math.min(rect.right - width, window.innerWidth - width - gutter));
   document.getElementById('stores-panel')?.style.setProperty('--stores-tooltip-left', `${left}px`);
   document.getElementById('stores-panel')?.style.setProperty('--stores-tooltip-top', `${rect.bottom}px`);
+  document.getElementById('stores-panel')?.style.setProperty('--stores-tooltip-bottom', `${window.innerHeight - rect.top + gutter}px`);
+}
+
+function positionTooltip(tip) {
+  const rect = tip.getBoundingClientRect();
+  const width = tip.matches('#stores-panel .res-rate.has-tooltip') ? 250 : Math.min(330, window.innerWidth - 32);
+  const charsPerLine = Math.max(20, Math.floor(width / 6.2));
+  const lines = (tip.dataset.tooltip || '').split('\n')
+    .reduce((count, line) => count + Math.max(1, Math.ceil(line.length / charsPerLine)), 0);
+  const estimatedHeight = Math.min(window.innerHeight * 0.55, 14 + lines * 15);
+  const below = window.innerHeight - rect.bottom - 8;
+  const above = rect.top - 8;
+  tip.classList.toggle('tooltip-above', below < estimatedHeight && above > below);
 }
 document.addEventListener('pointerup', () => {
   pointerDown = false;
