@@ -862,6 +862,10 @@ const RAID_STAGES = [
   { id: 'siege', name: 'Siege', difficulty: 3.8, cost: { food: 160, tools: 8 }, rolls: 5, loot: 2, uncommon: 2 },
 ];
 
+// Taking and holding a town requires a substantial occupation train in
+// addition to the Guards committed to garrison it.
+const CONQUEST_COST = { food: 200, tools: 10 };
+
 // --- neighboring tribes ---
 // Humans are the default people of Emberhold. After each migration, there is
 // a chance that a different tribe is encountered as a trading partner.

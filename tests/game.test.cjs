@@ -667,16 +667,19 @@ test('a killed spy can betray the operation and damage relations', () => {
 
 test('successful sieges unlock conquest and conquered realms become allies', () => {
   const { run } = game();
-  run(`state.techs.guards = true; state.jobs.guard = 20; ensureDiplomacyEntry('human');
+  run(`state.techs.guards = true; state.jobs.guard = 20; state.res.food = 250; state.res.tools = 20; ensureDiplomacyEntry('human');
     state.diplomacy.human.siegeReady = true; state.diplomacy.human.disposition = -40;
     conquerTown('human')`);
   assert.equal(run('state.jobs.guard'), 5);
+  assert.equal(run('state.res.food'), 50);
+  assert.equal(run('state.res.tools'), 10);
   assert.equal(run('state.diplomacy.human.conquered'), true);
   assert.equal(run('state.diplomacy.human.siegeReady'), false);
   assert.equal(run('state.morale'), 70);
   run('state.res.food = 10; updateMorale(1, 0)');
   assert.equal(run('state.morale'), run('69 + dailyWeather().morale'));
   assert.equal(run('alliedTribes()'), 1);
+  assert.match(run('renderDiplomacy()'), /CONQUERED/);
 
   run(`state.tradePartner = 'clocklings'; ensureDiplomacyEntry('clocklings');
     state.diplomacy.clocklings.disposition = -50; state.diplomacy.clocklings.conquered = true;

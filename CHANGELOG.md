@@ -4,6 +4,8 @@ All notable changes to Emberhold are recorded here, with the newest changes firs
 
 ## 2026-09-10
 
+- Conquest now requires 15 healthy Guards plus 200 Food and 10 Tools; the diplomacy UI shows the cost and marks conquered realms clearly.
+- Exposed the current conquest cost through the automation API and included it in successful conquest results.
 - Fixed the desktop Stores panel so it fills the available height and keeps scrolling contained within its own panel.
 - Restored Wonder outcomes now carry their old purposes into future settlements: the Worldroot boosts Wood, the River Crown boosts Food, the Renewal Basin boosts Tools and Coal, and the Mirrored Orrery boosts Knowledge and Aether.
 - Added four Hope-bound Wonder discoveries: Heartwood, Star Glass, Basin Tempering, and the associated Heartwood Grove and Star Glass Lensworks buildings; Basin Tempering increases Steel production.

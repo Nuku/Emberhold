@@ -233,7 +233,7 @@ api.actions.sendSpy(nationId)                 // train and assign one spy
 api.actions.startEspionage(nationId)          // begin a 20-minute attempt
 api.actions.attack(nationId, stageId='raid', guardCount=api.helpers.guardLimits().healthy)
 api.actions.siege(nationId, guardCount=api.helpers.guardLimits().healthy)
-api.actions.conquer(nationId)                 // consumes 15 healthy Guards
+api.actions.conquer(nationId)                 // consumes 15 healthy Guards, 200 Food, 10 Tools
 ```
 
 `raid`, `spyHire`, and `espionage` remain compatibility aliases. `stageId` is
@@ -242,7 +242,9 @@ one of `raid`, `foray`, `skirmish`, `assault`, `offensive`, `breakthrough`,
 succeeded, deployedGuards, force, difficulty, chance, deaths, injuries, cost }`;
 failed validation returns `{ ok:false, reason }`. Siege is the same attack
 action with `stageId: 'siege'`; a successful siege sets `siegeReady`, and
-conquest returns `{ ok:true, action:'conquer', target, deployedGuards:15 }`.
+conquest returns `{ ok:true, action:'conquer', target, deployedGuards:15,
+cost:{food:200,tools:10} }`. `api.helpers.conquestCost()` returns the current
+one-time resource cost before attempting conquest.
 
 `guardCount` is the number of healthy Guards committed, from
 `api.helpers.guardLimits()` (`minimum`, `maximum`, and `healthy`). Combat

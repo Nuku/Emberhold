@@ -2407,7 +2407,7 @@ function startGameClock() {
   // lose time; it only wakes the simulation to account for elapsed time.
   if (typeof Worker === 'function') {
     try {
-    gameClockWorker = new Worker('js/game-clock.worker.js?v=publish-20260910u30');
+  gameClockWorker = new Worker('js/game-clock.worker.js?v=publish-20260910u31');
       gameClockWorker.addEventListener('message', () => {
         updateGameClock(true);
         renderBonusTimer();
@@ -2873,12 +2873,14 @@ function conquerTown(id) {
   const entry = state.diplomacy && state.diplomacy[id];
   if (!entry || !localTribe(id) || !entry.siegeReady || entry.conquered) return { ok: false, reason: 'not-conquerable', target: id };
   if (ableGuards() < 15) return { ok: false, reason: 'insufficient-healthy-guards', target: id, requiredGuards: 15 };
+  if (!canAfford(CONQUEST_COST)) return { ok: false, reason: 'unaffordable', target: id, cost: { ...CONQUEST_COST } };
+  payCost(CONQUEST_COST);
   state.jobs.guard = Math.max(0, (state.jobs.guard || 0) - 15);
   state.guardInjuries = Math.min(state.guardInjuries || 0, state.jobs.guard);
   entry.conquered = true;
   entry.siegeReady = false;
-  addLog(`Emberhold conquers the ${tribeDef(id).name}. The town joins the realm, but its occupation steadily weighs on morale.`, 'log-good');
-  return { ok: true, action: 'conquer', target: id, deployedGuards: 15 };
+  addLog(`Emberhold conquers the ${tribeDef(id).name}. The occupation train costs ${costText(CONQUEST_COST)}, and the town joins the realm while steadily weighing on morale.`, 'log-good');
+  return { ok: true, action: 'conquer', target: id, deployedGuards: 15, cost: { ...CONQUEST_COST } };
 }
 function saveGame(silent) {
   try {
@@ -3575,8 +3577,9 @@ function renderDiplomacy() {
     visible++;
     const requestCost = { [entry.request.res]: entry.request.amount };
     const canSupply = !conquestTrialRelationsLocked() && local && tradeAvailable() && canAfford(requestCost);
-    h += `<div class="card ${local ? '' : 'dimmed'}"><div class="card-head"><span class="card-title has-tooltip" data-tooltip="${attrText(tribe.text)}">${tribe.name}</span>` +
+    h += `<div class="card ${local ? '' : 'dimmed'}${entry.conquered ? ' conquered-card' : ''}"><div class="card-head"><span class="card-title has-tooltip" data-tooltip="${attrText(tribe.text)}">${tribe.name}</span>` +
       (local ? '<span class="card-count">nearby</span>' : '<span class="card-count">departed</span>') +
+      (entry.conquered ? '<span class="status-badge conquered-badge" aria-label="Conquered realm">CONQUERED</span>' : '') +
       `<span class="card-count">disposition ${Math.round(entry.disposition)} / 100</span></div>` +
       `<div class="card-desc">${tribe.text}</div>` +
       `<div class="res-note">${habitatText(tribe)}</div>` +
@@ -3584,9 +3587,9 @@ function renderDiplomacy() {
       `<div class="trial-reward">${lineageDef(id).name} lineage traits: ${lineageTraitsHtml(lineageDef(id))}. ${lineageUnlocked(id) ? 'Unlocked for future migrations.' : 'Migrate with disposition 80+ to unlock for future migrations.'}</div>` +
       (local && (entry.disposition >= 80 || entry.conquered) ? `<div class="trial-reward">Active ally: +${Math.round(alliedIncomeBonus() * 1000) / 10}% to all village incomes.</div>` : '') +
       (local && entry.disposition < 0 ? `<div class="trial-mod">Relations are strained: the ${tribe.name} may raid the village.</div>` : '') +
-      (local ? `<div class="trial-goal">${diplomacyRequestText(tribe, entry)}</div>` : '<div class="res-note">Only a few nice letters can reach them for now.</div>') +
-      (local ? `<div class="card-cost">offer: ${costHtml(requestCost)} — +15 relations</div>` : '') +
-      (local ? `<div class="card-actions"><button data-action="diplomacy-supply" data-tribe="${id}" ${canSupply ? '' : 'disabled'}>Supply the request</button></div>` : '');
+      (local && !entry.conquered ? `<div class="trial-goal">${diplomacyRequestText(tribe, entry)}</div>` : local ? '<div class="res-note">This realm is under Emberhold rule; it no longer sends diplomatic requests.</div>' : '<div class="res-note">Only a few nice letters can reach them for now.</div>') +
+      (local && !entry.conquered ? `<div class="card-cost">offer: ${costHtml(requestCost)} — +15 relations</div>` : '') +
+      (local && !entry.conquered ? `<div class="card-actions"><button data-action="diplomacy-supply" data-tribe="${id}" ${canSupply ? '' : 'disabled'}>Supply the request</button></div>` : '');
     if (local && tech('spies')) {
       const spyTraining = state.spyTraining?.target === id;
       const spyCost = spyTrainingCost(id);
@@ -3601,7 +3604,7 @@ function renderDiplomacy() {
     }
     if (local && tech('guards')) {
       if (entry.conquered) {
-        h += '<div class="trial-reward">Conquered realm: +5% to all village incomes. This realm no longer produces diplomatic events.</div>';
+        h += `<div class="trial-reward">CONQUERED REALM — +${Math.round(alliedIncomeBonus() * 1000) / 10}% to all village incomes. This realm no longer produces diplomatic events.</div>`;
       } else {
         h += '<div class="trial-mod">Attack stages cost more and become harder, but grant more loot rolls. The final three stages also roll for uncommon loot.</div>';
         const selectedStage = raidStage(raidSelections[id]);
@@ -3615,8 +3618,9 @@ function renderDiplomacy() {
           }).join('') +
           `</select><button data-action="raid" data-tribe="${id}" data-stage="${selectedStage.id}" ${canRaid ? '' : 'disabled'}>Attack</button></div>`;
         if (entry.siegeReady) {
-          const canConquer = ableGuards() >= 15;
-          h += `<div class="trial-reward">The siege succeeded. Commit 15 healthy Guards to conquer this town; conquest grants the ally bonus but causes a steady −1 morale pressure.</div>` +
+          const canConquer = ableGuards() >= 15 && canAfford(CONQUEST_COST);
+          h += `<div class="trial-reward">The siege succeeded. Conquest commits 15 healthy Guards, costs ${costText(CONQUEST_COST)}, grants the ally bonus, and causes a steady −1 morale pressure.</div>` +
+            `<div class="card-cost">conquest cost: ${costHtml(CONQUEST_COST)}</div>` +
             `<div class="card-actions"><button data-action="conquer" data-tribe="${id}" ${canConquer ? '' : 'disabled'}>Conquer the ${tribe.name} (15 healthy Guards)</button></div>`;
         }
       }
@@ -4056,7 +4060,7 @@ function renderSidePanel() {
 function loadLatestUpdatesTooltip() {
   const button = document.getElementById('btn-updates');
   if (!button || typeof fetch !== 'function' || typeof DOMParser !== 'function') return;
-  fetch('changelog.html?v=publish-20260910u30')
+  fetch('changelog.html?v=publish-20260910u31')
     .then(response => response.ok ? response.text() : Promise.reject(new Error('changelog unavailable')))
     .then(source => {
       const doc = new DOMParser().parseFromString(source, 'text/html');
@@ -4272,6 +4276,7 @@ window.emberhold = {
     guardAttackPower,
     guardSiegePower,
     guardLimits,
+    conquestCost: () => ({ ...CONQUEST_COST }),
     validGuardCounts: guardLimits,
     predictAttack: predictRaid,
     predictSiege: (id, guardCount = ableGuards()) => predictRaid(id, 'siege', guardCount),
