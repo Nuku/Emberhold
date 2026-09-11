@@ -302,7 +302,7 @@ const BUILDINGS = [
     req: () => (trialActive('industrialization') || perm('factory')) && tech('metallurgy'), desc: 'the drumbeat of the new age' },
 
   { id: 'livingBlock', name: 'Living Block', max: Infinity, scale: 2.5,
-    cost: { steel: 40, stone: 80, wood: 30 },
+    cost: { steel: 40, stone: 80, wood: 30, copper: 60, machinery: 10, goods: 20 },
     effect: () => `+5 population cap; requires ${LIVING_BLOCK_POWER_REQUIREMENT} Power; −0.1 morale/s`,
     req: () => tech('machineryTech'), desc: 'five people packed tightly together; miserable, but it is a roof' },
 

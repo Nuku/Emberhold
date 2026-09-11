@@ -2,6 +2,10 @@
 
 All notable changes to Emberhold are recorded here, with the newest changes first.
 
+## 2026-09-11
+
+- Increased Living Block construction costs to also require Copper, Machinery, and Industrial Goods.
+
 ## 2026-09-10
 
 - Fixed Research so the same technology cannot be queued more than once, including duplicate entries in loaded saves.
