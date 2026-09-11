@@ -120,6 +120,8 @@ function defaultState() {
     migrationGuardDeaths: 0,
     migrationRaids: 0,
     migrationChallengePending: false,
+    pendingMigrationChallenges: [],
+    migrationChallenges: [],
     armor: 0,
     migrating: false,
     migrationPreparation: false,
@@ -1330,6 +1332,7 @@ function moraleMult() {
 }
 
 function globalProductionFactors() {
+  const achievementPower = state.migrationChallenges?.includes('forgottenTruths') ? 0.25 : 1;
   return [
     ['Morale', moraleMult()],
     [`Shrines (${bld('shrine')} × 5%) + factories (${bld('factory')} × 10%)`, 1 + 0.05 * bld('shrine') + 0.10 * bld('factory')],
@@ -1340,14 +1343,20 @@ function globalProductionFactors() {
     ['All six sites explored', siteExpeditionsComplete() ? 1.05 : 1],
     ['Everwarm', perm('everwarm') ? 1.05 : 1],
     ['Deep Roots', 1 + 0.05 * upg('deepRoots')],
-    ['Completion bonus', 1 + 0.001 * completedAchievementCount()],
+    ['Completion bonus', 1 + 0.001 * achievementRatingTotal() * achievementPower],
     ['Haste trial', trialActive('haste') ? 0.70 : 1],
   ];
 }
 
 function settlementProductionFactors(res, outgoing = false) {
   const factors = [[landingDef().name, landingMod(res)], [lineageDef(state.species).name, baseLineageMod(res)]];
-  if (res === 'steel' && !outgoing && steelHearted()) factors.push(['Steel Hearted', 1.20]);
+  if (res === 'steel' && !outgoing && steelHearted()) factors.push(['Steel Hearted', 1 + 0.20 * achievementRating('steelHearted')]);
+  const challenges = state.migrationChallenges || [];
+  if (res === 'food' && !outgoing && challenges.includes('dryGround')) factors.push(['Dry Ground', 0.10]);
+  if (challenges.includes('badAncestry')) {
+    const bad = state.badAncestry;
+    if (bad?.resource === res && bad.modifier) factors.push([`Bad Ancestry (${lineageDef(bad.lineageId).name})`, bad.modifier]);
+  }
   if (res === 'steel' && tech('basinTempering')) factors.push(['Basin Tempering', 1.35]);
   if (!outgoing) for (const trait of currentPlaceTraits()) {
     const modifier = trait.mods?.[res];
@@ -2210,6 +2219,8 @@ function beginMigration() {
   state.pendingLanding = (state.pendingLandings.find(l => lineageSelectable(state.pendingSpecies, l.id)) || state.pendingLandings[0]).id;
   state.migrationPreparation = true;
   state.projects = Object.fromEntries(RESOURCE_PROJECTS.map(project => [project.id, 0]));
+  state.pendingMigrationChallenges = [];
+  state.pendingBadAncestry = null;
   state.migrating = true;
   addLog(`The Great Migration is declared. The deeds of ${state.pop} villagers will echo: ${state.pendingEchoes} Echo${state.pendingEchoes === 1 ? '' : 's'} gained. Spend them before setting out.`, 'log-important');
 }
@@ -2305,6 +2316,12 @@ function setOut(trialId = null) {
     state.migrationChallengePending = true;
     updateAchievements();
   }
+  const chosenChallenges = trialId ? [...(state.migrationChallenges || [])] : [...(state.pendingMigrationChallenges || [])];
+  if (!trialId && chosenChallenges.includes('badAncestry') && !state.pendingBadAncestry) {
+    state.pendingBadAncestry = rollBadAncestry(candidate);
+  }
+  const chosenBadAncestry = !trialId && chosenChallenges.includes('badAncestry')
+    ? (state.pendingBadAncestry || rollBadAncestry(candidate)) : null;
   const newSpecies = trialId ? state.species : candidate;
   const unlockedLineages = { ...(state.lineagesUnlocked || { human: true }) };
   const newlyUnlocked = [];
@@ -2328,6 +2345,8 @@ function setOut(trialId = null) {
     species: state.species, tribesSeen: state.tribesSeen,
     diplomacy: state.diplomacy,
     achievements: state.achievements,
+    migrationChallenges: state.migrationChallenges,
+    badAncestry: state.badAncestry,
     commonalityLineages: state.commonalityLineages,
     tutorialDismissed: state.tutorialDismissed,
     placeTraits: state.placeTraits,
@@ -2354,6 +2373,9 @@ function setOut(trialId = null) {
   state.tribesSeen = keep.tribesSeen;
   state.diplomacy = keep.diplomacy;
   state.achievements = keep.achievements;
+  state.migrationChallenges = chosenChallenges;
+  state.badAncestry = !trialId && chosenChallenges.includes('badAncestry')
+    ? chosenBadAncestry : keep.badAncestry;
   state.commonalityLineages = keep.commonalityLineages;
   state.tutorialDismissed = keep.tutorialDismissed;
   state.won = keep.won;
@@ -2426,6 +2448,37 @@ function setOut(trialId = null) {
   state.pendingSpecies = null;
   state.pendingLandings = [];
   state.pendingLanding = null;
+  state.pendingMigrationChallenges = [];
+  state.pendingBadAncestry = null;
+}
+
+const MIGRATION_CHALLENGES = [
+  { id: 'dryGround', name: 'Dry Ground', desc: 'Food production is reduced by 90%.' },
+  { id: 'badAncestry', name: 'Bad Ancestry', desc: 'Gain a random negative production trait from another ancestry.' },
+  { id: 'nothingManual', name: 'Nothing Manual', desc: 'Manual crafting is forbidden; Tinkerers can still work.' },
+  { id: 'forgottenTruths', name: 'Forgotten Truths', desc: 'Achievement bonuses operate at 25% power.' },
+];
+const CHALLENGE_RATING_NAMES = ['unrated', 'wooden', 'copper', 'silver', 'gold'];
+function activeMigrationChallenges() {
+  return state.migrating ? (state.pendingMigrationChallenges || []) : (state.migrationChallenges || []);
+}
+function migrationChallengeCount() { return activeMigrationChallenges().length; }
+function rollBadAncestry(currentSpecies = state.species) {
+  const candidates = [];
+  for (const lineage of LINEAGES) {
+    if (lineage.id === currentSpecies) continue;
+    for (const [resource, modifier] of Object.entries(lineage.mods || {}))
+      if (modifier < 1) candidates.push({ lineageId: lineage.id, resource, modifier });
+  }
+  return candidates.length ? candidates[Math.floor(Math.random() * candidates.length)] : null;
+}
+function toggleMigrationChallenge(id) {
+  if (!state.migrating || !MIGRATION_CHALLENGES.some(challenge => challenge.id === id)) return;
+  const selected = state.pendingMigrationChallenges || (state.pendingMigrationChallenges = []);
+  const index = selected.indexOf(id);
+  if (index >= 0) selected.splice(index, 1);
+  else selected.push(id);
+  if (id === 'badAncestry') state.pendingBadAncestry = selected.includes(id) ? rollBadAncestry(state.pendingSpecies || state.species) : null;
 }
 
 function chooseLineage(id) {
@@ -2650,6 +2703,7 @@ function doBuild(id) {
 function doCraft(id) {
   const def = CRAFT_BY_ID.get(id);
   if (!def || !def.req()) return;
+  if ((state.migrationChallenges || []).includes('nothingManual')) return;
   if (id === 'tools' && trialActive('tinkering')) return;
   if (!canAfford(def.cost)) return;
   for (const r in def.give) if (isFull(r)) return; // no room in the store
@@ -3002,6 +3056,13 @@ function normalizeSave(s) {
     if (value !== undefined && (!Number.isFinite(value) || value < 0)) throw new Error('Invalid project progress');
     return [project.id, Math.max(0, Math.min(100, Math.floor(Number(value) || 0)))];
   }));
+  s.migrationChallenges = [...new Set((s.migrationChallenges || []).filter(id => MIGRATION_CHALLENGES.some(challenge => challenge.id === id)))];
+  s.pendingMigrationChallenges = [...new Set((s.pendingMigrationChallenges || []).filter(id => MIGRATION_CHALLENGES.some(challenge => challenge.id === id)))];
+  if (!s.achievements || typeof s.achievements !== 'object' || Array.isArray(s.achievements)) throw new Error('Invalid achievements');
+  for (const [id, value] of Object.entries(s.achievements)) {
+    if (!ACHIEVEMENTS.some(achievement => achievement.id === id) ||
+        (value !== true && (!Number.isInteger(value) || value < 1 || value > 4))) delete s.achievements[id];
+  }
   // Older saves may not have recorded the initial landing. The current
   // settlement is necessarily known and should count as a return destination.
   s.landingsSeen[s.landing] = true;
@@ -3273,12 +3334,34 @@ const ACHIEVEMENTS = [
 ];
 
 function completedAchievementCount() { return Object.keys(state.achievements || {}).filter(id => state.achievements[id]).length; }
+function achievementRating(id) {
+  const value = state.achievements?.[id];
+  return value === true ? 1 : Math.max(0, Math.min(4, Number(value) || 0));
+}
+function achievementRatingTotal() {
+  return Object.keys(state.achievements || {}).reduce((sum, id) => sum + achievementRating(id), 0);
+}
+function achievementRequirementRating(achievement) {
+  const required = achievement.requires || [];
+  if (!required.length) return 1;
+  const needed = Math.max(1, Math.min(required.length, achievement.requireCount || required.length));
+  const ratings = required.map(achievementRating).filter(Boolean).sort((a, b) => b - a).slice(0, needed);
+  return ratings.length === needed ? Math.min(...ratings) : 0;
+}
 function updateAchievements() {
   state.achievements = state.achievements || {};
+  state.migrationChallenges = Array.isArray(state.migrationChallenges) ? state.migrationChallenges : [];
+  state.pendingMigrationChallenges = Array.isArray(state.pendingMigrationChallenges) ? state.pendingMigrationChallenges : [];
   for (const achievement of ACHIEVEMENTS) {
-    if (achievement.test() && !state.achievements[achievement.id]) {
-      state.achievements[achievement.id] = true;
-      addLog(`Achievement completed: ${achievement.name}. Completion bonus +0.1% to all production.`, 'log-good');
+    const requirementRating = achievementRequirementRating(achievement);
+    if (achievement.test() && requirementRating) {
+      const oldRating = achievementRating(achievement.id);
+      const newRating = Math.min(Math.max(1, migrationChallengeCount()), requirementRating);
+      if (newRating > oldRating) {
+        state.achievements[achievement.id] = newRating;
+        const ratingName = CHALLENGE_RATING_NAMES[newRating];
+        addLog(`Achievement completed: ${achievement.name} (${ratingName}). Completion bonus +${(newRating * 0.1).toFixed(1)}% to all production.`, 'log-good');
+      }
     }
   }
 }
@@ -3393,7 +3476,11 @@ function renderHeader() {
   const year = Math.floor(state.day / DAYS_PER_YEAR) + 1;
   const traitLabels = currentPlaceTraits().map(trait =>
     `<span class="has-tooltip" tabindex="0" data-tooltip="${attrText(placeTraitTooltip(trait))}">${esc(trait.name)}</span>`).join(', ');
-  document.getElementById('location-line').textContent = landingDef().name;
+  const challengeCount = (state.migrationChallenges || []).length;
+  const locationEl = document.getElementById('location-line');
+  locationEl.textContent = `${landingDef().name}${challengeCount ? ` ★` : ''}`;
+  locationEl.className = challengeCount ? `challenge-star challenge-star-${challengeCount}` : '';
+  locationEl.title = challengeCount ? `${challengeCount} self-challenge${challengeCount === 1 ? '' : 's'} active` : '';
   document.getElementById('era-line').innerHTML =
     `Year ${year} of the ${esc(ERAS[state.era - 1].name)}${traitLabels ? ` — ${traitLabels}` : ''} — ${esc(lineageDef(state.species).name)}`;
   document.getElementById('time-line').textContent =
@@ -3937,6 +4024,14 @@ function renderMigration() {
     `Echoes gained grow with the population you leave: floor((villagers − 10)² ÷ 100). ` +
     `The road, not the village, chooses the destination — each founding lands in different country, with its own gifts and shortages.</div>`;
 
+  if (state.migrating) {
+    h += '<h2 class="section">Self-challenges</h2><div class="res-note">Choose any challenges for this founding. Every challenge raises achievements earned during the migration to the matching rating.</div>';
+    h += MIGRATION_CHALLENGES.map(challenge => {
+      const selected = (state.pendingMigrationChallenges || []).includes(challenge.id);
+      return `<div class="card ${selected ? 'lineage-selected' : ''}"><div class="card-head"><span class="card-title">${challenge.name}</span><span class="card-count">${selected ? 'on' : 'off'}</span></div><div class="card-desc">${challenge.desc}</div><div class="card-actions"><button data-action="migration-challenge" data-id="${challenge.id}">${selected ? 'Turn off' : 'Turn on'}</button></div></div>`;
+    }).join('');
+  }
+
   if (!state.migrating) {
     const earned = echoesEarned();
     h += `<div class="card"><div class="card-head">` +
@@ -4063,7 +4158,7 @@ function renderStats() {
     ['stats', 'achievements', 'perks'].map(id => `<button class="subtab ${tab === id ? 'active' : ''}" data-action="stats-tab" data-stats-tab="${id}" role="tab" aria-selected="${tab === id}">${id[0].toUpperCase() + id.slice(1)}${id === 'achievements' ? ` <span class="subtab-count">${completed}/${ACHIEVEMENTS.length}</span>` : ''}</button>`).join('') + '</div>';
   if (tab === 'achievements') {
     h += '<div class="res-note stats-intro">Achievements are the work Emberhold is expected to do. Complete them naturally as your settlement grows.</div>';
-    h += ACHIEVEMENTS.map(a => { const done = !!state.achievements?.[a.id]; return `<div class="achievement-card card ${done ? 'done' : 'dimmed'}"><div class="card-head"><span class="card-title">${done ? '✦ ' : ''}${a.name}</span><span class="card-count">${done ? 'Complete' : 'In progress'}</span><span class="card-effect">${a.effect ? `${a.effect}; ` : ''}+0.1% production</span></div><div class="card-desc">${a.desc}</div><div class="achievement-progress">${done ? 'Completion bonus earned' : a.progress()}</div></div>`; }).join('');
+    h += ACHIEVEMENTS.map(a => { const rating = achievementRating(a.id); const done = rating > 0; return `<div class="achievement-card card ${done ? 'done' : 'dimmed'}"><div class="card-head"><span class="card-title">${done ? '✦ ' : ''}${a.name}</span><span class="card-count">${done ? CHALLENGE_RATING_NAMES[rating] : 'In progress'}</span><span class="card-effect">${a.effect ? `${a.effect} ×${rating || 1}; ` : ''}+${(0.1 * (rating || 1)).toFixed(1)}% production</span></div><div class="card-desc">${a.desc}</div><div class="achievement-progress">${done ? `Achievement bonus at ${CHALLENGE_RATING_NAMES[rating]} strength` : a.progress()}</div></div>`; }).join('');
     return h;
   }
   if (tab === 'perks') {
@@ -4088,7 +4183,7 @@ function renderStats() {
     ['Buildings raised', fmt(buildings), `${Object.keys(state.bld || {}).length} types`],
     ['Research completed', fmt(research), `${Object.keys(state.techs || {}).length} discoveries`],
     ['Current lineage', lineageDef(state.species).name, lineageTraitsText(lineageDef(state.species))],
-    ['Completion bonus', `+${(completed * 0.1).toFixed(1)}%`, `${completed} of ${ACHIEVEMENTS.length} achievements completed`],
+    ['Completion bonus', `+${(achievementRatingTotal() * 0.1).toFixed(1)}%`, `${completed} of ${ACHIEVEMENTS.length} achievements completed; ratings add their strength`],
   ].map(([label, value, note]) => `<div class="stat-card"><div class="stat-label">${label}</div><div class="stat-value">${value}</div><div class="stat-note">${note}</div></div>`).join('') + '</div>';
   h += '<h2 class="section">Lifetime marks</h2><div class="res-note">Completed trials: ' + fmt(totalTrialsCompleted()) + ' · Sites established: ' + Object.keys(state.expeditions || {}).length + ' · Echoes held: ' + fmt(state.echoes) + '</div>';
   return h;
@@ -4416,6 +4511,7 @@ function runAction(btn) {
     case 'build': attemptBuild(btn.dataset.id); render(); break;
     case 'build-filter': buildFilter = btn.dataset.filter; render(); break;
     case 'craft': doCraft(btn.dataset.id); render(); break;
+    case 'migration-challenge': toggleMigrationChallenge(btn.dataset.id); render(); break;
     case 'factory-recipe': chooseFactoryRecipe(btn.dataset.id); render(); break;
     case 'power-off': setBuildingPower(btn.dataset.id, 0); render(); break;
     case 'power-dec': setBuildingPower(btn.dataset.id, buildingPowerCount(btn.dataset.id) - 1); render(); break;
