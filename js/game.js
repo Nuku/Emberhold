@@ -79,6 +79,7 @@ function defaultState() {
     expeditions: {},
     beaconsLit: {},
     beaconRevisited: {},
+    beaconProgress: 0,
     wonders: {},
     wonderUnlocks: {},
     rapture: { landing: null, workers: 0, tabSeen: false },
@@ -1026,6 +1027,7 @@ function applyReclamation(cost) {
 function queueDef(entry) {
   if (!entry || !['build', 'research', 'expedition'].includes(entry.type)) return null;
   if (entry.type === 'build') {
+    if (entry.id === 'beaconStage') return BUILDING_BY_ID.get('beacon');
     if (isWonderObstacleQueueId(entry.id)) {
       const parts = entry.id.split(':');
       const obstacle = WONDER_OBSTACLES[Number(parts[3])];
@@ -1130,6 +1132,28 @@ function queueEntry(type, id) {
   return true;
 }
 
+function beaconStageCost() { return buildingCost(BUILDING_BY_ID.get('beacon')); }
+function beaconProgress() { return Math.max(0, Math.min(BEACON_STAGE_COUNT, Math.floor(state.beaconProgress || 0))); }
+function advanceBeaconProject(parts = 1) {
+  const def = BUILDING_BY_ID.get('beacon');
+  if (!def || bld('beacon') || !Number.isFinite(parts) || parts < 1) return 0;
+  let completed = 0;
+  const cost = beaconStageCost();
+  while (completed < Math.floor(parts) && beaconProgress() < BEACON_STAGE_COUNT && canAfford(cost)) {
+    payCost(cost);
+    state.beaconProgress = beaconProgress() + 1;
+    completed++;
+  }
+  if (beaconProgress() >= BEACON_STAGE_COUNT) {
+    state.bld.beacon = 1;
+    state.won = true;
+    state.beaconsLit = state.beaconsLit || {};
+    state.beaconsLit[state.landing] = true;
+    addLog('The Beacon burns. Its light will outlive the village.', 'log-good');
+  }
+  return completed;
+}
+
 function cancelQueue(type, index) {
   if (Number.isInteger(index) && state.queues[type][index]) state.queues[type].splice(index, 1);
 }
@@ -1148,6 +1172,14 @@ function reorderQueue(type, fromIndex, toIndex, after = false) {
 function attemptBuild(id) {
   const def = BUILDING_BY_ID.get(id);
   if (!def) return;
+  if (id === 'beacon') {
+    if (bld(id) || !canBuild(id)) return;
+    const cost = beaconStageCost();
+    if (canAfford(cost)) advanceBeaconProject();
+    else if (!state.queues.build.some(entry => entry.id === 'beaconStage') && state.queues.build.length < queueCapacity('build'))
+      state.queues.build.push({ type: 'build', id: 'beaconStage', cost: { ...cost } });
+    return;
+  }
   if (!canBuild(id) || (Number.isFinite(def.max) &&
       bld(id) + state.queues.build.filter(entry => entry.id === id).length >= def.max)) return;
   const cost = buildingCost(def);
@@ -1197,14 +1229,18 @@ function updateQueues() {
       const entry = state.queues[type][i];
       const def = queueDef(entry);
       if (!def) continue;
-      if (type === 'build' && !isWonderObstacleQueueId(entry.id) && !canBuild(entry.id)) {
+      if (type === 'build' && entry.id !== 'beaconStage' && !isWonderObstacleQueueId(entry.id) && !canBuild(entry.id)) {
         state.queues[type].splice(i, 1);
         continue;
       }
       if (!canAfford(queueCost(entry))) continue;
-      const completed = type === 'build' ? doBuild(entry.id) :
+      const completed = type === 'build' && entry.id === 'beaconStage' ? advanceBeaconProject() :
+        type === 'build' ? doBuild(entry.id) :
         type === 'research' ? doResearch(entry.id) : doExpedition(entry.id);
-      if (completed) state.queues[type].splice(i, 1);
+      if (completed && type === 'build' && entry.id === 'beaconStage' && beaconProgress() < BEACON_STAGE_COUNT) {
+        state.queues[type].splice(i, 1);
+        state.queues[type].push({ type: 'build', id: 'beaconStage', cost: { ...beaconStageCost() } });
+      } else if (completed) state.queues[type].splice(i, 1);
     }
   }
 }
@@ -3056,6 +3092,8 @@ function normalizeSave(s) {
     if (value !== undefined && (!Number.isFinite(value) || value < 0)) throw new Error('Invalid project progress');
     return [project.id, Math.max(0, Math.min(100, Math.floor(Number(value) || 0)))];
   }));
+  if (!Number.isFinite(s.beaconProgress) || s.beaconProgress < 0) throw new Error('Invalid Beacon progress');
+  s.beaconProgress = Math.min(BEACON_STAGE_COUNT, Math.floor(s.beaconProgress));
   s.migrationChallenges = [...new Set((s.migrationChallenges || []).filter(id => MIGRATION_CHALLENGES.some(challenge => challenge.id === id)))];
   s.pendingMigrationChallenges = [...new Set((s.pendingMigrationChallenges || []).filter(id => MIGRATION_CHALLENGES.some(challenge => challenge.id === id)))];
   if (!s.achievements || typeof s.achievements !== 'object' || Array.isArray(s.achievements)) throw new Error('Invalid achievements');
@@ -3686,17 +3724,18 @@ function renderBuild() {
     if ((buildFilter === 'complete') !== maxed) continue;
     any = true;
     const cost = buildingCost(b);
-    const queued = state.queues.build.some(entry => entry.id === b.id);
+    const beaconProject = b.id === 'beacon' && !count;
+    const queued = state.queues.build.some(entry => entry.id === (beaconProject ? 'beaconStage' : b.id));
     const forbidden = trialActive('overflow') && Object.values(STORAGE).some(s => s.bld === b.id);
     const ok = !maxed && !forbidden &&
       (canAfford(cost) || state.queues.build.length < queueCapacity('build'));
     h += `<div class="card"><div class="card-head">` +
       `<span class="card-title has-tooltip" data-tooltip="${attrText(b.desc)}">${b.name}</span>` +
       (b.max === Infinity ? `<span class="card-count">${count} built</span>` : b.max > 1 ? `<span class="card-count">${count} / ${b.max}</span>` : (count ? `<span class="card-count">built</span>` : '')) +
-      `<span class="card-effect">${b.effect()}</span></div>` +
+      `<span class="card-effect">${beaconProject ? `${beaconProgress()} / ${BEACON_STAGE_COUNT} stages` : b.effect()}</span></div>` +
       `<div class="card-cost">cost: ${costHtml(cost)}</div>` +
       renderBuildingPower(b.id) +
-      `<div class="card-actions"><button data-action="build" data-id="${b.id}" ${ok ? '' : 'disabled'}>${maxed ? 'Complete' : queued ? 'Queued' : canAfford(cost) ? 'Build' : 'Queue'}</button></div>` +
+      `<div class="card-actions"><button data-action="build" data-id="${b.id}"${beaconProject ? ' data-repeat' : ''} ${ok ? '' : 'disabled'}>${maxed ? 'Complete' : queued ? 'Queued' : beaconProject ? `Commit stage ${beaconProgress() + 1}` : canAfford(cost) ? 'Build' : 'Queue'}</button></div>` +
       `</div>`;
   }
   if (!any) h += `<div class="res-note">${buildFilter === 'complete' ? 'No completed buildings yet.' : 'Nothing remains to build yet. Learn from the world first.'}</div>`;

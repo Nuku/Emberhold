@@ -47,6 +47,7 @@ const RESOURCE_PROJECTS = [
   { id: 'migrationTools', name: 'Departure tools', resource: 'tools', total: 1000,
     desc: 'axes, picks, needles, and spare parts' },
 ];
+const BEACON_STAGE_COUNT = 100;
 
 // Power is capacity, not a stockpile. These baseline values are intentionally
 // separate so research and upgrades can tune generation and demand later.

@@ -4,6 +4,7 @@ All notable changes to Emberhold are recorded here, with the newest changes firs
 
 ## 2026-09-11
 
+- Reworked The Beacon into a 100-stage construction project; each stage commits one set of materials, shows persistent progress, and can continue through the construction queue until the Beacon burns.
 - Added Great Migration self-challenges: Dry Ground, Bad Ancestry, Nothing Manual, and Forgotten Truths; active challenges raise achievement ratings and visibly mark the settlement.
 - Reworked achievement completion bonuses to use challenge ratings, including scaled Steel Hearted bonuses and the new challenge-specific production and crafting penalties.
 - Fixed the Trial of Tinkering deadline so a Tinkerer must still be assigned when day 240 ends; the trial no longer completes early merely because one was assigned at some point.
