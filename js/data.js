@@ -672,7 +672,7 @@ const TRIALS = [
   { id: 'tinkering', name: 'Trial of Tinkering', repeat: 0,
     text: 'Let the Workbench speak for itself. For a year, no hand may shape a Tool by the old method; give the machine a patient keeper and see what it learns.',
     mod: 'Tools may not be crafted by hand while the oath stands.',
-    goal: 'Assign at least one Tinkerer and keep the Workbench running for 240 days without manually crafting Tools.',
+    goal: 'Have at least one Tinkerer assigned by day 240 and still assigned when the 240 days run out; keep the Workbench running without manually crafting Tools.',
     reward: 'Tinkerers: unlocks a job that steadily assembles Tools from wood and stone.',
     req: () => bld('workbench') > 0 },
 

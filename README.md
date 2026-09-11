@@ -334,7 +334,7 @@ you'll have them.
 | Scarcity | ×5 | stormy throughout; food and wood penalties and mining-worker losses worsen with each completion | stay fed 240 days | +10% food each |
 | Frugality | ×3 | building costs +50% | 12 constructions | −10% building costs each |
 | Overflow | ×3 | no new storage or storage bonuses | every discovered store full at once | +20% storage ceilings each |
-| Tinkering | once | no manual Tool crafting | endure 240 days with a Workbench | unlocks Tinkerers, who steadily assemble Tools from wood and stone |
+| Tinkering | once | no manual Tool crafting | have a Tinkerer still assigned when 240 days run out, with a Workbench | unlocks Tinkerers, who steadily assemble Tools from wood and stone |
 | Silence | once | no knowledge production | research Metallurgy and produce 100 Steel | Thinkers +50% |
 | Long Night | once | the entire trial is winter; food ×0.25 | survive a year | Everwarm (mild winters, +5% all) |
 | Solitude | once | population capped at 10 | stockpile 800 knowledge | Huts grant +2 cap each |

@@ -1278,6 +1278,18 @@ test('Long Night lasts ten full years', () => {
   assert.equal(run('state.trial'), null);
 });
 
+test('Tinkering fails at 240 days without a Tinkerer', () => {
+  const { run } = game();
+  run(`state.trial = { id: 'tinkering', daysActive: 239, buildings: 0 }; updateTrial(1)`);
+  assert.equal(run('state.trial'), null);
+  assert.equal(run('trialCount("tinkering")'), 0);
+
+  run(`state.trial = { id: 'tinkering', daysActive: 239, buildings: 0 };
+    state.jobs.tinkerer = 1; updateTrial(1)`);
+  assert.equal(run('state.trial'), null);
+  assert.equal(run('state.trialDone.tinkering'), 1);
+});
+
 test('Overflow uses raised ceilings for progress and completion', () => {
   const { run } = game();
   run(`state.trialDone.overflow = 1; state.seen = { food: true };

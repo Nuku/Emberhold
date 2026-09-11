@@ -2045,7 +2045,7 @@ function updateTrial(dt) {
       break;
     }
     case 'tinkering':
-      if (tr.daysActive >= 240 && (state.jobs.tinkerer || 0) > 0) { endTrial(true); return; }
+      if (tr.daysActive >= 240) { endTrial((state.jobs.tinkerer || 0) > 0); return; }
       break;
     case 'wayfinding':
       if (expDone('oldForest')) { endTrial(true); return; }
@@ -2157,7 +2157,7 @@ function trialProgressText() {
       }
       return `emptiest store: ${Math.floor(worst * 100)}% full — every discovered store must hit its ceiling`;
     }
-    case 'tinkering': return `${Math.floor(tr.daysActive)} / 240 days endured — ${state.jobs.tinkerer || 0} Tinkerer assigned (need at least 1)`;
+    case 'tinkering': return `${Math.floor(tr.daysActive)} / 240 days endured — ${state.jobs.tinkerer || 0} Tinkerer assigned (at least 1 must still be assigned when the 240 days run out)`;
     case 'wayfinding': return expDone('oldForest') ? 'The Old Forest has been mapped.' : 'The Old Forest expedition must return';
     case 'industrialization': return `${fmt(state.res.goods)} / 100 Industrial Goods — no deadline; coal production 20%`;
     case 'haste': return `${Math.floor(tr.daysActive)} / 20000 days to reach the Age of Light`;
@@ -2463,7 +2463,7 @@ function startGameClock() {
   // lose time; it only wakes the simulation to account for elapsed time.
   if (typeof Worker === 'function') {
     try {
-  gameClockWorker = new Worker('js/game-clock.worker.js?v=publish-20260911u38');
+  gameClockWorker = new Worker('js/game-clock.worker.js?v=publish-20260911u39');
       gameClockWorker.addEventListener('message', () => {
         updateGameClock(true);
         renderBonusTimer();
@@ -4164,7 +4164,7 @@ function renderSidePanel() {
 function loadLatestUpdatesTooltip() {
   const button = document.getElementById('btn-updates');
   if (!button || typeof fetch !== 'function' || typeof DOMParser !== 'function') return;
-  fetch('changelog.html?v=publish-20260911u38')
+  fetch('changelog.html?v=publish-20260911u39')
     .then(response => response.ok ? response.text() : Promise.reject(new Error('changelog unavailable')))
     .then(source => {
       const doc = new DOMParser().parseFromString(source, 'text/html');

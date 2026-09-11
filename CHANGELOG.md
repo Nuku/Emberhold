@@ -4,6 +4,7 @@ All notable changes to Emberhold are recorded here, with the newest changes firs
 
 ## 2026-09-11
 
+- Fixed the Trial of Tinkering deadline so a Tinkerer must still be assigned when day 240 ends; the trial no longer completes early merely because one was assigned at some point.
 - Increased Living Block construction costs to also require Copper, Machinery, and Industrial Goods.
 
 ## 2026-09-10
