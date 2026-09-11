@@ -477,6 +477,10 @@ function conqueredLineageMod(res) {
   return mod > 1 ? 1 + (mod - 1) * 0.5 : 1;
 }
 function alliedIncomeBonus() { return commonalityActive() ? 0.075 : 0.05; }
+function alliedTribeIncomeBonus(id) {
+  const conquered = state.diplomacy?.[id]?.conquered;
+  return commonalityActive() && conquered ? 0.075 : 0.05;
+}
 function ableGuards() { return Math.floor(Math.max(0, (state.jobs.guard || 0) - (state.guardInjuries || 0))); }
 function guardAttackPower(guardCount = ableGuards()) {
   const healthy = Math.max(0, Math.min(ableGuards(), Math.floor(Number(guardCount) || 0)));
@@ -1373,7 +1377,10 @@ function globalProductionFactors() {
     ['Morale', moraleMult()],
     [`Shrines (${bld('shrine')} × 5%) + factories (${bld('factory')} × 10%)`, 1 + 0.05 * bld('shrine') + 0.10 * bld('factory')],
     ['Dynamos', 1 + 0.15 * bld('dynamo')],
-    ['Allied tribes', 1 + alliedIncomeBonus() * alliedTribes()],
+    ['Allied tribes', 1 + localTribeIds().reduce((bonus, id) => {
+      const entry = state.diplomacy?.[id];
+      return bonus + (entry && (entry.disposition >= 80 || entry.conquered) ? alliedTribeIncomeBonus(id) : 0);
+    }, 0)],
     ['Stored machinery', 1 + 0.002 * state.res.machinery],
     ['Glacial Peaks', expDone('glacialPeaks') ? 1.10 : 1],
     ['All six sites explored', siteExpeditionsComplete() ? 1.05 : 1],
@@ -2552,7 +2559,7 @@ function startGameClock() {
   // lose time; it only wakes the simulation to account for elapsed time.
   if (typeof Worker === 'function') {
     try {
-  gameClockWorker = new Worker('js/game-clock.worker.js?v=publish-20260911u39');
+  gameClockWorker = new Worker('js/game-clock.worker.js?v=publish-20260911u42');
       gameClockWorker.addEventListener('message', () => {
         updateGameClock(true);
         renderBonusTimer();
@@ -3796,7 +3803,7 @@ function renderDiplomacy() {
       `<div class="res-note">${habitatText(tribe)}</div>` +
       `<div class="res-note">Military strength: ${entry.militaryKnown ? Math.round(militaryStrength(entry)) : 'unknown'} · Economic strength: ${entry.economicKnown ? Math.round(economicStrength(entry)) : 'unknown'}</div>` +
       `<div class="trial-reward">${lineageDef(id).name} lineage traits: ${lineageTraitsHtml(lineageDef(id))}. ${lineageUnlocked(id) ? 'Unlocked for future migrations.' : 'Migrate with disposition 80+ to unlock for future migrations.'}</div>` +
-      (local && (entry.disposition >= 80 || entry.conquered) ? `<div class="trial-reward">Active ally: +${Math.round(alliedIncomeBonus() * 1000) / 10}% to all village incomes.</div>` : '') +
+      (local && (entry.disposition >= 80 || entry.conquered) ? `<div class="trial-reward">Active ally: +${Math.round(alliedTribeIncomeBonus(id) * 1000) / 10}% to all village incomes.</div>` : '') +
       (local && !entry.conquered && entry.disposition < 0 ? `<div class="trial-mod">Relations are strained: the ${tribe.name} may raid the village.</div>` : '') +
       (local && !entry.conquered ? `<div class="trial-goal">${diplomacyRequestText(tribe, entry)}</div>` : local ? '<div class="res-note">This realm is under Emberhold rule; it no longer sends diplomatic requests.</div>' : '<div class="res-note">Only a few nice letters can reach them for now.</div>') +
       (local && !entry.conquered ? `<div class="card-cost">offer: ${costHtml(requestCost)} — +15 relations</div>` : '') +
@@ -3815,7 +3822,7 @@ function renderDiplomacy() {
     }
     if (local && tech('guards')) {
       if (entry.conquered) {
-        h += `<div class="trial-reward">CONQUERED REALM — +${Math.round(alliedIncomeBonus() * 1000) / 10}% to all village incomes. This realm no longer produces diplomatic events.</div>`;
+        h += `<div class="trial-reward">CONQUERED REALM — +${Math.round(alliedTribeIncomeBonus(id) * 1000) / 10}% to all village incomes. This realm no longer produces diplomatic events.</div>`;
       } else {
         h += '<div class="trial-mod">Attack stages cost more and become harder, but grant more loot rolls. The final three stages also roll for uncommon loot.</div>';
         const selectedStage = raidStage(raidSelections[id]);
@@ -4298,7 +4305,7 @@ function renderSidePanel() {
 function loadLatestUpdatesTooltip() {
   const button = document.getElementById('btn-updates');
   if (!button || typeof fetch !== 'function' || typeof DOMParser !== 'function') return;
-  fetch('changelog.html?v=publish-20260911u39')
+  fetch('changelog.html?v=publish-20260911u42')
     .then(response => response.ok ? response.text() : Promise.reject(new Error('changelog unavailable')))
     .then(source => {
       const doc = new DOMParser().parseFromString(source, 'text/html');
