@@ -100,7 +100,9 @@ header { grid-area: header; }
 #stores-panel .res-amount { white-space: nowrap; }
 #stores-panel .res-rate { grid-column: 1/-1; justify-self: end; margin: 0; padding: 0; font-size: 12px; }
 #stores-panel .has-tooltip::after { max-width: 250px; }
-#stores-panel .res-rate.has-tooltip::after { position: fixed; left: var(--stores-tooltip-left, 0px); right: auto; top: var(--stores-tooltip-top, 0px); width: 250px; }
+#stores-panel .res-rate.has-tooltip::after { position: fixed; left: var(--stores-tooltip-left, 0px); right: auto; top: var(--stores-tooltip-top, 0px); width: var(--stores-tooltip-width, 250px); max-width: none; }
+#stores-panel .res-rate.has-tooltip.stores-tooltip-active::after { opacity: 0; pointer-events: none; }
+.stores-tooltip-overlay { position: fixed; z-index: 21; box-sizing: content-box; padding: 7px 9px; border: 1px solid var(--amber-soft); border-radius: 5px; background: #0b0c0e; color: var(--text); font-size: 11px; line-height: 1.4; white-space: pre-wrap; pointer-events: auto; max-height: min(440px, 55vh); overflow-y: auto; }
 #stores-panel .res-rate.has-tooltip.tooltip-above::after { top: auto; bottom: var(--stores-tooltip-bottom, 0px); }
 @media (min-width:821px) and (max-width:1100px) {
   .job-row { grid-template-columns: minmax(92px,1fr) auto auto; gap: 8px; }

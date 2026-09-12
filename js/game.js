@@ -20,6 +20,8 @@ let activeTab = 'village';
 let buildFilter = 'incomplete';
 const raidSelections = {};
 let tooltipHover = false;
+let storesTooltipOverlay = null;
+let storesTooltipAnchor = null;
 let pointerDown = false;
 
 // Game definitions are immutable after data.js loads. Indexing them once keeps
@@ -4337,7 +4339,7 @@ function renderSidePanel() {
 function loadLatestUpdatesTooltip() {
   const button = document.getElementById('btn-updates');
   if (!button || typeof fetch !== 'function' || typeof DOMParser !== 'function') return;
-  fetch('changelog.html?v=publish-20260912u50')
+  fetch('changelog.html?v=publish-20260912u51')
     .then(response => response.ok ? response.text() : Promise.reject(new Error('changelog unavailable')))
     .then(source => {
       const doc = new DOMParser().parseFromString(source, 'text/html');
@@ -4785,6 +4787,7 @@ document.addEventListener('mouseover', (e) => {
     tooltipHover = true;
     positionTooltip(tip);
     positionStoresTooltip(tip);
+    if (tip.matches('#stores-panel .res-rate.has-tooltip')) showStoresTooltip(tip);
   }
 });
 document.addEventListener('focusin', (e) => {
@@ -4792,6 +4795,7 @@ document.addEventListener('focusin', (e) => {
   if (tip) {
     positionTooltip(tip);
     positionStoresTooltip(tip);
+    if (tip.matches('#stores-panel .res-rate.has-tooltip')) showStoresTooltip(tip);
   }
 });
 if (typeof window.addEventListener === 'function') {
@@ -4812,23 +4816,62 @@ if (typeof window.addEventListener === 'function') {
 }
 document.addEventListener('mouseout', (e) => {
   const tip = e.target.closest('.has-tooltip');
-  if (tip && !e.relatedTarget?.closest?.('.has-tooltip')) tooltipHover = false;
+  const related = e.relatedTarget;
+  if (tip && !related?.closest?.('.has-tooltip') && !related?.closest?.('.stores-tooltip-overlay')) {
+    tooltipHover = false;
+    if (tip.matches('#stores-panel .res-rate.has-tooltip')) hideStoresTooltip();
+  }
+  if (e.target.closest('.stores-tooltip-overlay') && !related?.closest?.('.stores-tooltip-overlay') && related !== storesTooltipAnchor) hideStoresTooltip();
 });
+
+function showStoresTooltip(tip) {
+  if (storesTooltipAnchor === tip && storesTooltipOverlay) return;
+  hideStoresTooltip();
+  storesTooltipAnchor = tip;
+  storesTooltipOverlay = document.createElement('div');
+  storesTooltipOverlay.className = 'stores-tooltip-overlay';
+  storesTooltipOverlay.textContent = tip.dataset.tooltip || '';
+  document.body.appendChild(storesTooltipOverlay);
+  tip.classList.add('stores-tooltip-active');
+  positionStoresTooltip(tip);
+}
+
+function hideStoresTooltip() {
+  storesTooltipAnchor?.classList.remove('stores-tooltip-active');
+  storesTooltipOverlay?.remove();
+  storesTooltipAnchor = null;
+  storesTooltipOverlay = null;
+}
 
 function positionStoresTooltip(tip) {
   if (!tip.matches('#stores-panel .res-rate.has-tooltip')) return;
   const rect = tip.getBoundingClientRect();
-  const width = 250;
   const gutter = 8;
-  const left = Math.max(gutter, Math.min(rect.right - width, window.innerWidth - width - gutter));
+  const width = tooltipWidth(tip);
+  const boxWidth = width + 20;
+  const left = Math.max(gutter, Math.min(rect.right - boxWidth, window.innerWidth - boxWidth - gutter));
   document.getElementById('stores-panel')?.style.setProperty('--stores-tooltip-left', `${left}px`);
+  document.getElementById('stores-panel')?.style.setProperty('--stores-tooltip-width', `${width}px`);
   document.getElementById('stores-panel')?.style.setProperty('--stores-tooltip-top', `${rect.bottom}px`);
   document.getElementById('stores-panel')?.style.setProperty('--stores-tooltip-bottom', `${window.innerHeight - rect.top + gutter}px`);
+  if (storesTooltipOverlay && storesTooltipAnchor === tip) {
+    storesTooltipOverlay.style.left = `${left}px`;
+    storesTooltipOverlay.style.width = `${width}px`;
+    storesTooltipOverlay.style.top = tip.classList.contains('tooltip-above') ? 'auto' : `${rect.bottom}px`;
+    storesTooltipOverlay.style.bottom = tip.classList.contains('tooltip-above') ? `${window.innerHeight - rect.top + gutter}px` : 'auto';
+  }
+}
+
+function tooltipWidth(tip) {
+  if (!tip.matches('#stores-panel .res-rate.has-tooltip')) return Math.min(330, window.innerWidth - 32);
+  const longestLine = Math.max(...(tip.dataset.tooltip || '').split('\n').map(line => line.length), 0);
+  const desired = Math.min(420, Math.max(250, longestLine * 6.2 + 18));
+  return Math.max(0, Math.min(desired, window.innerWidth - 36));
 }
 
 function positionTooltip(tip) {
   const rect = tip.getBoundingClientRect();
-  const width = tip.matches('#stores-panel .res-rate.has-tooltip') ? 250 : Math.min(330, window.innerWidth - 32);
+  const width = tooltipWidth(tip);
   const charsPerLine = Math.max(20, Math.floor(width / 6.2));
   const lines = (tip.dataset.tooltip || '').split('\n')
     .reduce((count, line) => count + Math.max(1, Math.ceil(line.length / charsPerLine)), 0);
