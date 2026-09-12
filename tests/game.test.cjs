@@ -1321,6 +1321,14 @@ test('active trials remain visible before the Monument is built', () => {
   assert.match(run('renderTrials()'), /Trial of the Overflow/);
 });
 
+test('trial oath buttons are disabled while migration is in progress', () => {
+  const { run } = game();
+  run(`state.bld.monument = 1; state.migrating = true`);
+  const trials = run('renderTrials()');
+  assert.match(trials, /data-action="trial-start" data-id="overflow" disabled/);
+  assert.match(trials, />Migration in progress<\/button>/);
+});
+
 test('starting a trial enables every difficulty option until it ends', () => {
   const { run } = game();
   run(`confirm = () => true;

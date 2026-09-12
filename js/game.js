@@ -2587,7 +2587,7 @@ function startGameClock() {
   // lose time; it only wakes the simulation to account for elapsed time.
   if (typeof Worker === 'function') {
     try {
-  gameClockWorker = new Worker('js/game-clock.worker.js?v=publish-20260912u52');
+  gameClockWorker = new Worker('js/game-clock.worker.js?v=publish-20260912u53');
       gameClockWorker.addEventListener('message', () => {
         updateGameClock(true);
         renderBonusTimer();
@@ -3936,8 +3936,10 @@ function renderTrials() {
       h += `<div class="trial-progress">${trialProgressText()}</div>` +
         `<div class="card-actions"><button data-action="trial-abandon">Break the oath (fail)</button></div>`;
     } else if (!maxed) {
-      h += `<div class="card-actions"><button data-action="trial-start" data-id="${t.id}" ${reqOk && !state.trial ? '' : 'disabled'}>` +
-        `${state.trial ? 'Another trial is sworn' : (reqOk ? 'Swear the oath' : 'Not yet possible')}</button></div>`;
+      const canStart = reqOk && !state.trial && !state.migrating;
+      const actionText = state.trial ? 'Another trial is sworn' : state.migrating ? 'Migration in progress' : (reqOk ? 'Swear the oath' : 'Not yet possible');
+      h += `<div class="card-actions"><button data-action="trial-start" data-id="${t.id}" ${canStart ? '' : 'disabled'}>` +
+        `${actionText}</button></div>`;
     } else {
       h += `<div class="trial-progress">Its lesson has been learned.</div>`;
     }
@@ -4343,7 +4345,7 @@ function renderSidePanel() {
 function loadLatestUpdatesTooltip() {
   const button = document.getElementById('btn-updates');
   if (!button || typeof fetch !== 'function' || typeof DOMParser !== 'function') return;
-  fetch('changelog.html?v=publish-20260912u52')
+  fetch('changelog.html?v=publish-20260912u53')
     .then(response => response.ok ? response.text() : Promise.reject(new Error('changelog unavailable')))
     .then(source => {
       const doc = new DOMParser().parseFromString(source, 'text/html');
