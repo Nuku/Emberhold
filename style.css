@@ -13,10 +13,10 @@ header { display: grid; grid-template-columns: minmax(200px,1fr) minmax(330px,au
 #title-block h1 { margin: 0; color: var(--amber); font-family: Georgia,serif; font-size: clamp(26px,3vw,38px); letter-spacing: .18em; line-height: 1; }
 #location-line { margin-top: 8px; color: var(--text); font-size: 16px; font-weight: 650; letter-spacing: .08em; }
 .challenge-star { text-shadow: 0 0 8px currentColor; }
-.challenge-star-1 { color: #b88752; }
-.challenge-star-2 { color: #c58b56; }
-.challenge-star-3 { color: #c4c9d1; }
-.challenge-star-4 { color: #f0c75e; }
+#location-line.challenge-star-1 { color: #b88752; }
+#location-line.challenge-star-2 { color: #c58b56; }
+#location-line.challenge-star-3 { color: #c4c9d1; }
+#location-line.challenge-star-4 { color: #f0c75e; }
 #subtitle { margin-top: 9px; color: var(--dim); font-size: 12px; letter-spacing: .08em; }
 #status-block { display: grid; gap: 3px; font-size: 12px; color: var(--dim); }
 #status-block div::before { display: inline-block; width: 16px; color: var(--amber-soft); }

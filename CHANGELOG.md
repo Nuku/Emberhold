@@ -11,6 +11,7 @@ All notable changes to Emberhold are recorded here, with the newest changes firs
 - Reworked achievement completion bonuses to use challenge ratings, including scaled Steel Hearted bonuses and the new challenge-specific production and crafting penalties.
 - Fixed the Trial of Tinkering deadline so a Tinkerer must still be assigned when day 240 ends; the trial no longer completes early merely because one was assigned at some point.
 - Increased Living Block construction costs to also require Copper, Machinery, and Industrial Goods.
+- Fixed challenge rating colors so they apply to the settlement location label without leaking into unrelated challenge markers.
 
 ## 2026-09-10
 
