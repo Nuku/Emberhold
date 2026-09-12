@@ -289,7 +289,7 @@ const BUILDINGS = [
     req: () => solarPowerAvailable(), desc: 'mirrors and collectors pointed at the sun, carrying on an ancient habit' },
 
   { id: 'dynamo', name: 'Dynamo', max: 1, scale: 1,
-    cost: { copper: 140, steel: 50, machinery: 25, tools: 60, currency: 120, goods: 25 },
+    cost: { copper: 1400, steel: 250, machinery: 125, tools: 300, currency: 120, goods: 125 },
     effect: () => '+15% all production',
     req: () => tech('electricalEngineering'), desc: 'copper coils turn motion into possibility' },
 
