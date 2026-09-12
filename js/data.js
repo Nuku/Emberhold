@@ -147,7 +147,8 @@ const JOBS = {
   tinkerer:    { name: 'Tinkerer',    res: 'tools',      base: 0.025, factoryLike: true, desc: 'steadily assembles tools from wood and stone',
                  inputs: { wood: 0.06, stone: 0.02 },
                  max: () => 1 + Math.floor((state.jobs.woodcutter || 0) / 5),
-                 unlock: () => (perm('tinkerers') || trialActive('tinkering')) && bld('workbench') > 0 },
+                 unlock: () => (perm('tinkerers') || trialActive('tinkering') || nothingManualActive()) &&
+                   (bld('workbench') > 0 || nothingManualActive()) },
 };
 const FOOD_PER_POP = 0.12; // food/s eaten per villager
 

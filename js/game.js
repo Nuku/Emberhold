@@ -2449,6 +2449,10 @@ function setOut(trialId = null) {
   for (const t in ERA_GATE) if (state.techs[t] && ERA_GATE[t] > state.era) state.era = ERA_GATE[t];
 
   state.pop = 4 + 2 * upg('wanderers');
+  if (!trialId && chosenChallenges.includes('nothingManual')) {
+    state.jobs.tinkerer = 1;
+    addLog('Nothing Manual takes hold. One Tinkerer joins the new settlement immediately; additional Tinkerers can be assigned normally.', 'log-important');
+  }
   if (upg('practicedMigrator')) {
     state.era = 2;
     state.techs.stoneWorking = true;
@@ -2559,7 +2563,7 @@ function startGameClock() {
   // lose time; it only wakes the simulation to account for elapsed time.
   if (typeof Worker === 'function') {
     try {
-  gameClockWorker = new Worker('js/game-clock.worker.js?v=publish-20260911u42');
+  gameClockWorker = new Worker('js/game-clock.worker.js?v=publish-20260911u43');
       gameClockWorker.addEventListener('message', () => {
         updateGameClock(true);
         renderBonusTimer();
@@ -2758,6 +2762,10 @@ function doCraft(id) {
   if (id === 'steel' && trialActive('silence')) {
     state.trial.steelProduced = (state.trial.steelProduced || 0) + def.give.steel * lineageMod('steel');
   }
+}
+
+function nothingManualActive() {
+  return !!state?.migrationChallenges?.includes('nothingManual');
 }
 
 function doResearch(id) {
@@ -4305,7 +4313,7 @@ function renderSidePanel() {
 function loadLatestUpdatesTooltip() {
   const button = document.getElementById('btn-updates');
   if (!button || typeof fetch !== 'function' || typeof DOMParser !== 'function') return;
-  fetch('changelog.html?v=publish-20260911u42')
+  fetch('changelog.html?v=publish-20260911u43')
     .then(response => response.ok ? response.text() : Promise.reject(new Error('changelog unavailable')))
     .then(source => {
       const doc = new DOMParser().parseFromString(source, 'text/html');
