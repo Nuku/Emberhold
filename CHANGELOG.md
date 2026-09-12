@@ -2,6 +2,11 @@
 
 All notable changes to Emberhold are recorded here, with the newest changes first.
 
+## 2026-09-12
+
+- Moved reset actions into an opt-in Settings control: Soft Reset starts a reward-free migration, while Hard Reset now requires two explicit confirmations and clearly warns that the chronicle cannot be recovered.
+- Removed the always-visible reset button from the header and kept reset controls disabled when loading a save.
+
 ## 2026-09-11
 
 - Fixed the Nothing Manual challenge so a new settlement starts with one Tinkerer and can assign additional Tinkerers without a Workbench.

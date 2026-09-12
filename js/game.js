@@ -133,7 +133,7 @@ function defaultState() {
     achievements: {},
     commonalityLineages: {},
     tutorialDismissed: false,
-    settings: { autosave: true, reducedMotion: false, compactStores: false, strictQueueOrder: false, tooltips: true },
+    settings: { autosave: true, reducedMotion: false, compactStores: false, strictQueueOrder: false, tooltips: true, resetControls: false },
     log: [],
   };
   s.res.food = 60;
@@ -2268,6 +2268,22 @@ function beginMigration() {
   addLog(`The Great Migration is declared. The deeds of ${state.pop} villagers will echo: ${state.pendingEchoes} Echo${state.pendingEchoes === 1 ? '' : 's'} gained. Spend them before setting out.`, 'log-important');
 }
 
+function beginSoftReset() {
+  if (state.migrating) return;
+  if (!window.confirm('Begin a soft reset? This ends the current settlement and any active trial without granting Echoes or other rewards. You will receive migration choices and must provision the road before setting out. Continue?')) return;
+  state.pendingEchoes = 0;
+  state.pendingSpecies = state.species;
+  state.pendingLandings = landingChoicesForMigration();
+  state.pendingLanding = (state.pendingLandings.find(l => lineageSelectable(state.pendingSpecies, l.id)) || state.pendingLandings[0]).id;
+  state.migrationPreparation = true;
+  state.projects = Object.fromEntries(RESOURCE_PROJECTS.map(project => [project.id, 0]));
+  state.pendingMigrationChallenges = [];
+  state.pendingBadAncestry = null;
+  state.migrating = true;
+  addLog('A soft reset is declared. No Echoes or rewards are gained; choose a new road and take time to provision the migration.', 'log-important');
+  saveGame(true);
+}
+
 function landingChoicesForMigration() {
   const available = LANDINGS.filter(l => l.id !== state.landing);
   const draw = () => {
@@ -3242,6 +3258,8 @@ function normalizeSave(s) {
   delete s.res.armor;
   s.armor = Math.max(s.armor, s.techs.chainmail ? 2 : s.techs.leatherArmor ? 1 : 0);
   if (!FACTORY_RECIPES.some(r => r.id === s.factoryRecipe && (!r.tech || s.techs[r.tech]))) s.factoryRecipe = 'goods';
+  // Reset controls are intentionally session-only and never reopen from a save.
+  s.settings.resetControls = false;
   return s;
 }
 
@@ -3323,7 +3341,8 @@ function importSave() {
   }
 }
 function resetGame() {
-  if (!window.confirm('Erase the chronicle of Emberhold and start anew?')) return;
+  if (!window.confirm('HARD RESET WARNING: erase everything in this chronicle, including all migrations, trials, Wonders, achievements, and permanent upgrades? This cannot be undone. Continue?')) return;
+  if (!window.confirm('Final warning: all Emberhold data will be permanently deleted. Erase everything?')) return;
   localStorage.removeItem(SAVE_KEY);
   location.reload();
 }
@@ -4252,9 +4271,13 @@ function renderSettings() {
     ['compactStores', 'Compact stores', 'Use a tighter resource list in the persistent sidebar.'],
     ['strictQueueOrder', 'Strict queue order', 'Process queued items one at a time from first to last.'],
     ['tooltips', 'Tooltips', 'Show helpful details when hovering over labeled elements.'],
+    ['resetControls', 'Show reset controls', 'Expose the soft and hard reset actions below. Keep this off during ordinary play.'],
   ];
   h += options.map(([id, name, desc]) => `<div class="setting-row"><div><div class="setting-name">${name}</div><div class="setting-desc">${desc}</div></div><button class="setting-toggle ${settings[id] ? 'enabled' : ''}" data-action="setting-toggle" data-setting="${id}" aria-pressed="${!!settings[id]}">${settings[id] ? 'On' : 'Off'}</button></div>`).join('');
-  h += '<h2 class="section">Chronicle tools</h2><div class="settings-actions"><button data-action="save">Save now</button><button data-action="export">Export save</button><button data-action="import">Import save</button><button data-action="reset" class="danger-button">Reset Emberhold</button></div>';
+  h += '<h2 class="section">Chronicle tools</h2><div class="settings-actions"><button data-action="save">Save now</button><button data-action="export">Export save</button><button data-action="import">Import save</button></div>';
+  if (settings.resetControls) {
+    h += '<div class="reset-controls card"><div class="card-title">Leave this chronicle</div><div class="card-desc">Use a soft reset when a trial or settlement has reached a dead end. It gives migration choices and time to provision the road, but grants no Echoes or rewards.</div><div class="settings-actions"><button data-action="soft-reset">Soft Reset</button><button data-action="reset" class="danger-button">Hard Reset</button></div><div class="res-note settings-note"><strong>Hard Reset erases everything.</strong> All settlements, migrations, trials, Wonders, achievements, and permanent upgrades will be deleted. Export a backup first if there is any chance you may want to return.</div></div>';
+  }
   h += '<div class="res-note settings-note">Export a backup before resetting. Imported saves replace the current chronicle after validation.</div>';
   return h;
 }
@@ -4613,6 +4636,7 @@ function runAction(btn) {
     case 'save': saveGame(); render(); break;
     case 'export': exportSave(); break;
     case 'import': importSave(); break;
+    case 'soft-reset': beginSoftReset(); render(); break;
     case 'reset': resetGame(); break;
   }
 }
@@ -4821,7 +4845,7 @@ function boot() {
   state.diplomats = state.diplomats || {};
   state.policy = state.policy || 'commons';
   state.council = Array.isArray(state.council) ? state.council : [];
-  state.settings = { autosave: true, reducedMotion: false, compactStores: false, strictQueueOrder: false, tooltips: true, ...(state.settings || {}) };
+  state.settings = { autosave: true, reducedMotion: false, compactStores: false, strictQueueOrder: false, tooltips: true, resetControls: false, ...(state.settings || {}) };
   state.achievements = state.achievements || {};
   state.shopTab = ['buy', 'purchased'].includes(state.shopTab) ? state.shopTab : 'buy';
   state.statsTab = ['stats', 'achievements', 'perks'].includes(state.statsTab) ? state.statsTab : 'stats';
@@ -4849,7 +4873,6 @@ function boot() {
   });
   document.getElementById('btn-export').addEventListener('click', exportSave);
   document.getElementById('btn-import').addEventListener('click', importSave);
-  document.getElementById('btn-reset').addEventListener('click', resetGame);
   document.querySelectorAll('#tabs .tab').forEach(b =>
     b.addEventListener('click', () => switchTab(b.dataset.tab)));
   loadLatestUpdatesTooltip();
