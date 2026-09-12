@@ -2270,17 +2270,19 @@ function beginMigration() {
 
 function beginSoftReset() {
   if (state.migrating) return;
-  if (!window.confirm('Begin a soft reset? This ends the current settlement and any active trial without granting Echoes or other rewards. You will receive migration choices and must provision the road before setting out. Continue?')) return;
+  if (!window.confirm('Begin a soft reset? This ends the current settlement and any active trial without granting Echoes or other rewards. You will receive migration choices and can set out immediately. Continue?')) return;
   state.pendingEchoes = 0;
   state.pendingSpecies = state.species;
   state.pendingLandings = landingChoicesForMigration();
   state.pendingLanding = (state.pendingLandings.find(l => lineageSelectable(state.pendingSpecies, l.id)) || state.pendingLandings[0]).id;
-  state.migrationPreparation = true;
-  state.projects = Object.fromEntries(RESOURCE_PROJECTS.map(project => [project.id, 0]));
+  // A voluntary soft reset does not make the player rebuild provisions before
+  // leaving. The migration choices remain, but the road is ready immediately.
+  state.migrationPreparation = false;
+  state.projects = {};
   state.pendingMigrationChallenges = [];
   state.pendingBadAncestry = null;
   state.migrating = true;
-  addLog('A soft reset is declared. No Echoes or rewards are gained; choose a new road and take time to provision the migration.', 'log-important');
+  addLog('A soft reset is declared. No Echoes or rewards are gained; choose a new road and set out when ready.', 'log-important');
   saveGame(true);
 }
 
@@ -4121,8 +4123,7 @@ function renderMigration() {
   h += `<div class="card trial-active"><div class="card-head">` +
     `<span class="card-title">The migration is prepared</span>` +
     `<span class="card-count">+${state.pendingEchoes} Echoes earned — ${state.echoes} in the pouch</span></div>` +
-    `<div class="card-desc">The departure is sworn and cannot be recalled. The village must now provision the road before it can leave. ` +
-    `Each supply is filled in 100 small commitments, so the stores can be gathered and packed over time.</div>` +
+    `<div class="card-desc">The departure is sworn and cannot be recalled. ${state.migrationPreparation ? 'The village must now provision the road before it can leave. Each supply is filled in 100 small commitments, so the stores can be gathered and packed over time.' : 'The road is ready immediately; choose a destination and set out when ready.'}</div>` +
     renderMigrationPreparation() +
     `<div class="card-actions">` +
     `<button data-action="migration-out" ${lineageSelectable(state.pendingSpecies || state.species) && (!state.migrationPreparation || migrationPreparationComplete()) ? '' : 'disabled'}>${state.migrationPreparation && !migrationPreparationComplete() ? 'Finish preparations to set out' : 'Set out — found the new Emberhold'}</button></div>` +
@@ -4276,7 +4277,7 @@ function renderSettings() {
   h += options.map(([id, name, desc]) => `<div class="setting-row"><div><div class="setting-name">${name}</div><div class="setting-desc">${desc}</div></div><button class="setting-toggle ${settings[id] ? 'enabled' : ''}" data-action="setting-toggle" data-setting="${id}" aria-pressed="${!!settings[id]}">${settings[id] ? 'On' : 'Off'}</button></div>`).join('');
   h += '<h2 class="section">Chronicle tools</h2><div class="settings-actions"><button data-action="save">Save now</button><button data-action="export">Export save</button><button data-action="import">Import save</button></div>';
   if (settings.resetControls) {
-    h += '<div class="reset-controls card"><div class="card-title">Leave this chronicle</div><div class="card-desc">Use a soft reset when a trial or settlement has reached a dead end. It gives migration choices and time to provision the road, but grants no Echoes or rewards.</div><div class="settings-actions"><button data-action="soft-reset">Soft Reset</button><button data-action="reset" class="danger-button">Hard Reset</button></div><div class="res-note settings-note"><strong>Hard Reset erases everything.</strong> All settlements, migrations, trials, Wonders, achievements, and permanent upgrades will be deleted. Export a backup first if there is any chance you may want to return.</div></div>';
+    h += '<div class="reset-controls card"><div class="card-title">Leave this chronicle</div><div class="card-desc">Use a soft reset when a trial or settlement has reached a dead end. It gives migration choices and makes the road ready immediately, but grants no Echoes or rewards.</div><div class="settings-actions"><button data-action="soft-reset">Soft Reset</button><button data-action="reset" class="danger-button">Hard Reset</button></div><div class="res-note settings-note"><strong>Hard Reset erases everything.</strong> All settlements, migrations, trials, Wonders, achievements, and permanent upgrades will be deleted. Export a backup first if there is any chance you may want to return.</div></div>';
   }
   h += '<div class="res-note settings-note">Export a backup before resetting. Imported saves replace the current chronicle after validation.</div>';
   return h;

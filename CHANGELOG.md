@@ -6,6 +6,7 @@ All notable changes to Emberhold are recorded here, with the newest changes firs
 
 - Moved reset actions into an opt-in Settings control: Soft Reset starts a reward-free migration, while Hard Reset now requires two explicit confirmations and clearly warns that the chronicle cannot be recovered.
 - Removed the always-visible reset button from the header and kept reset controls disabled when loading a save.
+- Updated Soft Reset so it preserves the migration choices but makes the road ready immediately, with no provisioning delay or rewards.
 
 ## 2026-09-11
 
