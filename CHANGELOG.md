@@ -4,6 +4,7 @@ All notable changes to Emberhold are recorded here, with the newest changes firs
 
 ## 2026-09-12
 
+- Fixed hovered and focused tooltips so they stay correctly positioned after panels refresh or their content loads.
 - Fixed the Trials panel so an active trial remains visible throughout its run, including before the Monument is built.
 - Fixed the Migration panel so it remains available throughout an active Soft Reset, including before the Monument check is satisfied.
 - Fixed Soft Reset so the Migration tab opens immediately and the migration road is available without an extra render or provisioning step.

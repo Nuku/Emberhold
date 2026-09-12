@@ -2581,7 +2581,7 @@ function startGameClock() {
   // lose time; it only wakes the simulation to account for elapsed time.
   if (typeof Worker === 'function') {
     try {
-  gameClockWorker = new Worker('js/game-clock.worker.js?v=publish-20260912u49');
+  gameClockWorker = new Worker('js/game-clock.worker.js?v=publish-20260912u50');
       gameClockWorker.addEventListener('message', () => {
         updateGameClock(true);
         renderBonusTimer();
@@ -4337,7 +4337,7 @@ function renderSidePanel() {
 function loadLatestUpdatesTooltip() {
   const button = document.getElementById('btn-updates');
   if (!button || typeof fetch !== 'function' || typeof DOMParser !== 'function') return;
-  fetch('changelog.html?v=publish-20260912u49')
+  fetch('changelog.html?v=publish-20260912u50')
     .then(response => response.ok ? response.text() : Promise.reject(new Error('changelog unavailable')))
     .then(source => {
       const doc = new DOMParser().parseFromString(source, 'text/html');
@@ -4350,7 +4350,10 @@ function loadLatestUpdatesTooltip() {
       const updates = [...(section?.section.querySelectorAll('li') || [])]
         .map(item => item.textContent.replace(/\s+/g, ' ').trim())
         .filter(Boolean);
-      if (date && updates.length) button.dataset.tooltip = `Latest updates (${date}):\n${updates.join('\n')}`;
+      if (date && updates.length) {
+        button.dataset.tooltip = `Latest updates (${date}):\n${updates.join('\n')}`;
+        if (button.matches('.has-tooltip:hover, .has-tooltip:focus')) positionTooltip(button);
+      }
     })
     .catch(() => {});
 }
@@ -4380,6 +4383,11 @@ function render() {
   updateContent(document.getElementById('panel-' + activeTab), panels[activeTab]());
   renderSidePanel();
   renderLog();
+  const tip = document.querySelector('.has-tooltip:hover, .has-tooltip:focus');
+  if (tip) {
+    positionTooltip(tip);
+    positionStoresTooltip(tip);
+  }
 }
 
 function switchTab(tab) {
