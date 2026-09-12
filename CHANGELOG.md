@@ -14,6 +14,7 @@ All notable changes to Emberhold are recorded here, with the newest changes firs
 - Removed the always-visible reset button from the header and kept reset controls disabled when loading a save.
 - Updated Soft Reset so it preserves the migration choices but makes the road ready immediately, with no provisioning delay or rewards.
 - Increased the Dynamo's construction cost to better match its permanent all-production bonus.
+- Added Copper requirements to Steam Plants and Wind Devices to reflect their advanced construction materials.
 
 ## 2026-09-11
 

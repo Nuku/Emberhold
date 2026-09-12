@@ -279,7 +279,7 @@ const BUILDINGS = [
     req: () => tech('machineryTech'), desc: 'devices that make devices' },
 
   { id: 'steamPlant', name: 'Steam Plant', max: 3, scale: 1.8,
-    cost: { steel: 60, coal: 100, tools: 25, currency: 50 },
+    cost: { steel: 60, coal: 100, tools: 25, currency: 50, copper: 500 },
     effect: () => `+${POWER_PER_STEAM_PLANT + (wonderChoice('emberplain', 'silence') ? 1 : 0)} Power capacity, consumes 0.8 Coal/s`,
     req: () => tech('metallurgy'), desc: 'boilers and turbines make a new kind of work possible' },
 
@@ -314,7 +314,7 @@ const BUILDINGS = [
     req: () => tech('advancedScience'), desc: 'precision instruments and costly parts turn questions into discoveries' },
 
   { id: 'windDevice', name: 'Wind Device', max: Infinity, scale: 2.2,
-    cost: { goods: 120, steel: 220, stone: 500 },
+    cost: { goods: 120, steel: 220, stone: 500, copper: 1000 },
     effect: () => `+${POWER_PER_WIND_DEVICE} Power capacity, no fuel required`,
     req: () => tech('windHarness'), desc: 'capture a small bit of the wind\'s gusting power' },
 
