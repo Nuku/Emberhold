@@ -2581,7 +2581,7 @@ function startGameClock() {
   // lose time; it only wakes the simulation to account for elapsed time.
   if (typeof Worker === 'function') {
     try {
-  gameClockWorker = new Worker('js/game-clock.worker.js?v=publish-20260912u47');
+  gameClockWorker = new Worker('js/game-clock.worker.js?v=publish-20260912u48');
       gameClockWorker.addEventListener('message', () => {
         updateGameClock(true);
         renderBonusTimer();
@@ -4086,7 +4086,7 @@ function renderExpeditions() {
 }
 
 function renderMigration() {
-  if (bld('monument') < 1) {
+  if (!state.migrating && bld('monument') < 1) {
     return '<h2 class="section">The Great Migration</h2>' +
       '<div class="card"><div class="card-desc">When the Monument stands, the village may weigh its own worth — ' +
       'and, if the generations have been generous, leave everything behind to found a new Emberhold, ' +
@@ -4337,7 +4337,7 @@ function renderSidePanel() {
 function loadLatestUpdatesTooltip() {
   const button = document.getElementById('btn-updates');
   if (!button || typeof fetch !== 'function' || typeof DOMParser !== 'function') return;
-  fetch('changelog.html?v=publish-20260912u47')
+  fetch('changelog.html?v=publish-20260912u48')
     .then(response => response.ok ? response.text() : Promise.reject(new Error('changelog unavailable')))
     .then(source => {
       const doc = new DOMParser().parseFromString(source, 'text/html');

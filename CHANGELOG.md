@@ -4,6 +4,7 @@ All notable changes to Emberhold are recorded here, with the newest changes firs
 
 ## 2026-09-12
 
+- Fixed the Migration panel so it remains available throughout an active Soft Reset, including before the Monument check is satisfied.
 - Fixed Soft Reset so the Migration tab opens immediately and the migration road is available without an extra render or provisioning step.
 - Moved reset actions into an opt-in Settings control: Soft Reset starts a reward-free migration, while Hard Reset now requires two explicit confirmations and clearly warns that the chronicle cannot be recovered.
 - Removed the always-visible reset button from the header and kept reset controls disabled when loading a save.
