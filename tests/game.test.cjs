@@ -1313,6 +1313,14 @@ test('front page shows the active trial goal and progress', () => {
   assert.match(village, /Progress:<\/strong> emptiest store: 80% full/);
 });
 
+test('active trials remain visible before the Monument is built', () => {
+  const { run } = game();
+  assert.equal(run('tabUnlocked("trials")'), false);
+  run(`state.trial = { id: 'overflow', daysActive: 0, buildings: 0 }`);
+  assert.equal(run('tabUnlocked("trials")'), true);
+  assert.match(run('renderTrials()'), /Trial of the Overflow/);
+});
+
 test('Overflow suppresses non-trial storage bonuses while sworn', () => {
   const { run } = game();
   run(`state.trialDone.overflow = 1; state.upgrades.deepCellars = 3; state.techs.civics = true; state.governor = 'quartermaster';

@@ -2581,7 +2581,7 @@ function startGameClock() {
   // lose time; it only wakes the simulation to account for elapsed time.
   if (typeof Worker === 'function') {
     try {
-  gameClockWorker = new Worker('js/game-clock.worker.js?v=publish-20260912u48');
+  gameClockWorker = new Worker('js/game-clock.worker.js?v=publish-20260912u49');
       gameClockWorker.addEventListener('message', () => {
         updateGameClock(true);
         renderBonusTimer();
@@ -3467,7 +3467,7 @@ const TAB_UNLOCKS = {
   research: () => bld('library') > 0,
   diplomacy: () => tech('currency'),
   governance: () => tech('civics'),
-  trials: () => bld('monument') > 0,
+  trials: () => bld('monument') > 0 || !!state.trial,
   expeditions: () => era() >= 2 && bld('quarry') > 0,
   wonders: () => !!state.rapture?.tabSeen,
   migration: () => bld('monument') > 0 || !!state.migrating,
@@ -4337,7 +4337,7 @@ function renderSidePanel() {
 function loadLatestUpdatesTooltip() {
   const button = document.getElementById('btn-updates');
   if (!button || typeof fetch !== 'function' || typeof DOMParser !== 'function') return;
-  fetch('changelog.html?v=publish-20260912u48')
+  fetch('changelog.html?v=publish-20260912u49')
     .then(response => response.ok ? response.text() : Promise.reject(new Error('changelog unavailable')))
     .then(source => {
       const doc = new DOMParser().parseFromString(source, 'text/html');
