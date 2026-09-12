@@ -2581,7 +2581,7 @@ function startGameClock() {
   // lose time; it only wakes the simulation to account for elapsed time.
   if (typeof Worker === 'function') {
     try {
-  gameClockWorker = new Worker('js/game-clock.worker.js?v=publish-20260911u43');
+  gameClockWorker = new Worker('js/game-clock.worker.js?v=publish-20260912u47');
       gameClockWorker.addEventListener('message', () => {
         updateGameClock(true);
         renderBonusTimer();
@@ -3470,7 +3470,7 @@ const TAB_UNLOCKS = {
   trials: () => bld('monument') > 0,
   expeditions: () => era() >= 2 && bld('quarry') > 0,
   wonders: () => !!state.rapture?.tabSeen,
-  migration: () => bld('monument') > 0,
+  migration: () => bld('monument') > 0 || !!state.migrating,
   stats: () => state.day >= 1 || state.migrating || state.won,
   settings: () => true,
 };
@@ -4337,7 +4337,7 @@ function renderSidePanel() {
 function loadLatestUpdatesTooltip() {
   const button = document.getElementById('btn-updates');
   if (!button || typeof fetch !== 'function' || typeof DOMParser !== 'function') return;
-  fetch('changelog.html?v=publish-20260911u43')
+  fetch('changelog.html?v=publish-20260912u47')
     .then(response => response.ok ? response.text() : Promise.reject(new Error('changelog unavailable')))
     .then(source => {
       const doc = new DOMParser().parseFromString(source, 'text/html');
@@ -4637,7 +4637,11 @@ function runAction(btn) {
     case 'save': saveGame(); render(); break;
     case 'export': exportSave(); break;
     case 'import': importSave(); break;
-    case 'soft-reset': beginSoftReset(); render(); break;
+    case 'soft-reset':
+      beginSoftReset();
+      if (state.migrating) switchTab('migration');
+      else render();
+      break;
     case 'reset': resetGame(); break;
   }
 }
