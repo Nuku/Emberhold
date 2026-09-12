@@ -1321,6 +1321,20 @@ test('active trials remain visible before the Monument is built', () => {
   assert.match(run('renderTrials()'), /Trial of the Overflow/);
 });
 
+test('starting a trial enables every difficulty option until it ends', () => {
+  const { run } = game();
+  run(`confirm = () => true;
+    state.bld.storehouse = 1;
+    state.migrationChallenges = ['dryGround'];
+    startTrial('overflow')`);
+  assert.equal(JSON.stringify(run('state.migrationChallenges')), JSON.stringify(['dryGround', 'badAncestry', 'nothingManual', 'forgottenTruths']));
+  assert.ok(run('state.badAncestry'));
+
+  run('endTrial(false)');
+  assert.equal(JSON.stringify(run('state.migrationChallenges')), '[]');
+  assert.equal(run('state.badAncestry'), null);
+});
+
 test('Overflow suppresses non-trial storage bonuses while sworn', () => {
   const { run } = game();
   run(`state.trialDone.overflow = 1; state.upgrades.deepCellars = 3; state.techs.civics = true; state.governor = 'quartermaster';

@@ -2043,7 +2043,9 @@ function startTrial(id) {
   if (def.repeat > 0 && trialCount(id) >= trialMax(def)) return;
   if (def.repeat === 0 && trialCount(id) > 0) return;
   if (def.req && !def.req()) return;
-  if (!confirm(`Start ${def.name}? This restarts your migration in the same location with the same lineage, upgrades, and governance settings. Your village, resources, and jobs reset to migration starting values; permanent progress is kept. No Echoes are awarded. Continue?`)) return;
+  if (!confirm(`Start ${def.name}? This restarts your migration in the same location with the same lineage, upgrades, and governance settings. Your village, resources, and jobs reset to migration starting values; permanent progress is kept. All four difficulty options will be turned on for the trial and will remain active until it ends. No Echoes are awarded. Continue?`)) return;
+  state.migrationChallenges = MIGRATION_CHALLENGES.map(challenge => challenge.id);
+  state.badAncestry = rollBadAncestry(state.species);
   setOut(id);
   addLog(`The village swears the ${def.name}. ${trialModifierText(def)}`, 'log-important');
   saveGame(true);
@@ -2059,6 +2061,8 @@ function endTrial(success) {
     addLog(`${def.name} failed. The oath is broken, but oaths can be sworn again.`, 'log-bad');
   }
   state.trial = null;
+  state.migrationChallenges = [];
+  state.badAncestry = null;
 }
 
 function updateTrial(dt) {
@@ -2583,7 +2587,7 @@ function startGameClock() {
   // lose time; it only wakes the simulation to account for elapsed time.
   if (typeof Worker === 'function') {
     try {
-  gameClockWorker = new Worker('js/game-clock.worker.js?v=publish-20260912u50');
+  gameClockWorker = new Worker('js/game-clock.worker.js?v=publish-20260912u52');
       gameClockWorker.addEventListener('message', () => {
         updateGameClock(true);
         renderBonusTimer();
@@ -4339,7 +4343,7 @@ function renderSidePanel() {
 function loadLatestUpdatesTooltip() {
   const button = document.getElementById('btn-updates');
   if (!button || typeof fetch !== 'function' || typeof DOMParser !== 'function') return;
-  fetch('changelog.html?v=publish-20260912u51')
+  fetch('changelog.html?v=publish-20260912u52')
     .then(response => response.ok ? response.text() : Promise.reject(new Error('changelog unavailable')))
     .then(source => {
       const doc = new DOMParser().parseFromString(source, 'text/html');
