@@ -1213,6 +1213,15 @@ test('miner capacities scale with their supporting buildings', () => {
   assert.equal(run('jobCapacity("copperminer")'), 5);
 });
 
+test('Masonry unlocks Stone Works while the Quarry unlocks Miners', () => {
+  const { run } = game();
+  run('state.bld.quarry = 1; state.pop = 20');
+  assert.equal(run('JOBS.miner.unlock()'), true);
+  assert.equal(run('BUILDING_BY_ID.get("stoneWorks").req()'), false);
+  run('state.techs.masonry = true');
+  assert.equal(run('BUILDING_BY_ID.get("stoneWorks").req()'), true);
+});
+
 test('repeatable trials grow harder after rewards and retain difficulty on failure and load', () => {
   const { run } = game();
   for (const id of ['scarcity', 'frugality', 'overflow']) {

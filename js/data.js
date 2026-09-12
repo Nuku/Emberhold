@@ -185,8 +185,8 @@ const BUILDINGS = [
 
   { id: 'stoneWorks', name: 'Stone Works', max: 3, scale: 1.7,
     cost: { stone: 90, wood: 40 },
-    effect: () => '+10% stone production',
-    req: () => bld('quarry') > 0, desc: 'cut stone fits where rubble will not' },
+    effect: () => '+10% stone production; +1 Miner capacity',
+    req: () => tech('masonry'), desc: 'cut stone fits where rubble will not' },
 
   { id: 'workbench', name: 'Workbench', max: 1, scale: 1,
     cost: { wood: 120 },
@@ -359,7 +359,7 @@ const TECHS = [
   { id: 'writing', name: 'Writing', cost: 80,
     desc: 'Marks are set down against the forgetting that swallowed the Before Times. +25% Knowledge production. The chronicle begins.' },
   { id: 'masonry', name: 'Masonry', cost: 150, materials: { stone: 120, tools: 12 },
-    desc: 'Rubble becomes shelter when every stone knows its place. Unlocks Stone Works.',
+    desc: 'Rubble becomes shelter when every stone knows its place. Unlocks Stone Works and additional Miner capacity.',
     req: () => tech('craftsmanship') },
   { id: 'hydraulics', name: 'Hydraulics', cost: 260, materials: { stone: 180, tools: 20, copper: 10 },
     desc: 'Water is persuaded to serve the living before it returns to the ruins. Unlocks the Aqueduct.',
