@@ -1096,13 +1096,27 @@ function queueCapacity(type) {
   return 1 + upg(upgrade) + trialCount(trial);
 }
 
-function queueTime(entry) {
+function queuedCostThrough(type, index) {
+  const total = {};
+  const entries = state.queues[type] || [];
+  for (let i = 0; i <= index && i < entries.length; i++) {
+    const cost = queueCost(entries[i]);
+    if (!cost) continue;
+    for (const [resource, amount] of Object.entries(cost)) {
+      total[resource] = (total[resource] || 0) + amount;
+    }
+  }
+  return total;
+}
+
+function queueTime(entry, type = entry?.type, index = -1) {
   const cost = queueCost(entry);
   if (!cost) return Infinity;
+  const requirement = type && index >= 0 ? queuedCostThrough(type, index) : cost;
   const rates = production(1);
   let seconds = 0;
-  for (const resource in cost) {
-    const missing = Math.max(0, cost[resource] - (state.res[resource] || 0));
+  for (const resource in requirement) {
+    const missing = Math.max(0, requirement[resource] - (state.res[resource] || 0));
     if (!missing) continue;
     if ((rates[resource] || 0) <= 0) return Infinity;
     seconds = Math.max(seconds, missing / rates[resource]);
@@ -1116,11 +1130,12 @@ function queueLabel(seconds) {
   return `${fmt(Math.ceil(seconds))}s`;
 }
 
-function queueWaitingHtml(entry) {
+function queueWaitingHtml(type, index, entry) {
   const cost = queueCost(entry);
   if (!cost) return '';
+  const requirement = queuedCostThrough(type, index);
   const rates = production(1);
-  const waiting = Object.entries(cost).filter(([resource, amount]) =>
+  const waiting = Object.entries(requirement).filter(([resource, amount]) =>
     Math.max(0, amount - (state.res[resource] || 0)) > 0);
   if (!waiting.length) return '<span class="queue-ready">ready</span>';
   return '<span class="queue-waiting">' + waiting.map(([resource, amount]) => {
@@ -2625,7 +2640,7 @@ function startGameClock() {
   // lose time; it only wakes the simulation to account for elapsed time.
   if (typeof Worker === 'function') {
     try {
-  gameClockWorker = new Worker('js/game-clock.worker.js?v=publish-20260913u66');
+  gameClockWorker = new Worker('js/game-clock.worker.js?v=publish-20260913u67');
       gameClockWorker.addEventListener('message', () => {
         updateGameClock(true);
         renderBonusTimer();
@@ -3786,10 +3801,9 @@ function renderQueue(type) {
   if (!entries.length) return `<div class="queue-empty">${label} queue empty (${queueCapacity(type)} slot${queueCapacity(type) === 1 ? '' : 's'})</div>`;
   return entries.map((entry, index) => {
     const def = queueDef(entry);
-    // Every entry can start independently in the default parallel queue mode.
-    // Show each entry's actual missing resources so a later item cannot claim
-    // to be ready while its displayed cost is still unaffordable.
-    const details = queueWaitingHtml(entry);
+    // Show cumulative missing resources so each later item includes the demand
+    // that earlier items will take from the stores before it can be supplied.
+    const details = queueWaitingHtml(type, index, entry);
     return `<button class="queue-item" draggable="true" data-action="queue-cancel" data-queue-item="true" data-type="${type}" data-index="${index}" title="Drag to reorder; click to cancel">` +
       `<span class="queue-name">${esc(def ? def.name : entry.id)}</span>` +
       `<span class="queue-details">${details}</span></button>`;
@@ -4403,7 +4417,7 @@ function renderSidePanel() {
 function loadLatestUpdatesTooltip() {
   const button = document.getElementById('btn-updates');
   if (!button || typeof fetch !== 'function' || typeof DOMParser !== 'function') return;
-  fetch('changelog.html?v=publish-20260913u66')
+  fetch('changelog.html?v=publish-20260913u67')
     .then(response => response.ok ? response.text() : Promise.reject(new Error('changelog unavailable')))
     .then(source => {
       const doc = new DOMParser().parseFromString(source, 'text/html');

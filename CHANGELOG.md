@@ -4,6 +4,7 @@ All notable changes to Emberhold are recorded here, with the newest changes firs
 
 ## 2026-09-13
 
+- Fixed queued construction estimates so later items include the material commitments of earlier items in the same queue.
 - Fixed Dry Ground so Guard hunting receives its intended 55% food-production penalty.
 - Fixed Guard food upkeep so it remains a fixed cost and is not multiplied by food-production modifiers.
 - Fixed secure food stores so they stop increasing morale once morale reaches 70.

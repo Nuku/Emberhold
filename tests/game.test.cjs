@@ -423,10 +423,23 @@ test('queue items show each missing resource with its own estimate', () => {
   run(`state.queues.build = [{ type: 'build', id: 'stoneWorks' }, { type: 'build', id: 'lumberYard' }];
     state.res.wood = 0; state.res.stone = 0;`);
   const html = run("renderQueue('build')");
-  assert.equal((html.match(/queue-waiting-item/g) || []).length, 4);
+  assert.equal((html.match(/queue-waiting-item/g) || []).length, 5);
   assert.match(html, /queue-waiting-item[\s\S]*queue-time/);
   assert.match(html, /lumberCamp|Lumber/);
+  assert.match(html, /110 Wood/);
   assert.equal((html.match(/queue-needs/g) || []).length, 0);
+});
+
+test('later queue items include earlier queued costs in their estimates', () => {
+  const { run } = game();
+  run(`state.res.food = 0;
+    state.queues.build = [
+      { type: 'build', id: 'first', cost: { food: 300 } },
+      { type: 'build', id: 'second', cost: { food: 300 } }
+    ];`);
+  const html = run("renderQueue('build')");
+  assert.match(html, /300 Food/);
+  assert.match(html, /600 Food/);
 });
 
 test('queue items can be reordered before or after another item', () => {
