@@ -837,7 +837,9 @@ function beginForcedWonderMigration() {
   state.migrating = true;
   state.pendingMigrationChallenges = challenges;
   state.pendingEchoes = echoesEarned(challenges);
-  state.echoes += state.pendingEchoes;
+  // The base reward is earned immediately; challenge bonuses stay pending
+  // until the migration is actually completed.
+  state.echoes += baseEchoesEarned();
   addLog(`The Wonder's deeds will echo: ${state.pendingEchoes} Echo${state.pendingEchoes === 1 ? '' : 's'} gained.`, 'log-important');
   addLog(`The Wonder has been decided. There is no vote on the road ahead; it carries Emberhold toward ${landing.name}.`, 'log-important');
   setOut();
@@ -2399,6 +2401,12 @@ function setOut(trialId = null) {
   }
   const chosenBadAncestry = !trialId && chosenChallenges.includes('badAncestry')
     ? (state.pendingBadAncestry || rollBadAncestry(candidate)) : null;
+  if (!trialId) {
+    // Challenge choices are only a projection while the migration is in
+    // progress. Award their bonus once, on departure, without ever changing
+    // the spendable pouch when a choice is toggled.
+    state.echoes += Math.max(0, echoesEarned(chosenChallenges) - baseEchoesEarned());
+  }
   const newSpecies = trialId ? state.species : candidate;
   const unlockedLineages = { ...(state.lineagesUnlocked || { human: true }) };
   const newlyUnlocked = [];
@@ -2543,7 +2551,9 @@ const MIGRATION_CHALLENGES = [
 ];
 const CHALLENGE_RATING_NAMES = ['unrated', 'wooden', 'copper', 'silver', 'gold'];
 function activeMigrationChallenges() {
-  return state.migrating ? (state.pendingMigrationChallenges || []) : (state.migrationChallenges || []);
+  // Choices made in the preparation screen are only proposals. Challenge
+  // effects begin when setOut commits them to migrationChallenges.
+  return state.migrationChallenges || [];
 }
 function migrationChallengeCount() { return activeMigrationChallenges().length; }
 function rollBadAncestry(currentSpecies = state.species) {
@@ -2562,9 +2572,9 @@ function toggleMigrationChallenge(id) {
   if (index >= 0) selected.splice(index, 1);
   else selected.push(id);
   if (id === 'badAncestry') state.pendingBadAncestry = selected.includes(id) ? rollBadAncestry(state.pendingSpecies || state.species) : null;
-  const updatedEchoes = echoesEarned(selected);
-  state.echoes += updatedEchoes - state.pendingEchoes;
-  state.pendingEchoes = updatedEchoes;
+  // Keep the projected reward up to date for the migration panel, but do not
+  // mutate the current Echo supply. The challenge bonus is awarded on setOut.
+  state.pendingEchoes = echoesEarned(selected);
 }
 
 function chooseLineage(id) {

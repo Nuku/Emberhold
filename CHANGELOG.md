@@ -6,6 +6,7 @@ All notable changes to Emberhold are recorded here, with the newest changes firs
 
 - Fixed secure food stores so they stop increasing morale once morale reaches 70.
 - Preserved settlement settings such as strict queue order through migration while resetting the opt-in reset controls.
+- Fixed Great Migration self-challenge rewards so selecting or changing challenges never changes the spendable Echo supply; challenge bonuses are awarded when setting out and challenge effects begin only after departure.
 
 ## 2026-09-12
 

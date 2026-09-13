@@ -2060,7 +2060,26 @@ test('self-challenges add 20% per bump to migration rewards', () => {
   run(`state.bld.monument = 1; state.pop = 30; beginMigration();
     toggleMigrationChallenge('dryGround'); toggleMigrationChallenge('nothingManual');`);
   assert.equal(run('state.pendingEchoes'), 5.6);
-  assert.equal(run('state.echoes'), 5.6);
+  assert.equal(run('state.echoes'), 4);
+});
+
+test('changing self-challenges never changes the spendable Echo supply', () => {
+  const { run } = game();
+  run(`state.bld.monument = 1; state.pop = 30; beginMigration();
+    migrationBuy('wanderers');
+    toggleMigrationChallenge('dryGround');
+    toggleMigrationChallenge('dryGround');`);
+  assert.equal(run('state.echoes'), 3);
+  assert.equal(run('state.pendingEchoes'), 4);
+});
+
+test('self-challenge effects begin only after setting out', () => {
+  const { run } = game();
+  run(`state.bld.monument = 1; state.pop = 30; beginMigration();
+    toggleMigrationChallenge('dryGround');`);
+  assert.deepEqual(JSON.parse(run('JSON.stringify(activeMigrationChallenges())')), []);
+  run(`state.migrationPreparation = false; setOut();`);
+  assert.deepEqual(JSON.parse(run('JSON.stringify(activeMigrationChallenges())')), ['dryGround']);
 });
 
 test('self-challenges add 20% per bump to Wonder rewards and forced-migration Echoes', () => {
