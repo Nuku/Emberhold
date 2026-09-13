@@ -7,9 +7,9 @@
 const SAVE_KEY = 'emberhold_save_v1';
 
 // --- time ---
-const DAY_RATE = 2;        // days per real second
+const DAY_RATE = 2 / 3;    // days per real second; one day takes 1.5 real seconds
 const DAYS_PER_SEASON = 50;
-const DAYS_PER_YEAR = 200; // one year = 100 real seconds
+const DAYS_PER_YEAR = 200; // one year = 300 real seconds
 const LONG_NIGHT_DURATION = DAYS_PER_YEAR * 10;
 
 // --- resources ---

@@ -343,8 +343,8 @@ test('ticks crossing midnight apply each day’s weather for its own duration', 
   const { run } = game();
   run(`state.day = 0.75; const weatherSteps = [];
     updateMorale = dt => weatherSteps.push([Math.floor(state.day), dt]); tick(0.5)`);
-  assert.deepEqual(JSON.parse(run('JSON.stringify(weatherSteps)')), [[0, 0.125], [1, 0.375]]);
-  assert.equal(run('state.day'), 1.75);
+  assert.deepEqual(JSON.parse(run('JSON.stringify(weatherSteps)')), [[0, 0.375], [1, 0.125]]);
+  assert.equal(run('state.day'), 1.0833333333333333);
 });
 
 test('every queue item lists the resources it needs', () => {

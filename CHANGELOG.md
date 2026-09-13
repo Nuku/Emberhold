@@ -4,6 +4,7 @@ All notable changes to Emberhold are recorded here, with the newest changes firs
 
 ## 2026-09-13
 
+- Slowed the game clock so each in-game day takes 1.5 real seconds and each year takes about 300 real seconds.
 - Fixed queued construction estimates so later items include the material commitments of earlier items in the same queue.
 - Fixed Dry Ground so Guard hunting receives its intended 55% food-production penalty.
 - Fixed Guard food upkeep so it remains a fixed cost and is not multiplied by food-production modifiers.

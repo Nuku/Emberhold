@@ -34,7 +34,7 @@ invalid imports, storage failures, and offline time accounting.
   (150 Knowledge, after Stone Working and Craftsmanship) unlocks Hospitals:
   each of up to 10 levels multiplies population growth and Guard healing timers
   by 0.9, stacking with Fertility Rites for growth.
-- **Seasons.** A year is 200 in-game days (~100 real seconds). Autumn slows
+- **Seasons.** A year is 200 in-game days (~300 real seconds). Autumn slows
   the fields and **winter halves them** — keep a store.
 - **Morale.** The settlement's 0–100 morale rises when food is secure and falls
   during shortages and winter. It ranges from −30% to +13% production, with
