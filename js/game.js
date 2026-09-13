@@ -2711,7 +2711,7 @@ function startGameClock() {
   // lose time; it only wakes the simulation to account for elapsed time.
   if (typeof Worker === 'function') {
     try {
-  gameClockWorker = new Worker('js/game-clock.worker.js?v=publish-20260913u67');
+  gameClockWorker = new Worker('js/game-clock.worker.js?v=publish-20260913u70');
       gameClockWorker.addEventListener('message', () => {
         updateGameClock(true);
         renderBonusTimer();
@@ -4505,7 +4505,7 @@ function renderSidePanel() {
 function loadLatestUpdatesTooltip() {
   const button = document.getElementById('btn-updates');
   if (!button || typeof fetch !== 'function' || typeof DOMParser !== 'function') return;
-  fetch('changelog.html?v=publish-20260913u69')
+  fetch('changelog.html?v=publish-20260913u70')
     .then(response => response.ok ? response.text() : Promise.reject(new Error('changelog unavailable')))
     .then(source => {
       const doc = new DOMParser().parseFromString(source, 'text/html');
@@ -4898,16 +4898,28 @@ document.addEventListener('dragover', (e) => {
   if (!draggedQueueItem || !target || target.dataset.type !== draggedQueueItem.type) return;
   e.preventDefault();
   e.dataTransfer.dropEffect = 'move';
-  target.classList.toggle('queue-drop-before', e.clientY < target.getBoundingClientRect().top + target.offsetHeight / 2);
-  target.classList.toggle('queue-drop-after', !target.classList.contains('queue-drop-before'));
+  const before = e.clientY < target.getBoundingClientRect().top + target.offsetHeight / 2;
+  const preview = ensureQueueDragPreview();
+  preview.dataset.index = target.dataset.index;
+  preview.dataset.after = String(!before);
+  if (before) target.before(preview);
+  else target.after(preview);
+  target.classList.toggle('queue-drop-before', before);
+  target.classList.toggle('queue-drop-after', !before);
 });
 
 document.addEventListener('drop', (e) => {
   const target = e.target.closest('[data-queue-item]');
-  if (!draggedQueueItem || !target || target.dataset.type !== draggedQueueItem.type) return;
+  if (!draggedQueueItem) return;
+  const preview = draggedQueueItem.preview;
+  const onPreview = preview && (e.target === preview || preview.contains(e.target));
+  if ((!target || target.dataset.type !== draggedQueueItem.type) && !onPreview) return;
   e.preventDefault();
-  const before = e.clientY < target.getBoundingClientRect().top + target.offsetHeight / 2;
-  const moved = reorderQueue(draggedQueueItem.type, draggedQueueItem.index, +target.dataset.index, !before);
+  const before = target
+    ? e.clientY < target.getBoundingClientRect().top + target.offsetHeight / 2
+    : preview.dataset.after !== 'true';
+  const targetIndex = target ? +target.dataset.index : +preview.dataset.index;
+  const moved = reorderQueue(draggedQueueItem.type, draggedQueueItem.index, targetIndex, !before);
   suppressQueueClick = moved;
   clearQueueDragState();
   if (moved) render();
@@ -4918,10 +4930,21 @@ document.addEventListener('dragend', () => {
 });
 
 function clearQueueDragState() {
+  if (draggedQueueItem?.preview) draggedQueueItem.preview.remove();
   document.querySelectorAll('.queue-dragging, .queue-drop-before, .queue-drop-after')
     .forEach(item => item.classList.remove('queue-dragging', 'queue-drop-before', 'queue-drop-after'));
   draggedQueueItem = null;
   if (suppressQueueClick) setTimeout(() => { suppressQueueClick = false; }, 0);
+}
+
+function ensureQueueDragPreview() {
+  if (draggedQueueItem.preview) return draggedQueueItem.preview;
+  const preview = document.createElement('div');
+  preview.className = 'queue-item queue-drag-preview';
+  preview.setAttribute('aria-hidden', 'true');
+  preview.innerHTML = draggedQueueItem.item.innerHTML;
+  draggedQueueItem.preview = preview;
+  return preview;
 }
 
 document.addEventListener('change', (e) => {

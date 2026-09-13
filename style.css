@@ -154,6 +154,8 @@ header { grid-area: header; }
 .queue-item.queue-dragging { opacity: .45; }
 .queue-item.queue-drop-before { box-shadow: 0 -2px 0 var(--amber); }
 .queue-item.queue-drop-after { box-shadow: 0 2px 0 var(--amber); }
+.queue-item.queue-drag-preview { margin-top: 5px; border-style: dashed; background: rgba(242,164,71,.16); opacity: .8; pointer-events: none; }
+.queue-drag-preview .queue-details { opacity: .7; }
 .queue-name { min-width: 0; padding-top: 2px; }
 .queue-details { display: flex; flex-wrap: wrap; justify-content: flex-end; align-items: center; gap: 2px 8px; color: var(--dim); font-size: 11px; text-align: right; }
 .queue-needs { color: var(--muted); }

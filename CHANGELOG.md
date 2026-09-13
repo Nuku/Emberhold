@@ -4,6 +4,7 @@ All notable changes to Emberhold are recorded here, with the newest changes firs
 
 ## 2026-09-13
 
+- Improved queue drag-and-drop with a visible preview showing exactly where an item will be inserted, including drops at the end of a queue.
 - Added optional Wood fuel controls: each Steam Plant, Forge, Factory, Tinkerer, and one-time Coal cost can substitute 5 Wood for 1 Coal.
 - Applied Wood-for-Coal substitution consistently to affordability checks, queued costs, production rates, displayed costs, and automation actions; existing saves migrate the former global setting safely.
 - Removed the Steam Plant building cap so additional plants can be constructed as long as their materials and fuel are available.
