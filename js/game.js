@@ -1716,6 +1716,7 @@ function renderBuildingPower(id, active = powerAllocation()) {
 
 function production(dt = 0.25, breakdown = null) {
   const rates = {};
+  const challenges = state.migrationChallenges || [];
   const incomeRates = {};
   const outgoingRates = {};
   for (const r of RESOURCES) {
@@ -1815,7 +1816,8 @@ function production(dt = 0.25, breakdown = null) {
     const job = JOBS[j], n = state.jobs[j] || 0;
     if (!n || job.targeted) continue;
     if (job.winterproof) add('food', `${jobName(j)} hunting: ${j === 'guard' ? ableGuards() : n}/${n} able, winterproof`, (j === 'guard' ? ableGuards() : n) * job.base,
-      [...global, ['Weaponry', tech('weaponry') ? 1.50 : 1], ['Weapon Efficiency', tech('weaponEfficiency') ? 1.75 : 1]]);
+      [...global, ['Weaponry', tech('weaponry') ? 1.50 : 1], ['Weapon Efficiency', tech('weaponEfficiency') ? 1.75 : 1],
+        ...(j === 'guard' && challenges.includes('dryGround') ? [['Dry Ground (Guards)', 0.55]] : [])]);
     if (job.upkeep) add('food', `${jobName(j)} upkeep: ${n} × ${job.upkeep}/s`, -n * job.upkeep);
   }
   scale('wood', [...global, ['Lumber Yards', 1 + 0.10 * bld('lumberYard')],
@@ -2612,7 +2614,7 @@ function startGameClock() {
   // lose time; it only wakes the simulation to account for elapsed time.
   if (typeof Worker === 'function') {
     try {
-  gameClockWorker = new Worker('js/game-clock.worker.js?v=publish-20260913u62');
+  gameClockWorker = new Worker('js/game-clock.worker.js?v=publish-20260913u64');
       gameClockWorker.addEventListener('message', () => {
         updateGameClock(true);
         renderBonusTimer();
@@ -4390,7 +4392,7 @@ function renderSidePanel() {
 function loadLatestUpdatesTooltip() {
   const button = document.getElementById('btn-updates');
   if (!button || typeof fetch !== 'function' || typeof DOMParser !== 'function') return;
-  fetch('changelog.html?v=publish-20260913u62')
+  fetch('changelog.html?v=publish-20260913u64')
     .then(response => response.ok ? response.text() : Promise.reject(new Error('changelog unavailable')))
     .then(source => {
       const doc = new DOMParser().parseFromString(source, 'text/html');

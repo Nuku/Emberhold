@@ -1257,6 +1257,14 @@ test('repeatable trials grow harder after rewards and retain difficulty on failu
   }
 });
 
+test('Dry Ground halves its food penalty for Guard hunting', () => {
+  const { run } = game();
+  run(`state.jobs.guard = 1; state.migrationChallenges = ['dryGround'];
+    state.seen.food = true; state.res.food = 0; const detail = {}; production(1, detail)`);
+  const hunting = run(`detail.food.find(entry => entry.label.includes('Guard hunting'))`);
+  assert.equal(hunting.factors.find(([label]) => label === 'Dry Ground (Guards)')[1], 0.55);
+});
+
 test('construction trials count completed buildings for Frugality and Expansion', () => {
   const { run } = game();
   run(`state.res.food = 1000; state.res.wood = 1000;
