@@ -5,6 +5,7 @@ All notable changes to Emberhold are recorded here, with the newest changes firs
 ## 2026-09-13
 
 - Fixed secure food stores so they stop increasing morale once morale reaches 70.
+- Preserved settlement settings such as strict queue order through migration while resetting the opt-in reset controls.
 
 ## 2026-09-12
 

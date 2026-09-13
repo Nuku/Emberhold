@@ -463,6 +463,20 @@ test('queue order defaults to parallel and can be switched to strict first-to-la
   assert.equal(run('state.queues.build.length'), 0);
 });
 
+test('queue order setting persists through migration and trial restart', () => {
+  const { run } = game();
+  run(`state.settings.strictQueueOrder = true;
+    state.settings.resetControls = true;
+    state.migrating = true; state.pendingLanding = 'greenfold';
+    state.pendingSpecies = 'human'; state.pendingLandings = [{ id: 'greenfold' }];
+    setOut()`);
+  assert.equal(run('state.settings.strictQueueOrder'), true);
+  assert.equal(run('state.settings.resetControls'), false);
+
+  run(`state.settings.strictQueueOrder = true; state.migrating = true; setOut('silence')`);
+  assert.equal(run('state.settings.strictQueueOrder'), true);
+});
+
 test('affordable actions start immediately even when their queue is full', () => {
   const { run } = game();
   run(`state.techs.craftsmanship = true;
