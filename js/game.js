@@ -812,6 +812,7 @@ function chooseWonderFate(choice) {
   record.expeditions = {};
   state.rapture.workers = 0;
   state.rapture.landing = null;
+  updateAchievements();
   beginForcedWonderMigration();
   return true;
 }
@@ -2587,7 +2588,7 @@ function startGameClock() {
   // lose time; it only wakes the simulation to account for elapsed time.
   if (typeof Worker === 'function') {
     try {
-  gameClockWorker = new Worker('js/game-clock.worker.js?v=publish-20260912u56');
+  gameClockWorker = new Worker('js/game-clock.worker.js?v=publish-20260912u57');
       gameClockWorker.addEventListener('message', () => {
         updateGameClock(true);
         renderBonusTimer();
@@ -3389,6 +3390,25 @@ function costText(cost) {
 function lineageAccessCount() { return LINEAGES.filter(lineage => lineageUnlocked(lineage.id)).length; }
 function steelHearted() { return !!state.achievements?.steelHearted; }
 
+const WONDER_ACHIEVEMENT_REWARDS = {
+  emberplain: { restore: 'Unlock Solar Arrays and soften extreme heat in future settlements.', silence: 'Steam Plants gain +1 Power capacity.', become: 'Gain 1 Ancient point.' },
+  greenfold: { restore: 'Unlock Heartwood research for future settlements.', silence: 'Unlock Animal Husbandry and Ranches for future settlements.', become: 'Gain 1 Ancient point.' },
+  grayrocks: { restore: 'Unlock Living Alloy research for future settlements.', silence: 'Tinkerers can run factory recipes without Power at half speed.', become: 'Gain 1 Ancient point.' },
+  floodmeadows: { restore: 'River Crown power increases Food production by 20%.', silence: 'Foragers become Farmers and gain a Farming bonus.', become: 'Gain 1 Ancient point.' },
+  ashfen: { restore: 'Renewal Basin power increases Coal production by 15% and Tools by 25%.', silence: 'Recover 10% of factory-material construction costs.', become: 'Gain 1 Ancient point.' },
+  windmere: { restore: 'Mirrored Orrery power increases Knowledge and Aether production by 20%, and unlocks Star Glass research.', silence: 'Explorers generate additional Knowledge and document discoveries.', become: 'Gain 1 Ancient point.' },
+};
+function wonderAchievements() {
+  const fates = [['restore', 'Restoration', 'Restore its old purpose'], ['silence', 'Silence', 'Silence it'], ['become', 'Transformation', 'Become one with it']];
+  return WONDERS.flatMap(def => fates.map(([choice, title, action]) => ({
+    id: `wonder-${def.id}-${choice}`,
+    name: `${def.name}: ${title}`,
+    desc: `${action} and earn this Wonder’s fate. Reward: ${WONDER_ACHIEVEMENT_REWARDS[def.id][choice]}`,
+    test: () => wonderChoice(def.id, choice),
+    progress: () => wonderChoice(def.id, choice) ? 'Fate completed' : 'Not yet faced',
+  })));
+}
+
 const ACHIEVEMENTS = [
   { id: 'firstDay', name: 'Ashes to Ashes', desc: 'Let Emberhold see its first day.', test: () => state.day >= 1, progress: () => `${fmt(Math.min(state.day, 1))} / 1 day` },
   { id: 'stoneAge', name: 'Stone Remembered', desc: 'Reach the Age of Stone.', test: () => state.era >= 2, progress: () => `Age ${Math.min(state.era, 2)} / 2` },
@@ -3411,6 +3431,7 @@ const ACHIEVEMENTS = [
   })),
   { id: 'lineage-half', name: 'Many Peoples', desc: 'Gain access to at least half of all lineages.', test: () => lineageAccessCount() >= Math.ceil(LINEAGES.length / 2), progress: () => `${lineageAccessCount()} / ${Math.ceil(LINEAGES.length / 2)} lineages` },
   { id: 'lineage-all', name: 'A World of Kin', desc: 'Gain access to every lineage.', test: () => lineageAccessCount() >= LINEAGES.length, progress: () => `${lineageAccessCount()} / ${LINEAGES.length} lineages` },
+  ...wonderAchievements(),
 ];
 
 function completedAchievementCount() { return Object.keys(state.achievements || {}).filter(id => state.achievements[id]).length; }
@@ -4345,7 +4366,7 @@ function renderSidePanel() {
 function loadLatestUpdatesTooltip() {
   const button = document.getElementById('btn-updates');
   if (!button || typeof fetch !== 'function' || typeof DOMParser !== 'function') return;
-  fetch('changelog.html?v=publish-20260912u56')
+  fetch('changelog.html?v=publish-20260912u57')
     .then(response => response.ok ? response.text() : Promise.reject(new Error('changelog unavailable')))
     .then(source => {
       const doc = new DOMParser().parseFromString(source, 'text/html');

@@ -4,6 +4,7 @@ All notable changes to Emberhold are recorded here, with the newest changes firs
 
 ## 2026-09-12
 
+- Added a dedicated achievement for every Wonder fate, with each achievement describing the fate's lasting reward.
 - Changed Stone Works to unlock from Masonry instead of the Quarry; each Stone Works now also adds one Miner capacity.
 - Disabled trial oath buttons while a migration is in progress so a new trial cannot be started during the settlement transition.
 - Updated trials so starting one enables all four migration difficulty options for the duration of the trial, then clears them when the trial ends.
