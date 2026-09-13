@@ -135,7 +135,7 @@ function defaultState() {
     achievements: {},
     commonalityLineages: {},
     tutorialDismissed: false,
-    settings: { autosave: true, reducedMotion: false, compactStores: false, strictQueueOrder: false, tooltips: true, resetControls: false },
+    settings: { autosave: true, reducedMotion: false, compactStores: false, strictQueueOrder: false, tooltips: true, resetControls: false, woodForCoal: {} },
     log: [],
   };
   s.res.food = 60;
@@ -1018,8 +1018,72 @@ function buildingCost(def) {
   return out;
 }
 
+function woodForCoalCount(id, total = 1) {
+  const value = state.settings?.woodForCoal;
+  // Migrate the previous boolean setting without making old saves fail.
+  if (value === true) return Math.max(0, Math.floor(total));
+  if (typeof value === 'number') return Math.max(0, Math.min(Math.floor(total), Math.floor(value)));
+  return Math.max(0, Math.min(Math.floor(total), Math.floor(Number(value?.[id]) || 0)));
+}
+function effectiveCoalInputs(inputs, id = 'cost', total = 1) {
+  if (!inputs?.coal) return { ...inputs };
+  const count = woodForCoalCount(id, total);
+  if (!count || total <= 0) return { ...inputs };
+  const out = { ...inputs };
+  const coalShare = inputs.coal * (total - count) / total;
+  delete out.coal;
+  if (coalShare > 0) out.coal = coalShare;
+  out.wood = (out.wood || 0) + inputs.coal * count / total * 5;
+  return out;
+}
+function effectiveCoalCost(cost, id = 'cost', total = 1) {
+  if (!cost?.coal) return { ...cost };
+  return effectiveCoalInputs(cost, id, total);
+}
+function setWoodForCoal(id, count) {
+  if (!id || !Number.isFinite(count) || count < 0) return false;
+  const totals = { steamPlant: bld('steamPlant'), forge: buildingPowerCount('forge'), factory: powerAllocation().factory,
+    tinkerer: state.jobs.tinkerer || 0, cost: 1 };
+  if (!Object.hasOwn(totals, id)) return false;
+  state.settings = state.settings || {};
+  const values = typeof state.settings.woodForCoal === 'object' && state.settings.woodForCoal !== null
+    ? { ...state.settings.woodForCoal } : {};
+  values[id] = Math.max(0, Math.min(totals[id], Math.floor(count)));
+  state.settings.woodForCoal = values;
+  return true;
+}
+function woodFuelTotal(id) {
+  if (id === 'steamPlant') return bld('steamPlant');
+  if (id === 'forge') return buildingPowerCount('forge');
+  if (id === 'factory') return powerAllocation().factory;
+  if (id === 'tinkerer') return state.jobs.tinkerer || 0;
+  return 0;
+}
+function woodFuelControls(id, total) {
+  if (!total) return '';
+  const count = woodForCoalCount(id, total);
+  return `<div class="card-actions"><span class="res-note">Wood fuel: ${count} / ${total}</span>` +
+    `<button data-action="wood-coal-dec" data-id="${id}" data-repeat ${count ? '' : 'disabled'}>−</button>` +
+    `<button data-action="wood-coal-inc" data-id="${id}" data-repeat ${count < total ? '' : 'disabled'}>+</button></div>`;
+}
+function woodFuelInlineControls(id, total) {
+  if (!total) return '';
+  const count = woodForCoalCount(id, total);
+  return `<span class="wood-fuel-controls">[Wood ${count}/${total} ` +
+    `<button data-action="wood-coal-dec" data-id="${id}" data-repeat ${count ? '' : 'disabled'}>−</button>` +
+    `<button data-action="wood-coal-inc" data-id="${id}" data-repeat ${count < total ? '' : 'disabled'}>+</button>]</span>`;
+}
+function fuelDescription(id, total, coalRate) {
+  const wood = woodForCoalCount(id, total);
+  const coal = total - wood;
+  const parts = [];
+  if (coal) parts.push(`${fmt(coal * coalRate)} Coal/s`);
+  if (wood) parts.push(`${fmt(wood * coalRate * 5)} Wood/s`);
+  return parts.join(' and ');
+}
 function canAfford(cost) {
-  for (const r in cost) if (state.res[r] < cost[r]) return false;
+  const effective = effectiveCoalCost(cost);
+  for (const r in effective) if (state.res[r] < effective[r]) return false;
   return true;
 }
 function wonderObstacleQueueId(obstacle) {
@@ -1032,7 +1096,8 @@ function canBuild(id) {
   return !(trialActive('overflow') && Object.values(STORAGE).some(s => s.bld === id));
 }
 function payCost(cost) {
-  for (const r in cost) state.res[r] -= cost[r];
+  const effective = effectiveCoalCost(cost);
+  for (const r in effective) state.res[r] -= effective[r];
 }
 function applyReclamation(cost) {
   if (!wonderChoice('ashfen', 'silence')) return;
@@ -1064,15 +1129,15 @@ function queueCost(entry) {
   if (entry?.cost) return entry.cost;
   const def = queueDef(entry);
   if (!def) return null;
-  if (entry.type === 'build') return buildingCost(def);
-  if (entry.type === 'research') return researchCost(def);
-  return expeditionCost(def);
+  if (entry.type === 'build') return effectiveCoalCost(buildingCost(def));
+  if (entry.type === 'research') return effectiveCoalCost(researchCost(def));
+  return effectiveCoalCost(expeditionCost(def));
 }
 
 function researchCost(def) {
   const knowledgeMultiplier = POST_STONE_AGE_RESEARCH.has(def.id)
     ? POST_STONE_AGE_KNOWLEDGE_COST_MULTIPLIER : 1;
-  return { knowledge: def.cost * knowledgeMultiplier, ...(def.materials || {}) };
+  return effectiveCoalCost({ knowledge: def.cost * knowledgeMultiplier, ...(def.materials || {}) });
 }
 
 function queueDemand() {
@@ -1762,6 +1827,7 @@ function production(dt = 0.25, breakdown = null) {
     if (source === 'guard' && base > 0) guardIncome[res] = (guardIncome[res] || 0) + amount;
     if (breakdown) breakdown[res].push({ label, base, amount, source, factors: factors.filter(([, factor]) => factor !== 1) });
   };
+  const inputCosts = (inputs, id, total) => effectiveCoalInputs(inputs, id, total);
   const scale = (res, factors) => {
     const multiplier = factors.reduce((value, [, factor]) => value * factor, 1);
     rates[res] *= multiplier;
@@ -1788,8 +1854,9 @@ function production(dt = 0.25, breakdown = null) {
         const rate = keepsToolWork ? job.base : recipe.rate * 0.5 * recipeFactor;
         const recipeInputs = keepsToolWork ? job.inputs : recipe.inputs;
         add(recipe.id, `Tinkerers (${recipe.name}): ${n} × ${rate}/s`, n * rate);
-        for (const r in recipeInputs) {
-          const inputRate = keepsToolWork ? recipeInputs[r] : recipeInputs[r] * 0.5 * recipeFactor;
+        const effectiveInputs = inputCosts(recipeInputs, 'tinkerer', n);
+        for (const r in effectiveInputs) {
+          const inputRate = keepsToolWork ? effectiveInputs[r] : effectiveInputs[r] * 0.5 * recipeFactor;
           add(r, `Tinkerer inputs (${recipe.name}): ${n} × ${inputRate}/s`, -n * inputRate);
         }
       } else if (!job.winterproof) {
@@ -1863,7 +1930,11 @@ function production(dt = 0.25, breakdown = null) {
   if (bld('steamPlant') > 0) {
     const steamPower = POWER_PER_STEAM_PLANT + (wonderChoice('emberplain', 'silence') ? 1 : 0);
     add('power', `Steam Plants: ${bld('steamPlant')} × ${steamPower} capacity`, bld('steamPlant') * steamPower);
-    add('coal', `Steam Plant fuel: ${bld('steamPlant')} × 0.8/s`, -bld('steamPlant') * 0.8);
+    const steamCount = woodForCoalCount('steamPlant', bld('steamPlant'));
+    const coalFuel = bld('steamPlant') - steamCount;
+    const woodFuel = steamCount * 5;
+    if (coalFuel) add('coal', `Steam Plant fuel: ${coalFuel} × 0.8/s`, -coalFuel * 0.8);
+    if (woodFuel) add('wood', `Steam Plant fuel: ${steamCount} × 4/s`, -woodFuel * 0.8);
   }
   if (bld('dynamo') > 0) add('power', `Dynamos: ${bld('dynamo')} × 1.5 capacity`, bld('dynamo') * 1.5);
   if (bld('windDevice') > 0) add('power', `Wind Devices: ${bld('windDevice')} × ${POWER_PER_WIND_DEVICE} capacity`, bld('windDevice') * POWER_PER_WIND_DEVICE);
@@ -1906,19 +1977,19 @@ function production(dt = 0.25, breakdown = null) {
   const activeForges = power.forge;
   if (activeForges > 0 && dt > 0) {
     const rate = 0.04;
-    const inputs = { iron: 0.6, coal: 0.4 };
+    const inputs = inputCosts({ iron: 0.6 * activeForges, coal: 0.4 * activeForges }, 'forge', activeForges);
     const factors = forgeProductionFactors();
     const output = factors.reduce((value, [, factor]) => value * factor, activeForges * rate);
     let fraction = Math.min(1, Math.max(0, capacityOf('steel') - state.res.steel) / (output * dt));
     let limitation = fraction < 1 ? 'Steel storage space' : 'Forge utilization';
     for (const r in inputs) {
       const available = Math.max(0, state.res[r] + Math.min(0, rates[r]) * dt);
-      const supplied = available / (inputs[r] * activeForges * dt);
+      const supplied = available / (inputs[r] * dt);
       if (supplied < fraction) limitation = `${resourceName(r)} shortage`;
       fraction = Math.min(fraction, supplied);
     }
     add('steel', `Forges: ${activeForges} active × ${rate}/s`, activeForges * rate, [...factors, [limitation, fraction]]);
-    for (const r in inputs) add(r, `Forge inputs: ${activeForges} active × ${inputs[r]}/s`, -inputs[r] * activeForges, [[limitation, fraction]]);
+    for (const r in inputs) add(r, `Forge inputs: ${activeForges} active × ${inputs[r] / activeForges}/s`, -inputs[r], [[limitation, fraction]]);
   }
 
   if (bld('factory') > 0 && dt > 0) {
@@ -1928,14 +1999,14 @@ function production(dt = 0.25, breakdown = null) {
     const lightningMetal = recipe.id === 'steel' && tech('lightningMetal');
     const recipeFactor = lightningMetal ? 1.5 : 1;
     const output = factors.reduce((value, [, factor]) => value * factor, activeFactories * recipe.rate * recipeFactor);
-    const inputs = Object.fromEntries(Object.entries(recipe.inputs).map(([resource, amount]) =>
-      [resource, amount * recipeFactor]));
+    const inputs = inputCosts(Object.fromEntries(Object.entries(recipe.inputs).map(([resource, amount]) =>
+      [resource, amount * recipeFactor * activeFactories])), 'factory', activeFactories);
     const recipeFactors = lightningMetal ? [...factors, ['Lightning Metal', recipeFactor]] : factors;
     let fraction = output > 0 ? Math.min(1, Math.max(0, capacityOf(recipe.id) - state.res[recipe.id]) / (output * dt)) : 0;
     let limitation = fraction < 1 ? `${recipe.name} storage space` : 'Factory utilization';
     for (const r in inputs) {
       const available = Math.max(0, state.res[r] + Math.min(0, rates[r]) * dt);
-      const supplied = activeFactories ? available / (inputs[r] * activeFactories * dt) : 0;
+      const supplied = activeFactories ? available / (inputs[r] * dt) : 0;
       if (supplied < fraction) limitation = `${resourceName(r)} shortage`;
       fraction = Math.min(fraction, supplied);
     }
@@ -1944,7 +2015,7 @@ function production(dt = 0.25, breakdown = null) {
       if (!activeFactories) fraction = 0;
     }
     add(recipe.id, `Factories (${recipe.name}): ${activeFactories} active × ${recipe.rate}/s`, activeFactories * recipe.rate, [...recipeFactors, [limitation, fraction]]);
-    for (const r in inputs) add(r, `Factory inputs (${recipe.name}): ${activeFactories} active × ${inputs[r]}/s`, -inputs[r] * activeFactories, [
+    for (const r in inputs) add(r, `Factory inputs (${recipe.name}): ${activeFactories} active × ${inputs[r] / activeFactories}/s`, -inputs[r], [
       ...(lightningMetal ? [['Lightning Metal', recipeFactor]] : []), [limitation, fraction]]);
   }
   if (state.pop) add('food', `Villager upkeep: ${state.pop} × ${FOOD_PER_POP}/s`, -state.pop * FOOD_PER_POP);
@@ -3315,6 +3386,13 @@ function normalizeSave(s) {
     throw new Error('Invalid trial');
   if (!s.log.every(entry => object(entry) && typeof entry.t === 'string' && typeof entry.d === 'number'))
     throw new Error('Invalid chronicle');
+  if (s.settings.woodForCoal === true) s.settings.woodForCoal = {
+    steamPlant: s.bld.steamPlant || 0,
+    forge: s.bld.forge || 0,
+    factory: s.bld.factory || 0,
+    tinkerer: s.jobs.tinkerer || 0,
+    cost: 1,
+  };
   delete s.res.weapons;
   delete s.res.armor;
   s.armor = Math.max(s.armor, s.techs.chainmail ? 2 : s.techs.leatherArmor ? 1 : 0);
@@ -3429,14 +3507,15 @@ function fmtRate(n) {
 }
 function costHtml(cost) {
   const parts = [];
-  for (const r in cost) {
+  const effective = effectiveCoalCost(cost);
+  for (const r in effective) {
     const have = state.res[r] || 0;
-    parts.push(`<span class="${have >= cost[r] ? 'ok' : 'lack'}">${fmt(cost[r])} ${resourceName(r)}</span>`);
+    parts.push(`<span class="${have >= effective[r] ? 'ok' : 'lack'}">${fmt(effective[r])} ${resourceName(r)}</span>`);
   }
   return parts.join(', ');
 }
 function costText(cost) {
-  return Object.entries(cost).map(([r, amount]) => `${fmt(amount)} ${resourceName(r)}`).join(', ');
+  return Object.entries(effectiveCoalCost(cost)).map(([r, amount]) => `${fmt(amount)} ${resourceName(r)}`).join(', ');
 }
 
 function lineageAccessCount() { return LINEAGES.filter(lineage => lineageUnlocked(lineage.id)).length; }
@@ -3711,17 +3790,23 @@ function renderVillage() {
       const unlocked = !recipe.tech || tech(recipe.tech);
       const selected = factoryRecipe().id === recipe.id;
       const recipeFactor = recipe.id === 'steel' && tech('lightningMetal') ? 1.5 : 1;
-      const inputs = Object.entries(recipe.inputs).map(([r, n]) => `${fmt(n * recipeFactor)} ${resourceName(r)}/s`).join(', ');
+      const activeFactories = powerAllocation().factory;
+      const inputs = Object.entries(effectiveCoalInputs(Object.fromEntries(Object.entries(recipe.inputs).map(([r, n]) => [r, n * recipeFactor * activeFactories])), 'factory', activeFactories))
+        .map(([r, n]) => `${fmt(activeFactories ? n / activeFactories : n)} ${resourceName(r)}/s`).join(', ');
       const powerText = `${FACTORY_POWER_REQUIREMENT} Power capacity per factory`;
       h += `<div class="card"><div class="card-head"><span class="card-title">${recipe.name}</span><span class="card-count">${selected ? 'Active' : unlocked ? 'Available' : `Requires ${recipe.unlock}`}</span></div>` +
         `<div class="card-desc">Produces ${fmt(recipe.rate * recipeFactor)}/s; requires ${powerText}${inputs ? ` and consumes ${inputs}` : ''}.</div>` +
-        `<div class="card-actions"><button data-action="factory-recipe" data-id="${recipe.id}" ${!unlocked || selected ? 'disabled' : ''}>${selected ? 'Producing ' : 'Produce '}${recipe.name}</button></div></div>`;
+        `<div class="card-actions"><button data-action="factory-recipe" data-id="${recipe.id}" ${!unlocked || selected ? 'disabled' : ''}>${selected ? 'Producing ' : 'Produce '}${recipe.name}</button></div>` +
+        (selected ? woodFuelControls('factory', powerAllocation().factory) : '') + '</div>';
     }
   }
   if (bld('forge') > 0) {
     h += '<h2 class="section">Forge production</h2><div class="res-note">Each Forge smelts Steel automatically. Production slows when Iron or Coal runs short and pauses when the Steel store is full.</div>';
+    const activeForges = buildingPowerCount('forge');
+    const forgeInputs = effectiveCoalInputs({ iron: 0.6 * activeForges, coal: 0.4 * activeForges }, 'forge', activeForges);
     h += `<div class="card"><div class="card-head"><span class="card-title">Steel</span><span class="card-count">${bld('forge')} Forge${bld('forge') === 1 ? '' : 's'}</span></div>` +
-      `<div class="card-desc">Produces ${fmt(0.04 * bld('forge'))}/s; consumes ${fmt(0.6 * bld('forge'))} Iron/s and ${fmt(0.4 * bld('forge'))} Coal/s.</div></div>`;
+      `<div class="card-desc">Produces ${fmt(0.04 * bld('forge'))}/s; consumes ${fmt(forgeInputs.iron)} Iron/s and ${fmt(forgeInputs.wood || forgeInputs.coal)} ${forgeInputs.wood ? 'Wood' : 'Coal'}/s.</div>` +
+      woodFuelControls('forge', buildingPowerCount('forge')) + '</div>';
   }
   h += renderWonderAssignment();
   h += '<h2 class="section">Crafting</h2>';
@@ -3753,12 +3838,13 @@ function renderVillage() {
     const workRecipe = tinkererFactory ? factoryRecipe() : null;
     const workRate = workRecipe ? workRecipe.id === 'tools' ? job.base : workRecipe.rate * 0.5 * (workRecipe.id === 'steel' && tech('lightningMetal') ? 1.5 : 1) : job.base;
     const workResource = workRecipe ? workRecipe.id : job.res;
-    const workInputs = workRecipe ? workRecipe.id === 'tools' ? job.inputs : Object.fromEntries(Object.entries(workRecipe.inputs).map(([r, amount]) => [r, amount * 0.5])) : job.inputs;
+    const workInputs = workRecipe ? workRecipe.id === 'tools' ? job.inputs : effectiveCoalInputs(Object.fromEntries(Object.entries(workRecipe.inputs).map(([r, amount]) => [r, amount * 0.5 * n])), 'tinkerer', n) : job.inputs;
     h += `<div class="job-row">` +
       `<span class="job-name has-tooltip" data-tooltip="${attrText(job.desc)}">${jobName(j)}</span>` +
       `<span class="job-assign">${assignment}</span>` +
       `<span class="job-rate">${fmt(workRate)} ${resourceName(workResource)}/s each` +
-      (workInputs ? ` (uses ${Object.entries(workInputs).map(([r, v]) => `${fmt(v)} ${resourceName(r).toLowerCase()}/s`).join(' + ')})` : '') +
+      (workInputs ? ` (uses ${Object.entries(workInputs).map(([r, v]) => `${fmt(n ? v / n : v)} ${resourceName(r).toLowerCase()}/s`).join(' + ')})` : '') +
+      (tinkererFactory ? ` ${woodFuelInlineControls('tinkerer', n)}` : '') +
       `</span>` +
       `<span class="job-btns">` +
       `<button data-action="job-dec" data-job="${j}" data-repeat title="Hold to repeat" ${n > 0 ? '' : 'disabled'}>−</button>` +
@@ -3849,6 +3935,7 @@ function renderBuild() {
       `<span class="card-effect">${beaconProject ? `${beaconProgress()} / ${BEACON_STAGE_COUNT} stages` : b.effect()}</span></div>` +
       `<div class="card-cost">cost: ${costHtml(cost)}</div>` +
       renderBuildingPower(b.id) +
+      (b.id === 'steamPlant' ? woodFuelControls('steamPlant', count) : '') +
       `<div class="card-actions"><button data-action="build" data-id="${b.id}"${beaconProject ? ' data-repeat' : ''} ${ok ? '' : 'disabled'}>${maxed ? 'Complete' : queued ? 'Queued' : beaconProject ? `Commit stage ${beaconProgress() + 1}` : canAfford(cost) ? 'Build' : 'Queue'}</button></div>` +
       `</div>`;
   }
@@ -4021,7 +4108,7 @@ function renderTrials() {
 }
 
 function wonderCostHtml(cost) {
-  return Object.entries(cost).map(([id, amount]) => {
+  return Object.entries(effectiveCoalCost(cost)).map(([id, amount]) => {
     const have = id === 'survey' ? state.surveyPoints || 0 : id === 'citizens' ? unassigned() : state.res[id] || 0;
     const label = id === 'survey' ? 'Survey' : id === 'citizens' ? 'unassigned citizens' : resourceName(id);
     return `<span class="${have >= amount ? 'ok' : 'lack'}">${fmt(amount)} ${label}</span>`;
@@ -4355,6 +4442,7 @@ function renderSettings() {
     ['resetControls', 'Show reset controls', 'Expose the soft and hard reset actions below. Keep this off during ordinary play.'],
   ];
   h += options.map(([id, name, desc]) => `<div class="setting-row"><div><div class="setting-name">${name}</div><div class="setting-desc">${desc}</div></div><button class="setting-toggle ${settings[id] ? 'enabled' : ''}" data-action="setting-toggle" data-setting="${id}" aria-pressed="${!!settings[id]}">${settings[id] ? 'On' : 'Off'}</button></div>`).join('');
+  h += `<div class="setting-row"><div><div class="setting-name">Wood for one-time coal costs</div><div class="setting-desc">Use 5× Wood for the next building, research, expedition, or craft cost that contains Coal.</div></div>${woodFuelInlineControls('cost', 1)}</div>`;
   h += '<h2 class="section">Chronicle tools</h2><div class="settings-actions"><button data-action="save">Save now</button><button data-action="export">Export save</button><button data-action="import">Import save</button></div>';
   if (settings.resetControls) {
     h += '<div class="reset-controls card"><div class="card-title">Leave this chronicle</div><div class="card-desc">Use a soft reset when a trial or settlement has reached a dead end. It gives migration choices and makes the road ready immediately, but grants no Echoes or rewards.</div><div class="settings-actions"><button data-action="soft-reset">Soft Reset</button><button data-action="reset" class="danger-button">Hard Reset</button></div><div class="res-note settings-note"><strong>Hard Reset erases everything.</strong> All settlements, migrations, trials, Wonders, achievements, and permanent upgrades will be deleted. Export a backup first if there is any chance you may want to return.</div></div>';
@@ -4417,7 +4505,7 @@ function renderSidePanel() {
 function loadLatestUpdatesTooltip() {
   const button = document.getElementById('btn-updates');
   if (!button || typeof fetch !== 'function' || typeof DOMParser !== 'function') return;
-  fetch('changelog.html?v=publish-20260913u67')
+  fetch('changelog.html?v=publish-20260913u69')
     .then(response => response.ok ? response.text() : Promise.reject(new Error('changelog unavailable')))
     .then(source => {
       const doc = new DOMParser().parseFromString(source, 'text/html');
@@ -4552,6 +4640,7 @@ const automationActionFns = {
   chooseWonderFate,
   buyWonderUnlock,
   setBuildingPower,
+  setWoodForCoal,
   assignDiplomat: doAssignDiplomat,
   assignExplorer: doAssignExplorer,
   assignPerformer: doAssignPerformer,
@@ -4608,6 +4697,8 @@ window.emberhold = {
   save() { saveGame(true); return automationSnapshot(); },
   helpers: {
     bld,
+    woodForCoalCount,
+    woodFuelTotal,
     buildingCost,
     canBuild,
     canAfford,
@@ -4683,6 +4774,8 @@ function runAction(btn) {
     case 'power-dec': setBuildingPower(btn.dataset.id, buildingPowerCount(btn.dataset.id) - 1); render(); break;
     case 'power-inc': setBuildingPower(btn.dataset.id, buildingPowerCount(btn.dataset.id) + 1); render(); break;
     case 'power-all': setBuildingPower(btn.dataset.id, bld(btn.dataset.id)); render(); break;
+    case 'wood-coal-dec': setWoodForCoal(btn.dataset.id, woodForCoalCount(btn.dataset.id, woodFuelTotal(btn.dataset.id)) - 1); render(); break;
+    case 'wood-coal-inc': setWoodForCoal(btn.dataset.id, woodForCoalCount(btn.dataset.id, woodFuelTotal(btn.dataset.id)) + 1); render(); break;
     case 'research': attemptResearch(btn.dataset.id); render(); break;
     case 'queue-cancel': cancelQueue(btn.dataset.type, +btn.dataset.index); render(); break;
     case 'diplomacy-supply': supplyDiplomacyRequest(btn.dataset.tribe); render(); break;
@@ -4979,7 +5072,7 @@ function boot() {
   state.diplomats = state.diplomats || {};
   state.policy = state.policy || 'commons';
   state.council = Array.isArray(state.council) ? state.council : [];
-  state.settings = { autosave: true, reducedMotion: false, compactStores: false, strictQueueOrder: false, tooltips: true, resetControls: false, ...(state.settings || {}) };
+  state.settings = { autosave: true, reducedMotion: false, compactStores: false, strictQueueOrder: false, tooltips: true, resetControls: false, woodForCoal: {}, ...(state.settings || {}) };
   state.achievements = state.achievements || {};
   state.shopTab = ['buy', 'purchased'].includes(state.shopTab) ? state.shopTab : 'buy';
   state.statsTab = ['stats', 'achievements', 'perks'].includes(state.statsTab) ? state.statsTab : 'stats';

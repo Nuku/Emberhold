@@ -1821,6 +1821,21 @@ test('Steam Plants provide persistent Power capacity and consume 0.8 Coal/s each
   assert.equal(run('state.res.power'), 6);
 });
 
+test('wood-for-coal setting replaces coal inputs with five times Wood', () => {
+  const { run } = game();
+  run(`state.settings.woodForCoal = { steamPlant: 1 }; state.bld.steamPlant = 2; state.res.wood = 100; state.res.coal = 100;
+    const rates = production(1);`);
+  assert.equal(run('rates.coal'), -0.8);
+  assert.equal(run('rates.wood'), -4);
+  assert.equal(run("effectiveCoalInputs({ coal: 0.4 }, 'steamPlant', 2).wood"), 1);
+  assert.equal(run("effectiveCoalInputs({ coal: 0.4 }, 'steamPlant', 2).coal"), 0.2);
+});
+
+test('Steam Plants have no quantity limit', () => {
+  const { run } = game();
+  assert.equal(run("BUILDINGS.find(b => b.id === 'steamPlant').max"), Infinity);
+});
+
 test('Living Blocks provide uncapped housing, consume Power, and lower morale', () => {
   const { run } = game();
   run(`state.techs.machineryTech = true; state.bld.livingBlock = 2;

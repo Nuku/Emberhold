@@ -278,9 +278,9 @@ const BUILDINGS = [
     effect: () => 'unlocks crafting of Machinery',
     req: () => tech('machineryTech'), desc: 'devices that make devices' },
 
-  { id: 'steamPlant', name: 'Steam Plant', max: 3, scale: 1.8,
+  { id: 'steamPlant', name: 'Steam Plant', max: Infinity, scale: 1.8,
     cost: { steel: 60, coal: 100, tools: 25, currency: 50, copper: 500 },
-    effect: () => `+${POWER_PER_STEAM_PLANT + (wonderChoice('emberplain', 'silence') ? 1 : 0)} Power capacity, consumes 0.8 Coal/s`,
+    effect: () => `+${POWER_PER_STEAM_PLANT + (wonderChoice('emberplain', 'silence') ? 1 : 0)} Power capacity, consumes ${fuelDescription('steamPlant', bld('steamPlant'), 0.8) || 'no fuel'}`,
     req: () => tech('metallurgy'), desc: 'boilers and turbines make a new kind of work possible' },
 
   { id: 'solarArray', name: 'Solar Array', max: Infinity, scale: 1.9,
