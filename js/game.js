@@ -1717,6 +1717,7 @@ function renderBuildingPower(id, active = powerAllocation()) {
 function production(dt = 0.25, breakdown = null) {
   const rates = {};
   const challenges = state.migrationChallenges || [];
+  const guardIncome = {};
   const incomeRates = {};
   const outgoingRates = {};
   for (const r of RESOURCES) {
@@ -1732,7 +1733,7 @@ function production(dt = 0.25, breakdown = null) {
   for (const [buildingId, resource] of Object.entries(DIG_SITE_RESOURCES)) {
     poweredBonusByResource[resource] = (poweredBonusByResource[resource] || 0) + (poweredSites[buildingId] || 0);
   }
-  const add = (res, label, base, factors = []) => {
+  const add = (res, label, base, factors = [], source = null) => {
     const active = poweredBonusByResource[res];
     if (base > 0 && active) factors = [...factors, ['Awaken Ancients', 1 + 0.10 * active]];
     if (base > 0 && weather.mods[res]) factors = [...factors, [`Weather (${weather.name}, ${weather.temperature}°C)`, weather.mods[res]]];
@@ -1743,7 +1744,8 @@ function production(dt = 0.25, breakdown = null) {
     rates[res] += amount;
     if (base < 0) outgoingRates[res] += amount;
     else incomeRates[res] += amount;
-    if (breakdown) breakdown[res].push({ label, base, amount, factors: factors.filter(([, factor]) => factor !== 1) });
+    if (source === 'guard' && base > 0) guardIncome[res] = (guardIncome[res] || 0) + amount;
+    if (breakdown) breakdown[res].push({ label, base, amount, source, factors: factors.filter(([, factor]) => factor !== 1) });
   };
   const scale = (res, factors) => {
     const multiplier = factors.reduce((value, [, factor]) => value * factor, 1);
@@ -1817,7 +1819,7 @@ function production(dt = 0.25, breakdown = null) {
     if (!n || job.targeted) continue;
     if (job.winterproof) add('food', `${jobName(j)} hunting: ${j === 'guard' ? ableGuards() : n}/${n} able, winterproof`, (j === 'guard' ? ableGuards() : n) * job.base,
       [...global, ['Weaponry', tech('weaponry') ? 1.50 : 1], ['Weapon Efficiency', tech('weaponEfficiency') ? 1.75 : 1],
-        ...(j === 'guard' && challenges.includes('dryGround') ? [['Dry Ground (Guards)', 0.55]] : [])]);
+        ...(j === 'guard' && challenges.includes('dryGround') ? [['Dry Ground (Guards)', 0.55]] : [])], j === 'guard' ? 'guard' : null);
     if (job.upkeep) add('food', `${jobName(j)} upkeep: ${n} × ${job.upkeep}/s`, -n * job.upkeep);
   }
   scale('wood', [...global, ['Lumber Yards', 1 + 0.10 * bld('lumberYard')],
@@ -1858,11 +1860,15 @@ function production(dt = 0.25, breakdown = null) {
   for (const r in rates) {
     const incomeFactors = settlementProductionFactors(r);
     const outgoingFactors = settlementProductionFactors(r, true);
-    incomeRates[r] *= incomeFactors.reduce((value, [, factor]) => value * factor, 1);
+    const incomeMultiplier = incomeFactors.reduce((value, [, factor]) => value * factor, 1);
+    const guardMultiplier = incomeFactors.filter(([label]) => label !== 'Dry Ground')
+      .reduce((value, [, factor]) => value * factor, 1);
+    const guardAmount = guardIncome[r] || 0;
+    incomeRates[r] = (incomeRates[r] - guardAmount) * incomeMultiplier + guardAmount * guardMultiplier;
     outgoingRates[r] *= outgoingFactors.reduce((value, [, factor]) => value * factor, 1);
     rates[r] = incomeRates[r] + outgoingRates[r];
     if (breakdown) for (const entry of breakdown[r]) {
-      const factors = entry.base < 0 ? outgoingFactors : incomeFactors;
+      const factors = entry.base < 0 ? outgoingFactors : entry.source === 'guard' ? incomeFactors.filter(([label]) => label !== 'Dry Ground') : incomeFactors;
       entry.amount = factors.reduce((value, [, factor]) => value * factor, entry.amount);
       entry.factors.push(...factors.filter(([, factor]) => factor !== 1));
     }
@@ -2614,7 +2620,7 @@ function startGameClock() {
   // lose time; it only wakes the simulation to account for elapsed time.
   if (typeof Worker === 'function') {
     try {
-  gameClockWorker = new Worker('js/game-clock.worker.js?v=publish-20260913u64');
+  gameClockWorker = new Worker('js/game-clock.worker.js?v=publish-20260913u65');
       gameClockWorker.addEventListener('message', () => {
         updateGameClock(true);
         renderBonusTimer();
@@ -4392,7 +4398,7 @@ function renderSidePanel() {
 function loadLatestUpdatesTooltip() {
   const button = document.getElementById('btn-updates');
   if (!button || typeof fetch !== 'function' || typeof DOMParser !== 'function') return;
-  fetch('changelog.html?v=publish-20260913u64')
+  fetch('changelog.html?v=publish-20260913u65')
     .then(response => response.ok ? response.text() : Promise.reject(new Error('changelog unavailable')))
     .then(source => {
       const doc = new DOMParser().parseFromString(source, 'text/html');

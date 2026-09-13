@@ -1263,6 +1263,7 @@ test('Dry Ground halves its food penalty for Guard hunting', () => {
     state.seen.food = true; state.res.food = 0; const detail = {}; production(1, detail)`);
   const hunting = run(`detail.food.find(entry => entry.label.includes('Guard hunting'))`);
   assert.equal(hunting.factors.find(([label]) => label === 'Dry Ground (Guards)')[1], 0.55);
+  assert.equal(hunting.factors.some(([label]) => label === 'Dry Ground'), false);
 });
 
 test('construction trials count completed buildings for Frugality and Expansion', () => {
