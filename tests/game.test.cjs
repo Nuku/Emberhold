@@ -2034,6 +2034,26 @@ test('every Wonder fate grants the normal migration Echoes', () => {
   }
 });
 
+test('self-challenges add 20% per bump to migration rewards', () => {
+  const { run } = game();
+  run(`state.bld.monument = 1; state.pop = 30; beginMigration();
+    toggleMigrationChallenge('dryGround'); toggleMigrationChallenge('nothingManual');`);
+  assert.equal(run('state.pendingEchoes'), 5.6);
+  assert.equal(run('state.echoes'), 5.6);
+});
+
+test('self-challenges add 20% per bump to Wonder rewards and forced-migration Echoes', () => {
+  const { run } = game();
+  run(`state.landing = 'emberplain'; state.pop = 30;
+    state.migrationChallenges = ['dryGround', 'nothingManual'];
+    const record = wonderRecord(); record.found = true;
+    record.sections = [true, true, true, true, true];
+    chooseWonderFate('become');`);
+  assert.equal(run('state.hope'), 1.4);
+  assert.equal(run('state.ancient'), 1.4);
+  assert.equal(run('state.echoes'), 5.6);
+});
+
 test('restored Wonders carry their old purposes into future production', () => {
   const restored = [
     ['greenfold', 'wood', 'Restored Worldroot', 1.25, 'woodcutter'],

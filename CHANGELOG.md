@@ -4,6 +4,7 @@ All notable changes to Emberhold are recorded here, with the newest changes firs
 
 ## 2026-09-12
 
+- Added a 20% reward multiplier per active Great Migration self-challenge, applying to migration Echoes and Wonder Hope/Ancient rewards; pending Echoes now update immediately as challenges are selected.
 - Added a dedicated achievement for every Wonder fate, with each achievement describing the fate's lasting reward.
 - Changed Stone Works to unlock from Masonry instead of the Quarry; each Stone Works now also adds one Miner capacity.
 - Disabled trial oath buttons while a migration is in progress so a new trial cannot be started during the settlement transition.

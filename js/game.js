@@ -522,8 +522,14 @@ function trialModifierText(def) {
     default: return def.mod;
   }
 }
-function echoesEarned() {
+function migrationRewardMultiplier(challenges = activeMigrationChallenges()) {
+  return 1 + 0.20 * challenges.length;
+}
+function baseEchoesEarned() {
   return Math.max(0, Math.floor(Math.pow(Math.max(0, state.pop - 10), 2) / 100));
+}
+function echoesEarned(challenges = activeMigrationChallenges()) {
+  return baseEchoesEarned() * migrationRewardMultiplier(challenges);
 }
 function canMigrate() {
   return bld('monument') > 0 && echoesEarned() >= 1 && !state.trial;
@@ -799,9 +805,10 @@ function chooseWonderFate(choice) {
   const def = wonderDef(); const record = wonderRecord();
   if (!def || !wonderReadyForDecision(record) || !remainingWonderChoices(record).includes(choice)) return false;
   record.outcomes[choice] = true;
-  state.hope = (state.hope || 0) + 1;
+  const rewardMultiplier = migrationRewardMultiplier();
+  state.hope = (state.hope || 0) + rewardMultiplier;
   state.hopeEver = true;
-  if (choice === 'become') state.ancient = (state.ancient || 0) + 1;
+  if (choice === 'become') state.ancient = (state.ancient || 0) + rewardMultiplier;
   if (choice === 'become') state.ancientEver = true;
   addLog(def.aftermath[choice], 'log-important');
   addLog(`Hope gained. The Wonder has touched Emberhold, and the road opens without asking.`, 'log-good');
@@ -819,6 +826,7 @@ function chooseWonderFate(choice) {
 function beginForcedWonderMigration() {
   const compatible = LANDINGS.filter(landing => lineageSelectable(state.species, landing.id));
   const choices = compatible.filter(landing => landing.id !== state.landing);
+  const challenges = [...(state.migrationChallenges || [])];
   // A habitat specialist can occasionally have only one viable homeland. The
   // Wonder still forces the reset in that case; it simply carries them back
   // to the same country rather than producing an impossible landing choice.
@@ -827,7 +835,8 @@ function beginForcedWonderMigration() {
   state.pendingLandings = [{ ...landing, traits: traitsForLanding(landing.id) }];
   state.pendingLanding = landing.id;
   state.migrating = true;
-  state.pendingEchoes = echoesEarned();
+  state.pendingMigrationChallenges = challenges;
+  state.pendingEchoes = echoesEarned(challenges);
   state.echoes += state.pendingEchoes;
   addLog(`The Wonder's deeds will echo: ${state.pendingEchoes} Echo${state.pendingEchoes === 1 ? '' : 's'} gained.`, 'log-important');
   addLog(`The Wonder has been decided. There is no vote on the road ahead; it carries Emberhold toward ${landing.name}.`, 'log-important');
@@ -2262,7 +2271,7 @@ function prepareMigration(id, parts = 1) {
 
 function beginMigration() {
   if (!canMigrate()) return;
-  state.pendingEchoes = echoesEarned();
+  state.pendingEchoes = echoesEarned([]);
   state.echoes += state.pendingEchoes;
   state.pendingSpecies = state.species;
   state.pendingLandings = landingChoicesForMigration();
@@ -2551,6 +2560,9 @@ function toggleMigrationChallenge(id) {
   if (index >= 0) selected.splice(index, 1);
   else selected.push(id);
   if (id === 'badAncestry') state.pendingBadAncestry = selected.includes(id) ? rollBadAncestry(state.pendingSpecies || state.species) : null;
+  const updatedEchoes = echoesEarned(selected);
+  state.echoes += updatedEchoes - state.pendingEchoes;
+  state.pendingEchoes = updatedEchoes;
 }
 
 function chooseLineage(id) {
@@ -2588,7 +2600,7 @@ function startGameClock() {
   // lose time; it only wakes the simulation to account for elapsed time.
   if (typeof Worker === 'function') {
     try {
-  gameClockWorker = new Worker('js/game-clock.worker.js?v=publish-20260912u57');
+  gameClockWorker = new Worker('js/game-clock.worker.js?v=publish-20260912u59');
       gameClockWorker.addEventListener('message', () => {
         updateGameClock(true);
         renderBonusTimer();
@@ -4125,7 +4137,7 @@ function renderMigration() {
   let h = '<h2 class="section">The Great Migration</h2>';
   h += `<div class="res-note">Setting out on a migration abandons the village — research resets, and villagers, stores, and every building are left behind. ` +
     `Completed trials and their rewards, expeditions made, Echoes and everything bought with them endure. ` +
-    `Echoes gained grow with the population you leave: floor((villagers − 10)² ÷ 100). ` +
+    `Echoes gained grow with the population you leave: floor((villagers − 10)² ÷ 100), increased by 20% per self-challenge. ` +
     `The road, not the village, chooses the destination — each founding lands in different country, with its own gifts and shortages.</div>`;
 
   if (state.migrating) {
@@ -4366,7 +4378,7 @@ function renderSidePanel() {
 function loadLatestUpdatesTooltip() {
   const button = document.getElementById('btn-updates');
   if (!button || typeof fetch !== 'function' || typeof DOMParser !== 'function') return;
-  fetch('changelog.html?v=publish-20260912u57')
+  fetch('changelog.html?v=publish-20260912u59')
     .then(response => response.ok ? response.text() : Promise.reject(new Error('changelog unavailable')))
     .then(source => {
       const doc = new DOMParser().parseFromString(source, 'text/html');
