@@ -1818,6 +1818,13 @@ test('crowding applies a stacking morale penalty beyond 20 villagers', () => {
   assert.match(run('moraleTooltip()'), /3 villagers beyond 20/);
 });
 
+test('secure food stores stop affecting morale once morale reaches 70', () => {
+  const { run } = game();
+  run(`state.res.food = 100; state.morale = 70; updateMorale(10, 0)`);
+  assert.equal(run('state.morale'), 70);
+  assert.equal(run("moraleBreakdown(0).find(p => p.id === 'foodStores').rate"), 0);
+});
+
 test('morale telemetry exposes live aggregate and component rates at the clamp', () => {
   const { run } = game();
   run(`state.morale = 0; state.res.food = 0; state.pop = 25; state.jobs.performer = 2;

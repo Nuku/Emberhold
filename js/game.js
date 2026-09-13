@@ -1476,7 +1476,7 @@ function moralePressures(foodRate = production(0.25).food) {
     pressures.push(pressure);
   };
   add('weather', `${weather.name} weather`, weather.morale);
-  const foodRateValue = state.res.food <= 0.0001 ? -0.22 : foodRate < 0 ? -0.025 : state.res.food > 20 ? (state.morale < 70 ? 0.035 : -0.008) : 0;
+  const foodRateValue = state.res.food <= 0.0001 ? -0.22 : foodRate < 0 ? -0.025 : state.res.food > 20 ? (state.morale < 70 ? 0.035 : 0) : 0;
   add('foodStores', state.res.food <= 0.0001 ? 'Empty food stores' : foodRate < 0 ? 'Food production falling short' : 'Secure food stores', foodRateValue);
   add('season', season, season === 'Winter' ? -0.006 : season === 'Summer' ? 0.006 : 0);
   add('shrine', 'Shrines', bld('shrine') > 0 && state.morale < 75 ? 0.012 : 0, bld('shrine'));
@@ -2600,7 +2600,7 @@ function startGameClock() {
   // lose time; it only wakes the simulation to account for elapsed time.
   if (typeof Worker === 'function') {
     try {
-  gameClockWorker = new Worker('js/game-clock.worker.js?v=publish-20260912u60');
+  gameClockWorker = new Worker('js/game-clock.worker.js?v=publish-20260913u61');
       gameClockWorker.addEventListener('message', () => {
         updateGameClock(true);
         renderBonusTimer();
@@ -4378,7 +4378,7 @@ function renderSidePanel() {
 function loadLatestUpdatesTooltip() {
   const button = document.getElementById('btn-updates');
   if (!button || typeof fetch !== 'function' || typeof DOMParser !== 'function') return;
-  fetch('changelog.html?v=publish-20260912u60')
+  fetch('changelog.html?v=publish-20260913u61')
     .then(response => response.ok ? response.text() : Promise.reject(new Error('changelog unavailable')))
     .then(source => {
       const doc = new DOMParser().parseFromString(source, 'text/html');

@@ -2,6 +2,10 @@
 
 All notable changes to Emberhold are recorded here, with the newest changes first.
 
+## 2026-09-13
+
+- Fixed secure food stores so they stop increasing morale once morale reaches 70.
+
 ## 2026-09-12
 
 - Added a 20% reward multiplier per active Great Migration self-challenge, applying to migration Echoes and Wonder Hope/Ancient rewards; pending Echoes now update immediately as challenges are selected.
