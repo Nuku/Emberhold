@@ -1113,8 +1113,9 @@ test('resource breakdown reconciles income and costs with scoped modifiers', () 
     state.expeditions.oldForest = true; state.res.wood = 100; state.res.stone = 100;
     const detail = {}; const rates = production(0.25, detail)`);
   const expected = run(`(((3 * JOBS.forager.base * allMult() * seasonMult() * 1.1
-    + ableGuards() * JOBS.guard.base * allMult() * 1.5) * (dailyWeather().mods.food || 1) - 2 * JOBS.guard.upkeep)
-    * landingMod('food') * lineageMod('food') * 0.95 * 1.1) - state.pop * FOOD_PER_POP`);
+    + ableGuards() * JOBS.guard.base * allMult() * 1.5) * (dailyWeather().mods.food || 1)
+    * landingMod('food') * lineageMod('food') * 0.95 * 1.1)
+    - 2 * JOBS.guard.upkeep) - state.pop * FOOD_PER_POP`);
   assert.ok(Math.abs(run('rates.food') - expected) < 1e-10);
   assert.ok(run(`RESOURCES.every(r => Math.abs(detail[r.id].reduce((sum, e) => sum + e.amount, 0) - rates[r.id]) < 1e-10)`));
   assert.equal(run(`detail.food.find(e => e.label.startsWith('Villager upkeep')).factors.length`), 0);
