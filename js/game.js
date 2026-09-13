@@ -1192,7 +1192,13 @@ function queueTime(entry, type = entry?.type, index = -1) {
 function queueLabel(seconds) {
   if (seconds === Infinity) return 'waiting for supplies';
   if (seconds <= 0.01) return 'ready';
-  return `${fmt(Math.ceil(seconds))}s`;
+  const totalSeconds = Math.ceil(seconds);
+  if (totalSeconds <= 60) return `${fmt(totalSeconds)}s`;
+  const minutes = Math.floor(totalSeconds / 60);
+  const remainder = totalSeconds % 60;
+  const minuteLabel = `${fmt(minutes)} minute${minutes === 1 ? '' : 's'}`;
+  const secondLabel = `${fmt(remainder)} second${remainder === 1 ? '' : 's'}`;
+  return `${minuteLabel} and ${secondLabel}`;
 }
 
 function queueWaitingHtml(type, index, entry) {
@@ -2711,7 +2717,7 @@ function startGameClock() {
   // lose time; it only wakes the simulation to account for elapsed time.
   if (typeof Worker === 'function') {
     try {
-  gameClockWorker = new Worker('js/game-clock.worker.js?v=publish-20260913u70');
+  gameClockWorker = new Worker('js/game-clock.worker.js?v=publish-20260913u71');
       gameClockWorker.addEventListener('message', () => {
         updateGameClock(true);
         renderBonusTimer();
@@ -4505,7 +4511,7 @@ function renderSidePanel() {
 function loadLatestUpdatesTooltip() {
   const button = document.getElementById('btn-updates');
   if (!button || typeof fetch !== 'function' || typeof DOMParser !== 'function') return;
-  fetch('changelog.html?v=publish-20260913u70')
+  fetch('changelog.html?v=publish-20260913u71')
     .then(response => response.ok ? response.text() : Promise.reject(new Error('changelog unavailable')))
     .then(source => {
       const doc = new DOMParser().parseFromString(source, 'text/html');
@@ -4902,6 +4908,7 @@ document.addEventListener('dragover', (e) => {
   const preview = ensureQueueDragPreview();
   preview.dataset.index = target.dataset.index;
   preview.dataset.after = String(!before);
+  draggedQueueItem.drop = { index: +target.dataset.index, after: !before };
   if (before) target.before(preview);
   else target.after(preview);
   target.classList.toggle('queue-drop-before', before);
@@ -4915,11 +4922,11 @@ document.addEventListener('drop', (e) => {
   const onPreview = preview && (e.target === preview || preview.contains(e.target));
   if ((!target || target.dataset.type !== draggedQueueItem.type) && !onPreview) return;
   e.preventDefault();
-  const before = target
-    ? e.clientY < target.getBoundingClientRect().top + target.offsetHeight / 2
-    : preview.dataset.after !== 'true';
-  const targetIndex = target ? +target.dataset.index : +preview.dataset.index;
-  const moved = reorderQueue(draggedQueueItem.type, draggedQueueItem.index, targetIndex, !before);
+  const drop = draggedQueueItem.drop || {
+    index: target ? +target.dataset.index : +preview.dataset.index,
+    after: target ? e.clientY >= target.getBoundingClientRect().top + target.offsetHeight / 2 : preview.dataset.after === 'true',
+  };
+  const moved = reorderQueue(draggedQueueItem.type, draggedQueueItem.index, drop.index, drop.after);
   suppressQueueClick = moved;
   clearQueueDragState();
   if (moved) render();

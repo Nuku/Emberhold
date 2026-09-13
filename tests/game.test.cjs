@@ -430,6 +430,13 @@ test('queue items show each missing resource with its own estimate', () => {
   assert.equal((html.match(/queue-needs/g) || []).length, 0);
 });
 
+test('queue wait labels switch to minutes and seconds after one minute', () => {
+  const { run } = game();
+  assert.equal(run("queueLabel(60)"), '60s');
+  assert.equal(run("queueLabel(140)"), '2 minutes and 20 seconds');
+  assert.equal(run("queueLabel(61)"), '1 minute and 1 second');
+});
+
 test('later queue items include earlier queued costs in their estimates', () => {
   const { run } = game();
   run(`state.res.food = 0;
