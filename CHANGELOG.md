@@ -4,6 +4,7 @@ All notable changes to Emberhold are recorded here, with the newest changes firs
 
 ## 2026-09-13
 
+- Fixed loaded saves with queued Metallurgy research at the former 9,000 Knowledge price so they migrate to the current 3,000 Knowledge cost while preserving the queue's other costs and fuel choice.
 - Added resource requirements to queued-item status displays so each queued item shows its own material cost.
 - Reduced Metallurgy's Knowledge cost from 600 to 200 to better match its progression point after Seam Surveying.
 - Improved queue wait estimates to show minutes and seconds for waits longer than one minute.

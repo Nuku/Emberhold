@@ -2722,7 +2722,7 @@ function startGameClock() {
   // lose time; it only wakes the simulation to account for elapsed time.
   if (typeof Worker === 'function') {
     try {
-  gameClockWorker = new Worker('js/game-clock.worker.js?v=publish-20260913u74');
+  gameClockWorker = new Worker('js/game-clock.worker.js?v=publish-20260913u75');
       gameClockWorker.addEventListener('message', () => {
         updateGameClock(true);
         renderBonusTimer();
@@ -3322,6 +3322,13 @@ function normalizeSave(s) {
     for (const entry of s.queues[type])
       if (!object(entry) || entry.type !== type || typeof entry.id !== 'string' || !queueDef(entry))
         throw new Error(`Invalid ${type} queue`);
+  }
+  // Metallurgy's Knowledge price was permanently reduced from 9,000 to
+  // 3,000. Refresh the old queued price while retaining any selected fuel
+  // substitution and the other material costs on the saved entry.
+  for (const entry of s.queues.research) {
+    if (entry.id === 'metallurgy' && entry.cost?.knowledge === 9000)
+      entry.cost.knowledge = researchCost(TECH_BY_ID.get('metallurgy')).knowledge;
   }
   let queuedBuildings = Object.create(null);
   s.queues.build = s.queues.build.filter(entry => {
@@ -4516,7 +4523,7 @@ function renderSidePanel() {
 function loadLatestUpdatesTooltip() {
   const button = document.getElementById('btn-updates');
   if (!button || typeof fetch !== 'function' || typeof DOMParser !== 'function') return;
-  fetch('changelog.html?v=publish-20260913u74')
+  fetch('changelog.html?v=publish-20260913u75')
     .then(response => response.ok ? response.text() : Promise.reject(new Error('changelog unavailable')))
     .then(source => {
       const doc = new DOMParser().parseFromString(source, 'text/html');

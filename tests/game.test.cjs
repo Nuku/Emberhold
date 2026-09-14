@@ -376,6 +376,18 @@ test('physical research requires its material inputs in addition to Knowledge', 
   assert.equal(run('state.res.tools'), 0);
 });
 
+test('legacy queued Metallurgy research receives its reduced Knowledge cost', () => {
+  const { run } = game();
+  assert.equal(run(`(() => {
+    const save = defaultState();
+    save.queues.research = [{ type: 'research', id: 'metallurgy', cost: {
+      knowledge: 9000, iron: 180, coal: 120, tools: 30
+    } }];
+    normalizeSave(save);
+    return save.queues.research[0].cost.knowledge;
+  })()`), 3000);
+});
+
 test('research cannot be queued more than once and stale duplicates are removed', () => {
   const { run } = game();
   run(`state.trialDone.scholarship = 1; state.res.knowledge = 0;
