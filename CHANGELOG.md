@@ -4,6 +4,8 @@ All notable changes to Emberhold are recorded here, with the newest changes firs
 
 ## 2026-09-13
 
+- Added resource requirements to queued-item status displays so each queued item shows its own material cost.
+- Reduced Metallurgy's Knowledge cost from 600 to 200 to better match its progression point after Seam Surveying.
 - Improved queue wait estimates to show minutes and seconds for waits longer than one minute.
 - Fixed queue drag-and-drop drops on the insertion preview so the intended position is preserved when releasing the pointer.
 - Improved queue drag-and-drop with a visible preview showing exactly where an item will be inserted, including drops at the end of a queue.

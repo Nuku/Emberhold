@@ -1204,12 +1204,17 @@ function queueLabel(seconds) {
 function queueWaitingHtml(type, index, entry) {
   const cost = queueCost(entry);
   if (!cost) return '';
+  const required = Object.entries(cost)
+    .filter(([, amount]) => amount > 0)
+    .map(([resource, amount]) => `${fmt(amount)} ${resourceName(resource)}`)
+    .join(' · ');
+  const costHtml = `<span class="queue-cost">requires ${required}</span>`;
   const requirement = queuedCostThrough(type, index);
   const rates = production(1);
   const waiting = Object.entries(requirement).filter(([resource, amount]) =>
     Math.max(0, amount - (state.res[resource] || 0)) > 0);
-  if (!waiting.length) return '<span class="queue-ready">ready</span>';
-  return '<span class="queue-waiting">' + waiting.map(([resource, amount]) => {
+  if (!waiting.length) return costHtml + '<span class="queue-ready">ready</span>';
+  return costHtml + '<span class="queue-waiting">' + waiting.map(([resource, amount]) => {
     const missing = Math.max(0, amount - (state.res[resource] || 0));
     const name = resourceName(resource);
     const rate = rates[resource] || 0;
@@ -2717,7 +2722,7 @@ function startGameClock() {
   // lose time; it only wakes the simulation to account for elapsed time.
   if (typeof Worker === 'function') {
     try {
-  gameClockWorker = new Worker('js/game-clock.worker.js?v=publish-20260913u71');
+  gameClockWorker = new Worker('js/game-clock.worker.js?v=publish-20260913u73');
       gameClockWorker.addEventListener('message', () => {
         updateGameClock(true);
         renderBonusTimer();
@@ -4511,7 +4516,7 @@ function renderSidePanel() {
 function loadLatestUpdatesTooltip() {
   const button = document.getElementById('btn-updates');
   if (!button || typeof fetch !== 'function' || typeof DOMParser !== 'function') return;
-  fetch('changelog.html?v=publish-20260913u71')
+  fetch('changelog.html?v=publish-20260913u73')
     .then(response => response.ok ? response.text() : Promise.reject(new Error('changelog unavailable')))
     .then(source => {
       const doc = new DOMParser().parseFromString(source, 'text/html');

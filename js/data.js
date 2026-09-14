@@ -373,7 +373,7 @@ const TECHS = [
   { id: 'seamMining', name: 'Seam Surveying', cost: 450, materials: { stone: 300, wood: 120, tools: 35 },
     desc: 'The earth’s buried fire is measured, mapped, and asked to burn for people again. Unlocks the Coal Seam.',
     req: () => tech('deepMining') },
-  { id: 'metallurgy', name: 'Metallurgy', cost: 600, materials: { iron: 180, coal: 120, tools: 30 },
+  { id: 'metallurgy', name: 'Metallurgy', cost: 200, materials: { iron: 180, coal: 120, tools: 30 },
     desc: 'Fire disciplines iron into a material fit for rebuilding a broken age. Unlocks the Forge and Steel. Enters the Age of Iron.',
     req: () => tech('seamMining') },
   { id: 'chainmail', name: 'Chainmail', cost: 450, materials: { steel: 60, tools: 30 },
