@@ -10,9 +10,12 @@ const ESPIONAGE_TIME = 20 * 60;
 const SPY_CAPTURE_CHANCE = 0.0001;
 const MAX_LOCAL_TRIBES = 3;
 const POLICY_CHANGE_COOLDOWN = 60 * 60; // real-time seconds; base for future modifiers
+const LOG_CATEGORIES = ['progress', 'achievements', 'queue', 'building', 'research', 'combat', 'espionage', 'events'];
+const LOG_LIMIT_PER_CATEGORY = 50;
 
 let state = null;
 let lastStoredSave = null;
+let saveLoadFailed = false;
 let saveConflict = false;
 let lastGameAt = null;
 let gameClockWorker = null;
@@ -136,7 +139,11 @@ function defaultState() {
     commonalityLineages: {},
     tutorialDismissed: false,
     settings: { autosave: true, reducedMotion: false, compactStores: false, strictQueueOrder: false, tooltips: true, resetControls: false, woodForCoal: {} },
+    // Each category is persisted independently. `log` remains a derived,
+    // read-only compatibility view for older integrations and saves.
+    logs: Object.fromEntries(LOG_CATEGORIES.map(category => [category, []])),
     log: [],
+    logSequence: 0,
   };
   s.res.food = 60;
   s.res.wood = 40;
@@ -2153,8 +2160,17 @@ function logMatchesFilter(entry, filter) {
 }
 
 function addLog(text, cls) {
-  state.log.unshift({ d: Math.floor(state.day), t: text, c: cls || '', k: logCategory(text) });
-  if (state.log.length > 200) state.log.length = 200;
+  const category = logCategory(text);
+  const entry = { d: Math.floor(state.day), t: text, c: cls || '', k: category, n: ++state.logSequence };
+  state.logs[category] ||= [];
+  state.logs[category].unshift(entry);
+  if (state.logs[category].length > LOG_LIMIT_PER_CATEGORY) state.logs[category].length = LOG_LIMIT_PER_CATEGORY;
+  state.log = allLogEntries();
+}
+
+function allLogEntries(source = state) {
+  return LOG_CATEGORIES.flatMap(category => source.logs?.[category] || [])
+    .sort((a, b) => (b.n || 0) - (a.n || 0));
 }
 
 // ---------- trials ----------
@@ -2546,7 +2562,8 @@ function setOut(trialId = null) {
     tutorialDismissed: state.tutorialDismissed,
     settings: { ...state.settings, resetControls: false },
     placeTraits: state.placeTraits,
-    won: state.won, savedAt: state.savedAt, bonusTime: state.bonusTime, log: state.log,
+    won: state.won, savedAt: state.savedAt, bonusTime: state.bonusTime,
+    logs: state.logs, logSequence: state.logSequence,
   };
   state = defaultState();
   state.day = keep.day;
@@ -2579,7 +2596,9 @@ function setOut(trialId = null) {
   state.savedAt = keep.savedAt;
   state.bonusTime = keep.bonusTime;
   state.ancestralBlessing = ancestralBlessing;
-  state.log = keep.log;
+  state.logs = keep.logs;
+  state.logSequence = keep.logSequence || 0;
+  state.log = allLogEntries();
   state.landing = landing.id;
   if (!trialId && state.beaconsLit?.[landing.id]) state.beaconRevisited[landing.id] = true;
   state.placeTraits = trialId ? [...(keep.placeTraits || [])] : [...(selectedLanding?.traits || traitsForLanding(landing.id))];
@@ -2722,7 +2741,7 @@ function startGameClock() {
   // lose time; it only wakes the simulation to account for elapsed time.
   if (typeof Worker === 'function') {
     try {
-  gameClockWorker = new Worker('js/game-clock.worker.js?v=publish-20260913u75');
+  gameClockWorker = new Worker('js/game-clock.worker.js?v=publish-20260914u76');
       gameClockWorker.addEventListener('message', () => {
         updateGameClock(true);
         renderBonusTimer();
@@ -3222,10 +3241,12 @@ function conquerTown(id) {
 }
 function saveGame(silent) {
   try {
+    if (saveLoadFailed) return false;
     if (saveConflict || checkSaveConflict()) return false;
     if (lastGameAt !== null) updateGameClock();
     const savedAt = Date.now();
-    const serialized = JSON.stringify({ ...state, savedAt });
+    const { log, ...saveState } = state;
+    const serialized = JSON.stringify({ ...saveState, savedAt });
     localStorage.setItem(SAVE_KEY, serialized);
     lastStoredSave = serialized;
     state.savedAt = savedAt;
@@ -3241,6 +3262,7 @@ function normalizeSave(s) {
   const object = value => value !== null && typeof value === 'object' && !Array.isArray(value);
   if (!object(s) || s.v !== 1 || !object(s.res) || !object(s.jobs) || !object(s.techs))
     throw new Error('Invalid save');
+  const hadSeparateLogs = Object.prototype.hasOwnProperty.call(s, 'logs');
   const savedTradePartners = Array.isArray(s.tradePartners);
   const legacyTradePartner = s.tradePartner;
   // Reject broken shapes and non-finite numbers before replacing any stored game.
@@ -3402,8 +3424,33 @@ function normalizeSave(s) {
   }
   if (s.trial !== null && (!object(s.trial) || !TRIALS.some(t => t.id === s.trial.id)))
     throw new Error('Invalid trial');
-  if (!s.log.every(entry => object(entry) && typeof entry.t === 'string' && typeof entry.d === 'number'))
+  const legacyLog = Array.isArray(s.log) ? s.log : [];
+  if (!Array.isArray(s.log) || !legacyLog.every(entry => object(entry) && typeof entry.t === 'string' && typeof entry.d === 'number'))
     throw new Error('Invalid chronicle');
+  if (!hadSeparateLogs && legacyLog.length) {
+    s.logs = Object.fromEntries(LOG_CATEGORIES.map(category => [category, []]));
+    let sequence = legacyLog.length;
+    for (const entry of legacyLog) {
+      const category = LOG_CATEGORIES.includes(entry.k) ? entry.k : logCategory(entry.t);
+      s.logs[category].push({ ...entry, k: category, n: sequence-- });
+    }
+  }
+  if (!object(s.logs)) throw new Error('Invalid chronicle');
+  let maxSequence = 0;
+  for (const category of LOG_CATEGORIES) {
+    if (!Array.isArray(s.logs[category])) throw new Error('Invalid chronicle');
+    s.logs[category] = s.logs[category]
+      .filter(entry => object(entry) && typeof entry.t === 'string' && typeof entry.d === 'number')
+      .map(entry => {
+        const normalized = { ...entry, k: category, n: Number.isFinite(entry.n) ? entry.n : ++maxSequence };
+        maxSequence = Math.max(maxSequence, normalized.n);
+        return normalized;
+      })
+      .sort((a, b) => b.n - a.n)
+      .slice(0, LOG_LIMIT_PER_CATEGORY);
+  }
+  s.logSequence = Math.max(Number.isFinite(s.logSequence) ? s.logSequence : 0, maxSequence);
+  s.log = allLogEntries({ logs: s.logs });
   if (s.settings.woodForCoal === true) s.settings.woodForCoal = {
     steamPlant: s.bld.steamPlant || 0,
     forge: s.bld.forge || 0,
@@ -3426,7 +3473,10 @@ function loadGame() {
     lastStoredSave = raw;
     if (!raw) return null;
     return normalizeSave(JSON.parse(raw));
-  } catch (e) { return null; }
+  } catch (e) {
+    saveLoadFailed = true;
+    return null;
+  }
 }
 
 function offlineProgress() {
@@ -3483,6 +3533,7 @@ function importSave() {
     if (stored.res.knowledge !== s.res.knowledge || stored.trial?.id !== s.trial?.id) {
       throw new Error('The browser did not retain the imported save');
     }
+    saveLoadFailed = false;
     lastStoredSave = serialized;
     saveConflict = false;
     state = s;
@@ -4506,7 +4557,8 @@ function renderLog() {
   const el = document.getElementById('log');
   const filter = document.querySelector('[data-log-filter].active')?.dataset.logFilter || 'all';
   let h = '';
-  for (const e of state.log.slice(0, 80).filter(e => logMatchesFilter(e, filter))) {
+  const entries = filter === 'all' ? allLogEntries() : (state.logs[filter] || []);
+  for (const e of entries.slice(0, LOG_LIMIT_PER_CATEGORY)) {
     h += `<div class="log-entry ${e.c}"><span class="log-day">d${e.d}</span>${esc(e.t)}</div>`;
   }
   updateContent(el, h);
@@ -4523,7 +4575,7 @@ function renderSidePanel() {
 function loadLatestUpdatesTooltip() {
   const button = document.getElementById('btn-updates');
   if (!button || typeof fetch !== 'function' || typeof DOMParser !== 'function') return;
-  fetch('changelog.html?v=publish-20260913u75')
+  fetch('changelog.html?v=publish-20260914u76')
     .then(response => response.ok ? response.text() : Promise.reject(new Error('changelog unavailable')))
     .then(source => {
       const doc = new DOMParser().parseFromString(source, 'text/html');
@@ -4880,11 +4932,14 @@ document.addEventListener('click', (e) => {
   }
   const logAction = e.target.closest('[data-log-action]');
   if (logAction) {
-    if (logAction.dataset.logAction === 'clear-all') state.log = [];
-    else {
+    if (logAction.dataset.logAction === 'clear-all') {
+      state.logs = Object.fromEntries(LOG_CATEGORIES.map(category => [category, []]));
+    } else {
       const filter = document.querySelector('[data-log-filter].active')?.dataset.logFilter || 'all';
-      state.log = state.log.filter(entry => !logMatchesFilter(entry, filter));
+      if (filter === 'all') state.logs = Object.fromEntries(LOG_CATEGORIES.map(category => [category, []]));
+      else state.logs[filter] = [];
     }
+    state.log = allLogEntries();
     render();
     return;
   }
@@ -5115,6 +5170,7 @@ function boot() {
   state.policy = state.policy || 'commons';
   state.council = Array.isArray(state.council) ? state.council : [];
   state.settings = { autosave: true, reducedMotion: false, compactStores: false, strictQueueOrder: false, tooltips: true, resetControls: false, woodForCoal: {}, ...(state.settings || {}) };
+  if (saveLoadFailed) state.settings.autosave = false;
   state.achievements = state.achievements || {};
   state.shopTab = ['buy', 'purchased'].includes(state.shopTab) ? state.shopTab : 'buy';
   state.statsTab = ['stats', 'achievements', 'perks'].includes(state.statsTab) ? state.statsTab : 'stats';
@@ -5132,7 +5188,9 @@ function boot() {
     offlineProgress();
     addLog('The chronicle resumes.', '');
   } else {
-    addLog('A handful of survivors halts in the shelter of a burnt palisade. They name the place Emberhold.', 'log-important');
+    addLog(saveLoadFailed
+      ? 'The previous chronicle could not be loaded. It was preserved; import a backup before continuing.'
+      : 'A handful of survivors halts in the shelter of a burnt palisade. They name the place Emberhold.', 'log-important');
     addLog('Assign Foragers and Woodcutters below, keep food in the store, and raise Huts as children arrive. Knowledge is written in Libraries, and every store has a ceiling the Storehouse raises.', '');
   }
   document.getElementById('btn-save').addEventListener('click', () => { saveGame(); render(); });

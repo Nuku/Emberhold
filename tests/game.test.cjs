@@ -388,6 +388,15 @@ test('legacy queued Metallurgy research receives its reduced Knowledge cost', ()
   })()`), 3000);
 });
 
+test('failed save loads do not overwrite the preserved save with a new game', () => {
+  const { run } = game();
+  run(`localStorage.setItem(SAVE_KEY, JSON.stringify({ broken: true }));
+    saveLoadFailed = false; state = loadGame();`);
+  assert.equal(run('state'), null);
+  assert.equal(run('saveLoadFailed'), true);
+  assert.equal(run('localStorage.getItem(SAVE_KEY)'), '{"broken":true}');
+});
+
 test('research cannot be queued more than once and stale duplicates are removed', () => {
   const { run } = game();
   run(`state.trialDone.scholarship = 1; state.res.knowledge = 0;

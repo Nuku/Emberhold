@@ -25,6 +25,15 @@ code { color:var(--amber); }
 <p class="intro">Changelog — all notable changes, newest first.</p>
 
 <section>
+<h2>2026-09-14</h2>
+<ul>
+<li>Added independent Chronicle log categories, each retaining its own recent history while preserving chronological All view compatibility for older saves and integrations.</li>
+<li>Fixed Chronicle clearing so category filters and the All view remove only the intended entries, with categorized logs and sequence state preserved through migration and saves.</li>
+<li>Fixed failed save loads so a malformed or unreadable chronicle is preserved instead of being overwritten by a new settlement; autosave is disabled until a backup is imported.</li>
+</ul>
+</section>
+
+<section>
 <h2>2026-09-13</h2>
 <ul>
 <li>Fixed loaded saves with queued Metallurgy research at the former 9,000 Knowledge price so they migrate to the current 3,000 Knowledge cost while preserving the queue's other costs and fuel choice.</li>

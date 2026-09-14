@@ -2,6 +2,12 @@
 
 All notable changes to Emberhold are recorded here, with the newest changes first.
 
+## 2026-09-14
+
+- Added independent Chronicle log categories, each retaining its own recent history while preserving chronological All view compatibility for older saves and integrations.
+- Fixed Chronicle clearing so category filters and the All view remove only the intended entries, with categorized logs and sequence state preserved through migration and saves.
+- Fixed failed save loads so a malformed or unreadable chronicle is preserved instead of being overwritten by a new settlement; autosave is disabled until a backup is imported.
+
 ## 2026-09-13
 
 - Fixed loaded saves with queued Metallurgy research at the former 9,000 Knowledge price so they migrate to the current 3,000 Knowledge cost while preserving the queue's other costs and fuel choice.
