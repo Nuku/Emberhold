@@ -642,19 +642,19 @@ test('migration shop separates available upgrades from fully purchased ones', ()
 
 test('Clever Storage is an uncapped, increasingly expensive Echo upgrade', () => {
   const { run } = game();
-  run(`state.migrating = true; state.echoes = 3; state.res.currency = 0;
+  run(`state.migrating = true; state.echoes = 5; state.res.currency = 0;
     migrationBuy('cleverStorage'); migrationBuy('cleverStorage'); migrationBuy('cleverStorage');`);
-  assert.equal(run("upg('cleverStorage')"), 2, 'the first two levels cost 1 and 2 Echoes');
+  assert.equal(run("upg('cleverStorage')"), 3, 'the first three levels cost 1, 2, and 2 Echoes');
   assert.equal(run('state.echoes'), 0);
-  assert.equal(run('capacityOf("food")'), 204);
-  assert.equal(run('capacityOf("currency")'), 2040);
-  run('state.echoes = 4');
+  assert.equal(run('capacityOf("food")'), 206);
+  assert.equal(run('capacityOf("currency")'), 2060);
+  run('state.echoes = 3');
   assert.match(run('renderShop()'), /Clever Storage/);
   run('migrationBuy("cleverStorage")');
-  assert.equal(run("upg('cleverStorage')"), 3, 'the next level costs 4 Echoes');
+  assert.equal(run("upg('cleverStorage')"), 4, 'the next level costs 3 Echoes');
   run('migrationRefund("cleverStorage")');
-  assert.equal(run('state.echoes'), 4);
-  assert.equal(run("upg('cleverStorage')"), 2);
+  assert.equal(run('state.echoes'), 3);
+  assert.equal(run("upg('cleverStorage')"), 3);
 });
 
 test('multiple local tribes can be active at once', () => {

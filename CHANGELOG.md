@@ -2,6 +2,10 @@
 
 All notable changes to Emberhold are recorded here, with the newest changes first.
 
+## 2026-09-15
+
+- Changed Clever Storage's uncapped Echo cost to a gentler 1.4x growth curve, rounded up per level; the first levels now cost 1, 2, 2, and 3 Echoes.
+
 ## 2026-09-14
 
 - Fixed queue drag-and-drop so the insertion preview accepts drops reliably and the browser's native drag ghost does not appear as a second copy.

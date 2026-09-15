@@ -1076,7 +1076,7 @@ const UPGRADES = [
   { id: 'deepCellars', name: 'Deep Cellars', max: 3, costs: [4, 9, 18],
     effect: 'all storage ceilings +15%, per level',
     desc: 'the knack of keeping is never quite lost' },
-  { id: 'cleverStorage', name: 'Clever Storage', max: Infinity, cost: level => 2 ** level,
+  { id: 'cleverStorage', name: 'Clever Storage', max: Infinity, cost: level => Math.ceil(1.4 ** level),
     effect: '+1% to all storage, per level',
     desc: 'there is always one more way to fit something somewhere' },
   { id: 'lorekeepers', name: 'Lorekeepers', max: 1, costs: [5],
