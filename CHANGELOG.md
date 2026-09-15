@@ -4,6 +4,12 @@ All notable changes to Emberhold are recorded here, with the newest changes firs
 
 ## 2026-09-15
 
+- Added the Air Control project, Trade Blimps, Survey Flights, the Trial of the Whiteout, Oil, Black Gold Drills, and Oil Power Plants as a new late-game sky-and-fuel progression.
+- Added Trade Blimp buy/sell orders for common goods, with automatic pausing when Currency or storage is insufficient; Survey Flights now contribute Survey while consuming Aether, Aluminum, and Machinery.
+- Added the 50-stage Air Control construction project and migration-aware Whiteout setup, including storm weather, no Forager work, and a five-year food-survival objective.
+- Added Reclaimining research so Foragers can recover Aluminum, and the Black Gold Drills ancestral upgrade so Oil can be produced after completing the Whiteout.
+- Removed construction caps from several settlement buildings, allowing continued expansion when resources and queue capacity permit.
+
 - Added Aluminum, Aluminum Workers, the Aluminum technology, and the Sky Metal Forge for a new light-metal production path.
 - Integrated Sky Metal Forge production with power allocation and coal fuel, limiting Aluminum Workers to powered forge capacity.
 - Changed Clever Storage's uncapped Echo cost to a gentler 1.4x growth curve, rounded up per level; the first levels now cost 1, 2, 2, and 3 Echoes.

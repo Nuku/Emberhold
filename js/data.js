@@ -10,6 +10,7 @@ const SAVE_KEY = 'emberhold_save_v1';
 const DAY_RATE = 2 / 3;    // days per real second; one day takes 1.5 real seconds
 const DAYS_PER_SEASON = 50;
 const DAYS_PER_YEAR = 200; // one year = 300 real seconds
+const WHITEOUT_DURATION = DAYS_PER_YEAR * 5;
 const LONG_NIGHT_DURATION = DAYS_PER_YEAR * 10;
 
 // --- resources ---
@@ -33,6 +34,7 @@ const RESOURCES = [
   { id: 'power',     name: 'Power',     note: 'available capacity from plants and dynamos; powered industry shuts off when capacity is insufficient' },
   { id: 'goods',     name: 'Industrial Goods', note: 'made only by a powered Factory' },
   { id: 'aether',    name: 'Aether',    note: 'gathered by those who watch the sky' },
+  { id: 'oil',       name: 'Oil',       note: 'black gold drawn from deep seams' },
 ];
 const RESOURCE_NAMES = new Map(RESOURCES.map(resource => [resource.id, resource.name]));
 
@@ -49,10 +51,13 @@ const RESOURCE_PROJECTS = [
     desc: 'axes, picks, needles, and spare parts' },
 ];
 const BEACON_STAGE_COUNT = 100;
+const AIR_CONTROL_STAGE_COUNT = 50;
 
 // Power is capacity, not a stockpile. These baseline values are intentionally
 // separate so research and upgrades can tune generation and demand later.
 const POWER_PER_STEAM_PLANT = 3;
+const POWER_PER_OIL_PLANT = 8;
+const OIL_PLANT_FUEL_RATE = 0.5;
 const POWER_PER_WIND_DEVICE = 1;
 const POWER_PER_SOLAR_ARRAY = 5;
 const FACTORY_POWER_REQUIREMENT = 1.5;
@@ -87,6 +92,7 @@ const STORAGE = {
   machinery: { base: 10,  per: 50,  bld: 'vault' },
   aluminum:  { base: 50,  per: 150, bld: 'aluminumWorks' },
   aether:    { base: 25,  per: 50,  bld: 'vault' },
+  oil:       { base: 0,   per: 500, bld: 'deepStore' },
   livingAlloy: { base: 50, per: 150, bld: 'alloyMine' },
   heartwood: { base: 50, per: 150, bld: 'heartwoodGrove' },
   starGlass: { base: 50, per: 150, bld: 'starLens' },
@@ -96,7 +102,7 @@ const STORAGE = {
 // --- jobs (per assigned worker, per second) ---
 const JOBS = {
   forager:     { name: 'Forager',      res: 'food',      base: 0.55, desc: 'roots, berries, small game',
-                 unlock: () => true },
+                 unlock: () => !trialActive('whiteout') },
   woodcutter:  { name: 'Woodcutter',   res: 'wood',      base: 0.45, desc: 'fells and splits timber',
                  unlock: () => true },
   rancher:     { name: 'Rancher',       res: 'food',      base: 0.18, desc: 'raises animals for food and Fur',
@@ -159,17 +165,17 @@ const FOOD_PER_POP = 0.12; // food/s eaten per villager
 
 // --- buildings ---
 const BUILDINGS = [
-  { id: 'hut', name: 'Hut', max: 40, scale: 1.35,
+  { id: 'hut', name: 'Hut', max: Infinity, scale: 1.35,
     cost: { wood: 30 },
     effect: () => `+1 population cap${perm('twinSouls') ? ' (+2 Twin Souls)' : ''}`,
     desc: 'shelter raises children' },
 
-  { id: 'storehouse', name: 'Storehouse', max: 20, scale: 2.1,
+  { id: 'storehouse', name: 'Storehouse', max: Infinity, scale: 2.1,
     cost: { wood: 80 },
     effect: () => `+400 food and wood, +350 stone, +60 tools capacity`,
     desc: 'a ceiling for every granary; raise it' },
 
-  { id: 'foragerLodge', name: 'Forager Lodge', max: 5, scale: 1.7,
+  { id: 'foragerLodge', name: 'Forager Lodge', max: Infinity, scale: 1.7,
     cost: { wood: 45 },
     effect: () => '+10% food production', desc: 'drying racks and seed lore' },
 
@@ -178,7 +184,7 @@ const BUILDINGS = [
     effect: () => `+2 Rancher capacity; +${fmt(1000 * bld('ranch'))} Fur storage; +0.008 morale/s per Ranch`,
     req: () => upg('animalHusbandry') > 0, desc: 'fences, sheds, and patient hands teach animals to live alongside Emberhold' },
 
-  { id: 'lumberYard', name: 'Lumber Yard', max: 5, scale: 1.7,
+  { id: 'lumberYard', name: 'Lumber Yard', max: Infinity, scale: 1.7,
     cost: { wood: 70, tools: 10 },
     effect: () => '+10% wood production',
     req: () => tech('craftsmanship'), desc: 'saws instead of axes' },
@@ -188,7 +194,7 @@ const BUILDINGS = [
     effect: () => 'unlocks Stone and Miners',
     req: () => tech('stoneWorking'), desc: 'the earth can be asked for more' },
 
-  { id: 'stoneWorks', name: 'Stone Works', max: 3, scale: 1.7,
+  { id: 'stoneWorks', name: 'Stone Works', max: Infinity, scale: 1.7,
     cost: { stone: 90, wood: 40 },
     effect: () => '+10% stone production; +1 Miner capacity',
     req: () => tech('masonry'), desc: 'cut stone fits where rubble will not' },
@@ -198,7 +204,7 @@ const BUILDINGS = [
     effect: () => 'unlocks crafting of Tools',
     req: () => tech('craftsmanship'), desc: 'good tools repay their cost a hundredfold' },
 
-  { id: 'library', name: 'Library', max: 3, scale: 1.8,
+  { id: 'library', name: 'Library', max: Infinity, scale: 1.8,
     cost: { wood: 100 },
     effect: () => 'unlocks Thinkers; +10% knowledge production',
     desc: 'memory, written down so it survives' },
@@ -243,7 +249,7 @@ const BUILDINGS = [
     effect: () => '+2 Star Glass Cutter capacity; +150 Star Glass storage',
     req: () => tech('starGlass'), desc: 'a cutting hall beneath the Orrery, where the reflected sky can be harvested' },
 
-  { id: 'deepStore', name: 'Deep Store', max: 12, scale: 2.0,
+  { id: 'deepStore', name: 'Deep Store', max: Infinity, scale: 2.0,
     cost: { wood: 400, stone: 300, tools: 25 },
     effect: () => '+250 iron, +100 copper, +300 coal, +100 steel capacity',
     req: () => tech('deepMining'), desc: 'sealed shafts that keep ore dry and safe' },
@@ -258,7 +264,7 @@ const BUILDINGS = [
     effect: () => `smelts ${fmt(0.04 * bld('forge'))} Steel/s; consumes ${fmt(0.6 * bld('forge'))} Iron/s and ${fmt(0.4 * bld('forge'))} Coal/s`,
     req: () => tech('metallurgy'), desc: 'iron and carbon, disciplined by fire' },
 
-  { id: 'aqueduct', name: 'Aqueduct', max: 2, scale: 1.8,
+  { id: 'aqueduct', name: 'Aqueduct', max: Infinity, scale: 1.8,
     cost: { stone: 520, wood: 220, tools: 15 },
     effect: () => '+20% food production, +4 population cap',
     req: () => tech('hydraulics'), desc: 'clean water, fat fields' },
@@ -268,7 +274,7 @@ const BUILDINGS = [
     effect: () => '+1 Banker capacity; +0.001 Currency/s per population',
     req: () => tech('banking'), desc: 'local lending brings currency into every household' },
 
-  { id: 'shrine', name: 'Shrine', max: 5, scale: 1.8,
+  { id: 'shrine', name: 'Shrine', max: Infinity, scale: 1.8,
     cost: { wood: 220, stone: 220, currency: 30 },
     effect: () => '+5% all production',
     req: () => era() >= 3, desc: 'for whatever watches over Emberhold. Each Shrine adds +5% to all production. Having at least one Shrine adds +0.012 morale/s while morale is below 75; additional Shrines do not increase this morale bonus.' },
@@ -293,6 +299,11 @@ const BUILDINGS = [
     effect: () => `+${POWER_PER_STEAM_PLANT + (wonderChoice('emberplain', 'silence') ? 1 : 0)} Power capacity, consumes ${fuelDescription('steamPlant', bld('steamPlant'), 0.8) || 'no fuel'}`,
     req: () => tech('metallurgy'), desc: 'boilers and turbines make a new kind of work possible' },
 
+  { id: 'oilPowerPlant', name: 'Oil Power Plant', max: Infinity, scale: 1.8,
+    cost: { steel: 220, machinery: 100, copper: 300, oil: 80 },
+    effect: () => `+${POWER_PER_OIL_PLANT} Power capacity, consumes ${OIL_PLANT_FUEL_RATE} Oil/s`,
+    req: () => tech('oilPower'), desc: 'a proper generator for the black gold beneath Emberhold' },
+
   { id: 'solarArray', name: 'Solar Array', max: Infinity, scale: 1.9,
     cost: { steel: 140, copper: 180, machinery: 35, goods: 30 },
     effect: () => `+${POWER_PER_SOLAR_ARRAY} Power capacity, no fuel required`,
@@ -303,7 +314,7 @@ const BUILDINGS = [
     effect: () => '+15% all production',
     req: () => tech('electricalEngineering'), desc: 'copper coils turn motion into possibility' },
 
-  { id: 'vault', name: 'Vault', max: 12, scale: 2.0,
+  { id: 'vault', name: 'Vault', max: Infinity, scale: 2.0,
     cost: { steel: 100, tools: 80, currency: 100, goods: 30 },
     effect: () => '+50 machinery and aether capacity',
     req: () => tech('machineryTech'), desc: 'a quiet room where delicate things wait' },
@@ -338,6 +349,28 @@ const BUILDINGS = [
     cost: { steel: 650, machinery: 260, aether: 130, knowledge: 4000, currency: 300, goods: 200 },
     effect: () => 'a light that will outlive the village',
     req: () => tech('optics'), desc: 'the end of the chronicle, or its beginning' },
+
+  { id: 'airControl', name: 'Air Control', max: 1, scale: 1,
+    cost: { aluminum: 100, steel: 75, stone: 250 },
+    effect: () => `${airControlProgress()} / ${AIR_CONTROL_STAGE_COUNT} stages; a primitive air port`,
+    req: () => tech('airControl'), desc: 'a broad stone field, light-metal gantries, and enough faith to trust the sky' },
+
+  { id: 'tradeBlimp', name: 'Trade Blimp', max: Infinity, scale: 1.8,
+    cost: { aluminum: 120, steel: 100, machinery: 50 },
+    effect: () => `supports ${bld('tradeBlimp')} trade route${bld('tradeBlimp') === 1 ? '' : 's'}`,
+    req: () => bld('airControl') > 0, desc: 'a lighter-than-air cargo ship, held together by ambition and practical metal' },
+
+  { id: 'surveyFlights', name: 'Survey Flights', max: Infinity, scale: 1.8,
+    cost: { aether: 60, aluminum: 100, machinery: 50 },
+    effect: () => `gathers ${fmt(0.05 * bld('surveyFlights'))} Survey/s from the upper air`,
+    req: () => bld('airControl') > 0 && perm('surveyFlights'),
+    desc: 'small planes circle the storm line and return with maps of the world below' },
+
+  { id: 'blackGoldDrill', name: 'Black Gold Drill', max: Infinity, scale: 1.8,
+    cost: { steel: 300, machinery: 120, aluminum: 100 },
+    effect: () => `produces ${fmt(0.04 * bld('blackGoldDrill'))} Oil/s`,
+    req: () => bld('airControl') > 0 && perm('blackGoldDrills'),
+    desc: 'a deep rotary rig that reaches the old world’s buried fuel' },
 ];
 
 // --- research ---
@@ -401,6 +434,15 @@ const TECHS = [
   { id: 'aluminum', name: 'Aluminum', cost: 1500, materials: { steel: 140, machinery: 60, copper: 100 },
     desc: 'The Ancients spoke of metal surprisingly light. We have found how to tame it ourselves. Our projects are not as grand, but they have a use. Unlocks the Sky Metal Forge and Aluminum Workers.',
     req: () => tech('machineryTech') },
+  { id: 'airControl', name: 'Air Control', cost: 2600, materials: { aluminum: 80, steel: 200, machinery: 100 },
+    desc: 'The sky is wide, but not empty. With enough Sky Metal and stone, we can make a place where machines may rise and return. Unlocks the multi-stage Air Control project.',
+    req: () => tech('aluminum') },
+  { id: 'oilPower', name: 'Oil Power', cost: 3200, materials: { steel: 240, machinery: 100, oil: 50 },
+    desc: 'This black sludge was once the reason for wars among the Ancients. Touching it does not encourage the need for battle in you. Best to be careful. Still, it does burn steadily and so brightly. There are uses for this.',
+    req: () => tech('machineryTech') && perm('blackGoldDrills') && state.res.oil > 0 },
+  { id: 'reclaimining', name: 'Reclaimining', cost: 2200, materials: { steel: 180, machinery: 80, copper: 120, aluminum: 60 },
+    desc: 'Those in the field can be taught to look for where the Ancients abandoned sky metal. Melted down, it can be reclaimed, almost for nothing. A gift from the past, given to us. Foragers now recover small amounts of Aluminum.',
+    req: () => tech('aluminum') },
   { id: 'lightningMetal', name: 'Lightning Metal', cost: 1200, materials: { steel: 120, machinery: 40, copper: 80 },
     desc: 'The ancients called down lightning to temper their steel. We will humbly follow in their great steps. Steel created in factories is increased by 50%, both income and cost.',
     req: () => bld('factory') > 0 && tech('machineryTech') },
@@ -730,6 +772,12 @@ const TRIALS = [
     goal: 'Build a Factory and produce 100 Industrial Goods. There is no deadline.',
     reward: 'Industrialization: Factories remain available in every future Emberhold.',
     req: () => tech('metallurgy') && bld('coalSeam') > 0 && state.res.coal > 0 },
+  { id: 'whiteout', name: 'Trial of the Whiteout', repeat: 0,
+    text: 'The storm arrives without warning. The old roads vanish under snow, and the first blimp is the only lifeline left to Emberhold.',
+    mod: 'Foragers cannot work and the weather is always stormy.',
+    goal: 'Keep every villager fed for five full years (1,000 days). If the food store runs out, the trial fails.',
+    reward: 'Survey Flights: Trade Blimps gather Survey points.',
+    req: () => bld('tradeBlimp') > 0 },
   { id: 'expansion', name: 'Trial of Expansion', repeat: 0,
     text: 'The Monument asks what a growing village is for. Answer with foundations: eight of them, each one made ready for the people who come after.',
     mod: 'The village must prove it can grow without wasting a foundation.',
@@ -1125,6 +1173,9 @@ const UPGRADES = [
   { id: 'animalHusbandry', name: 'Animal Husbandry', max: 1, costs: [750],
     effect: 'unlocks Ranches, which produce Food and Fur and improve morale',
     desc: 'The Worldroot is silent, but the people remember how to care for living things without asking an Ancient machine to do it.' },
+  { id: 'blackGoldDrills', name: 'Black Gold Drills', max: 1, costs: [500],
+    effect: 'unlocks Black Gold Drills, which produce Oil',
+    desc: 'The Whiteout taught the village to look beneath the storm. The old fuel is still there.' },
 ];
 
 // --- expeditions: one-time, expand the playing field permanently ---

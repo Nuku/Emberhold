@@ -85,6 +85,8 @@ function defaultState() {
     beaconsLit: {},
     beaconRevisited: {},
     beaconProgress: 0,
+    airControlProgress: 0,
+    tradeBlimps: [],
     wonders: {},
     wonderUnlocks: {},
     rapture: { landing: null, workers: 0, tabSeen: false },
@@ -159,7 +161,7 @@ function era() { return state.era; }
 function expDone(id) { return !!state.expeditions[id]; }
 const POST_STONE_AGE_KNOWLEDGE_COST_MULTIPLIER = 15;
 const POST_STONE_AGE_RESEARCH = new Set([
-  'metallurgy', 'ironMites', 'weaponry', 'chainmail', 'machineryTech', 'lightningMetal',
+  'metallurgy', 'ironMites', 'weaponry', 'chainmail', 'machineryTech', 'aluminum', 'airControl', 'oilPower', 'reclaimining', 'lightningMetal',
   'livingAlloy', 'heartwood', 'starGlass', 'basinTempering', 'understandingHome', 'awakenAncients', 'advancedScience',
   'windHarness', 'banking', 'diplomacy', 'spies', 'espionage', 'civics',
   'council', 'commonality', 'festivals', 'civicHarmony', 'workplaceEthics', 'weaponEfficiency',
@@ -290,6 +292,22 @@ function mephitRaidDelay() { return 120 * mephitTraitScale('slowProvocation'); }
 function mephitInjuryMod() { return 1 + 0.75 * mephitTraitScale('cruelReprisals'); }
 function armorLevel() { return Math.max(0, Number(state.armor) || 0); }
 function tradeAvailable() { return tech('currency') && localTribeIds().length > 0; }
+const TRADE_GOODS = ['food', 'wood', 'stone', 'tools', 'copper', 'iron', 'coal', 'steel', 'machinery', 'goods', 'aluminum'];
+const TRADE_MODES = ['buy', 'sell'];
+function tradeGoodIndex(resource) { return TRADE_GOODS.indexOf(resource); }
+function tradeRate(resource) { return 1.2 ** Math.max(0, tradeGoodIndex(resource)); }
+function tradeValue(resource) { return 4 * 1.35 ** Math.max(0, tradeGoodIndex(resource)); }
+function tradeBlimpOrders() {
+  if (!Array.isArray(state.tradeBlimps)) state.tradeBlimps = [];
+  while (state.tradeBlimps.length < bld('tradeBlimp')) state.tradeBlimps.push(null);
+  return state.tradeBlimps;
+}
+function setTradeBlimpOrder(index, mode, resource) {
+  if (!Number.isInteger(index) || index < 0 || index >= bld('tradeBlimp') ||
+      !TRADE_MODES.includes(mode) || !TRADE_GOODS.includes(resource)) return false;
+  tradeBlimpOrders()[index] = { mode, resource };
+  return true;
+}
 function guardCap() { return bld('barracks') * 2; }
 function guardRecruitmentRate() {
   return 1 / (120 * Math.pow(0.9, bld('trainingYard'))) * Math.pow(1.1, trialCount('conquest')) * lineageSpecialValue('guardRecruitment') *
@@ -911,6 +929,8 @@ function perm(key) {
     case 'tinkerers': return trialCount('tinkering') > 0;
     case 'factory': return trialCount('industrialization') > 0;
     case 'explorers': return trialCount('wayfinding') > 0;
+    case 'surveyFlights': return trialCount('whiteout') > 0;
+    case 'blackGoldDrills': return trialCount('whiteout') > 0 && upg('blackGoldDrills') > 0;
   }
   return false;
 }
@@ -967,6 +987,7 @@ function raptureActiveHere() {
 function jobCapacity(job) {
   const j = JOBS[job];
   if (!j) return 0;
+  if (job === 'forager' && trialActive('whiteout')) return 0;
   if (job === 'guard') return guardCap();
   const base = typeof j.max === 'function' ? j.max() : state.pop;
   return base + (workplaceEthicsActive() && j.mining ? 1 : 0);
@@ -1118,6 +1139,7 @@ function queueDef(entry) {
   if (!entry || !['build', 'research', 'expedition'].includes(entry.type)) return null;
   if (entry.type === 'build') {
     if (entry.id === 'beaconStage') return BUILDING_BY_ID.get('beacon');
+    if (entry.id === 'airControlStage') return BUILDING_BY_ID.get('airControl');
     if (isWonderObstacleQueueId(entry.id)) {
       const parts = entry.id.split(':');
       const obstacle = WONDER_OBSTACLES[Number(parts[3])];
@@ -1250,6 +1272,8 @@ function queueEntry(type, id) {
 
 function beaconStageCost() { return buildingCost(BUILDING_BY_ID.get('beacon')); }
 function beaconProgress() { return Math.max(0, Math.min(BEACON_STAGE_COUNT, Math.floor(state.beaconProgress || 0))); }
+function airControlStageCost() { return buildingCost(BUILDING_BY_ID.get('airControl')); }
+function airControlProgress() { return Math.max(0, Math.min(AIR_CONTROL_STAGE_COUNT, Math.floor(state.airControlProgress || 0))); }
 function advanceBeaconProject(parts = 1) {
   const def = BUILDING_BY_ID.get('beacon');
   if (!def || bld('beacon') || !Number.isFinite(parts) || parts < 1) return 0;
@@ -1266,6 +1290,22 @@ function advanceBeaconProject(parts = 1) {
     state.beaconsLit = state.beaconsLit || {};
     state.beaconsLit[state.landing] = true;
     addLog('The Beacon burns. Its light will outlive the village.', 'log-good');
+  }
+  return completed;
+}
+function advanceAirControlProject(parts = 1) {
+  const def = BUILDING_BY_ID.get('airControl');
+  if (!def || bld('airControl') || !Number.isFinite(parts) || parts < 1) return 0;
+  let completed = 0;
+  const cost = airControlStageCost();
+  while (completed < Math.floor(parts) && airControlProgress() < AIR_CONTROL_STAGE_COUNT && canAfford(cost)) {
+    payCost(cost);
+    state.airControlProgress = airControlProgress() + 1;
+    completed++;
+  }
+  if (airControlProgress() >= AIR_CONTROL_STAGE_COUNT) {
+    state.bld.airControl = 1;
+    addLog('Air Control is complete. The primitive air port opens to the sky.', 'log-good');
   }
   return completed;
 }
@@ -1294,6 +1334,14 @@ function attemptBuild(id) {
     if (canAfford(cost)) advanceBeaconProject();
     else if (!state.queues.build.some(entry => entry.id === 'beaconStage') && state.queues.build.length < queueCapacity('build'))
       state.queues.build.push({ type: 'build', id: 'beaconStage', cost: { ...cost } });
+    return;
+  }
+  if (id === 'airControl') {
+    if (bld(id) || !canBuild(id)) return;
+    const cost = airControlStageCost();
+    if (canAfford(cost)) advanceAirControlProject();
+    else if (!state.queues.build.some(entry => entry.id === 'airControlStage') && state.queues.build.length < queueCapacity('build'))
+      state.queues.build.push({ type: 'build', id: 'airControlStage', cost: { ...cost } });
     return;
   }
   if (!canBuild(id) || (Number.isFinite(def.max) &&
@@ -1345,17 +1393,21 @@ function updateQueues() {
       const entry = state.queues[type][i];
       const def = queueDef(entry);
       if (!def) continue;
-      if (type === 'build' && entry.id !== 'beaconStage' && !isWonderObstacleQueueId(entry.id) && !canBuild(entry.id)) {
+      if (type === 'build' && !['beaconStage', 'airControlStage'].includes(entry.id) && !isWonderObstacleQueueId(entry.id) && !canBuild(entry.id)) {
         state.queues[type].splice(i, 1);
         continue;
       }
       if (!canAfford(queueCost(entry))) continue;
       const completed = type === 'build' && entry.id === 'beaconStage' ? advanceBeaconProject() :
+        type === 'build' && entry.id === 'airControlStage' ? advanceAirControlProject() :
         type === 'build' ? doBuild(entry.id) :
         type === 'research' ? doResearch(entry.id) : doExpedition(entry.id);
       if (completed && type === 'build' && entry.id === 'beaconStage' && beaconProgress() < BEACON_STAGE_COUNT) {
         state.queues[type].splice(i, 1);
         state.queues[type].push({ type: 'build', id: 'beaconStage', cost: { ...beaconStageCost() } });
+      } else if (completed && type === 'build' && entry.id === 'airControlStage' && airControlProgress() < AIR_CONTROL_STAGE_COUNT) {
+        state.queues[type].splice(i, 1);
+        state.queues[type].push({ type: 'build', id: 'airControlStage', cost: { ...airControlStageCost() } });
       } else if (completed) state.queues[type].splice(i, 1);
     }
   }
@@ -1455,7 +1507,7 @@ function dailyWeather(day = state.day, landing = state.landing) {
   // A restored Sunwell catches half of the days that would otherwise become
   // dangerously hot, without making the rest of the climate deterministic.
   if (wonderChoice('emberplain', 'restore') && temperature >= 30 && roll('sunwell-shade') < 0.5) temperature = 29;
-  if (trialActive('scarcity')) sky = WEATHER.find(weather => weather.id === 'storm') || sky;
+  if (trialActive('scarcity') || trialActive('whiteout')) sky = WEATHER.find(weather => weather.id === 'storm') || sky;
   const warmth = temperature <= 0 ? 'Freezing' : temperature < 10 ? 'Cold' : temperature < 20 ? 'Mild' : temperature < 30 ? 'Warm' : 'Hot';
   const mods = { ...sky.mods };
   if (temperature <= 0) mods.food = (mods.food || 1) * 0.90;
@@ -1648,9 +1700,12 @@ function updateMorale(dt, foodRate) {
 }
 
 function updateExploration(dt) {
-  if (!perm('explorers')) return;
   const traitMultiplier = currentPlaceTraits().reduce((value, trait) => value * (trait.survey || 1), 1) * lineageSpecialValue('survey');
-  state.surveyPoints = (state.surveyPoints || 0) + explorerCount() * 0.025 * traitMultiplier * dt;
+  const explorerSurvey = perm('explorers') ? explorerCount() * 0.025 * traitMultiplier : 0;
+  const flightSurvey = state.surveyFlightRate || 0;
+  if (explorerSurvey || flightSurvey)
+    state.surveyPoints = (state.surveyPoints || 0) + (explorerSurvey + flightSurvey) * dt;
+  if (!perm('explorers')) return;
   discoverTradePartners();
 }
 
@@ -1780,7 +1835,7 @@ function setBuildingPower(id, count) {
 
 function powerAllocation() {
   const powerFactor = settlementProductionFactors('power').reduce((value, [, factor]) => value * factor, 1);
-  let available = Math.max(0, (bld('steamPlant') * POWER_PER_STEAM_PLANT + bld('dynamo') * 1.5 + bld('windDevice') * POWER_PER_WIND_DEVICE) * powerFactor);
+  let available = Math.max(0, (bld('steamPlant') * POWER_PER_STEAM_PLANT + bld('oilPowerPlant') * POWER_PER_OIL_PLANT + bld('dynamo') * 1.5 + bld('windDevice') * POWER_PER_WIND_DEVICE) * powerFactor);
   const active = { forge: buildingPowerCount('forge') };
   for (const id of ['livingBlock', ...Object.keys(DIG_SITE_RESOURCES), 'factory', 'aluminumWorks']) {
     active[id] = Math.min(buildingPowerCount(id), Math.floor((available + 1e-9) / POWER_BUILDINGS[id].power));
@@ -1814,6 +1869,7 @@ function renderBuildingPower(id, active = powerAllocation()) {
 }
 
 function production(dt = 0.25, breakdown = null) {
+  state.surveyFlightRate = 0;
   const rates = {};
   const challenges = state.migrationChallenges || [];
   const guardIncome = {};
@@ -1901,6 +1957,8 @@ function production(dt = 0.25, breakdown = null) {
       }
     }
   }
+  if (tech('reclaimining') && (state.jobs.forager || 0) > 0)
+    add('aluminum', `Foragers reclaiming Aluminum: ${state.jobs.forager} × 0.005/s`, state.jobs.forager * 0.005);
 
   // expedition passives
   if (expDone('oldForest')) add('wood', 'Old Forest passive', 1.5);
@@ -1917,6 +1975,40 @@ function production(dt = 0.25, breakdown = null) {
   const localIds = localTribeIds();
   if (tradeAvailable()) add('currency', `Trade with ${localIds.map(id => tribeDef(id).name).join(' and ')}`, 0.05 * localIds.length);
   if (bld('moneyLender') > 0) add('currency', `Money Lenders: ${bld('moneyLender')} × ${state.pop} population × 0.001/s`, bld('moneyLender') * state.pop * 0.001);
+  if (bld('tradeBlimp') > 0 && dt > 0) {
+    for (const [index, order] of tradeBlimpOrders().slice(0, bld('tradeBlimp')).entries()) {
+      if (!order || !TRADE_MODES.includes(order.mode) || !TRADE_GOODS.includes(order.resource)) continue;
+      const rate = tradeRate(order.resource);
+      const value = tradeValue(order.resource);
+      if (order.mode === 'buy') {
+        const currencyAvailable = Math.max(0, state.res.currency + rates.currency * dt);
+        const resourceRoom = Math.max(0, capacityOf(order.resource) - state.res[order.resource] - Math.max(0, rates[order.resource]) * dt);
+        const fraction = Math.min(1, currencyAvailable / (rate * value * dt), resourceRoom / (rate * dt));
+        add(order.resource, `Trade Blimp ${index + 1} buying ${resourceName(order.resource)}`, rate * fraction);
+        add('currency', `Trade Blimp ${index + 1} purchase`, -rate * value * fraction);
+      } else {
+        const resourceAvailable = Math.max(0, state.res[order.resource] + Math.min(0, rates[order.resource]) * dt);
+        const currencyRoom = Math.max(0, capacityOf('currency') - state.res.currency - Math.max(0, rates.currency) * dt);
+        const fraction = Math.min(1, resourceAvailable / (rate * dt), currencyRoom / (rate * value * 0.5 * dt));
+        add(order.resource, `Trade Blimp ${index + 1} selling ${resourceName(order.resource)}`, -rate * fraction);
+        add('currency', `Trade Blimp ${index + 1} sale`, rate * value * 0.5 * fraction);
+      }
+    }
+  }
+  if (bld('surveyFlights') > 0 && dt > 0) {
+    const output = bld('surveyFlights') * 0.05;
+    const inputs = { aether: bld('surveyFlights') * 0.02, aluminum: bld('surveyFlights') * 0.02, machinery: bld('surveyFlights') * 0.01 };
+    let fraction = 1;
+    for (const r in inputs) fraction = Math.min(fraction, Math.max(0, state.res[r] + Math.min(0, rates[r]) * dt) / (inputs[r] * dt));
+    for (const r in inputs) add(r, `Survey Flights fuel: ${bld('surveyFlights')} plane${bld('surveyFlights') === 1 ? '' : 's'}`, -inputs[r], [['Survey Flight utilization', fraction]]);
+    state.surveyFlightRate = output * Math.max(0, fraction);
+  }
+  if (bld('blackGoldDrill') > 0 && dt > 0) {
+    const output = bld('blackGoldDrill') * 0.04;
+    const room = Math.max(0, capacityOf('oil') - state.res.oil - Math.max(0, rates.oil || 0) * dt);
+    const fraction = Math.min(1, room / (output * dt));
+    rates.oil = (rates.oil || 0) + output * fraction;
+  }
   if (era() >= 2) add('copper', 'Stone age trace deposits', 0.02);
 
   // per-resource modifiers
@@ -1963,6 +2055,10 @@ function production(dt = 0.25, breakdown = null) {
     const woodFuel = steamCount * 5;
     if (coalFuel) add('coal', `Steam Plant fuel: ${coalFuel} × 0.8/s`, -coalFuel * 0.8);
     if (woodFuel) add('wood', `Steam Plant fuel: ${steamCount} × 4/s`, -woodFuel * 0.8);
+  }
+  if (bld('oilPowerPlant') > 0) {
+    add('power', `Oil Power Plants: ${bld('oilPowerPlant')} × ${POWER_PER_OIL_PLANT} capacity`, bld('oilPowerPlant') * POWER_PER_OIL_PLANT);
+    add('oil', `Oil Power Plant fuel: ${bld('oilPowerPlant')} × ${OIL_PLANT_FUEL_RATE}/s`, -bld('oilPowerPlant') * OIL_PLANT_FUEL_RATE);
   }
   if (bld('dynamo') > 0) add('power', `Dynamos: ${bld('dynamo')} × 1.5 capacity`, bld('dynamo') * 1.5);
   if (bld('windDevice') > 0) add('power', `Wind Devices: ${bld('windDevice')} × ${POWER_PER_WIND_DEVICE} capacity`, bld('windDevice') * POWER_PER_WIND_DEVICE);
@@ -2261,6 +2357,10 @@ function updateTrial(dt) {
     case 'industrialization':
       if (state.res.goods >= 100) { endTrial(true); return; }
       break;
+    case 'whiteout':
+      if (state.res.food <= 0) { endTrial(false); return; }
+      if (tr.daysActive >= WHITEOUT_DURATION) { endTrial(true); return; }
+      break;
     case 'haste':
       if (state.era >= 5) { endTrial(true); return; }
       if (tr.daysActive > 20000) { endTrial(false); return; }
@@ -2368,6 +2468,7 @@ function trialProgressText() {
     case 'tinkering': return `${Math.floor(tr.daysActive)} / 240 days endured — ${state.jobs.tinkerer || 0} Tinkerer assigned (at least 1 must still be assigned when the 240 days run out)`;
     case 'wayfinding': return expDone('oldForest') ? 'The Old Forest has been mapped.' : 'The Old Forest expedition must return';
     case 'industrialization': return `${fmt(state.res.goods)} / 100 Industrial Goods — no deadline; coal production 20%`;
+    case 'whiteout': return `${Math.floor(tr.daysActive)} / ${WHITEOUT_DURATION} days endured — food must never run out`;
     case 'haste': return `${Math.floor(tr.daysActive)} / 20000 days to reach the Age of Light`;
     case 'conquest': return `${(tr.targets || []).filter(id => state.diplomacy?.[id]?.conquered).length} / ${(tr.targets || []).length} nations conquered`;
   }
@@ -2472,6 +2573,7 @@ function migrationBuy(id) {
   if (id === 'fearOfTheConqueror' && !fearOfTheConquerorAvailable()) return;
   if (id === 'practicedMigrator' && !practicedMigratorAvailable()) return;
   if (id === 'animalHusbandry' && !animalHusbandryAvailable()) return;
+  if (id === 'blackGoldDrills' && !perm('surveyFlights')) return;
   const lvl = upg(id);
   if (lvl >= def.max) return;
   const cost = upgradeCost(def, lvl);
@@ -2631,6 +2733,28 @@ function setOut(trialId = null) {
     addLog('Three nations surround the new Emberhold. Their relations are fixed at 0; only conquest can settle the matter.', 'log-important');
   }
   if (trialId === 'silence') state.trial.steelProduced = 0;
+  if (trialId === 'whiteout') {
+    // Whiteout begins at the first-blimp milestone so the challenge is about
+    // keeping a stranded settlement alive, not replaying the entire tech tree.
+    for (const id of [
+      'stoneWorking', 'currency', 'guards', 'copperProspecting', 'masonry',
+      'craftsmanship', 'deepMining', 'seamMining', 'metallurgy',
+      'machineryTech', 'aluminum', 'airControl',
+    ]) state.techs[id] = true;
+    for (const id of [
+      'hut', 'storehouse', 'foragerLodge', 'lumberYard', 'quarry',
+      'stoneWorks', 'workbench', 'library', 'barracks', 'deepMine',
+      'deepStore', 'coalSeam', 'forge', 'workshop', 'aluminumWorks',
+      'steamPlant', 'airControl', 'tradeBlimp',
+    ]) state.bld[id] = 1;
+    state.airControlProgress = AIR_CONTROL_STAGE_COUNT;
+    for (const id of ['stone', 'tools', 'copper', 'iron', 'coal', 'steel', 'machinery', 'aluminum', 'currency'])
+      state.seen[id] = true;
+    state.res.food = Math.min(capacityOf('food'), 600);
+    state.res.currency = Math.min(capacityOf('currency'), 2000);
+    state.tradeBlimps = [{ mode: 'buy', resource: 'food' }];
+    addLog('The Whiteout cuts Emberhold off from the land. The Trade Blimp is the only lifeline; no Forager can work.', 'log-important');
+  }
   for (const t in ERA_GATE) if (state.techs[t] && ERA_GATE[t] > state.era) state.era = ERA_GATE[t];
 
   state.pop = 4 + 2 * upg('wanderers');
@@ -2918,7 +3042,7 @@ function doBuild(id) {
   const previousCount = bld(id);
   const previousEnabled = state.buildingPower[id];
   state.bld[id] = previousCount + 1;
-  const discoveredResource = { alloyMine: 'livingAlloy', heartwoodGrove: 'heartwood', starLens: 'starGlass', ranch: 'fur' }[id];
+  const discoveredResource = { alloyMine: 'livingAlloy', heartwoodGrove: 'heartwood', starLens: 'starGlass', ranch: 'fur', blackGoldDrill: 'oil' }[id];
   if (discoveredResource) state.seen[discoveredResource] = true;
   // A new copy joins the allocation only when every existing copy was on.
   // Partial or fully disabled allocations remain the player's choice.
@@ -3302,6 +3426,8 @@ function normalizeSave(s) {
   }));
   if (!Number.isFinite(s.beaconProgress) || s.beaconProgress < 0) throw new Error('Invalid Beacon progress');
   s.beaconProgress = Math.min(BEACON_STAGE_COUNT, Math.floor(s.beaconProgress));
+  if (!Number.isFinite(s.airControlProgress) || s.airControlProgress < 0) throw new Error('Invalid Air Control progress');
+  s.airControlProgress = Math.min(AIR_CONTROL_STAGE_COUNT, Math.floor(s.airControlProgress));
   s.migrationChallenges = [...new Set((s.migrationChallenges || []).filter(id => MIGRATION_CHALLENGES.some(challenge => challenge.id === id)))];
   s.pendingMigrationChallenges = [...new Set((s.pendingMigrationChallenges || []).filter(id => MIGRATION_CHALLENGES.some(challenge => challenge.id === id)))];
   if (!s.achievements || typeof s.achievements !== 'object' || Array.isArray(s.achievements)) throw new Error('Invalid achievements');
@@ -3418,7 +3544,7 @@ function normalizeSave(s) {
   // Power visibility belongs to the current settlement. Older saves could
   // carry the discovery flag across a migration even after all power-related
   // buildings had been left behind.
-  const hasPowerBuilding = ['steamPlant', 'dynamo', 'windDevice', 'livingBlock', 'factory']
+  const hasPowerBuilding = ['steamPlant', 'oilPowerPlant', 'dynamo', 'windDevice', 'livingBlock', 'factory']
     .some(id => (s.bld[id] || 0) > 0);
   if (!hasPowerBuilding) {
     s.seen.power = false;
@@ -3772,7 +3898,7 @@ function renderNextStep() {
 }
 
 function resVisible(id) {
-  if (id === 'power' && !['steamPlant', 'dynamo', 'windDevice', 'solarArray', 'livingBlock', 'factory']
+  if (id === 'power' && !['steamPlant', 'oilPowerPlant', 'dynamo', 'windDevice', 'solarArray', 'livingBlock', 'factory']
     .some(building => bld(building) > 0)) return false;
   return !!state.seen?.[id];
 }
@@ -3854,11 +3980,11 @@ function renderStores() {
       `<span class="res-rate has-tooltip ${cls}" tabindex="0" data-tooltip="${attrText(resourceRateTooltip(r, rate, breakdown[r.id]))}">${status}</span>` +
       `</div>`;
   }
-  if (perm('explorers')) {
-    const rate = explorerCount() * 0.025;
+  if (perm('explorers') || bld('surveyFlights') > 0) {
+    const rate = explorerCount() * 0.025 + (state.surveyFlightRate || 0);
     const cls = rate > 0.0001 ? 'rate-pos' : '';
     h += `<div class="res-row">` +
-      `<span class="res-name has-tooltip" data-tooltip="Survey points gathered by Explorers; spent to reveal additional landing choices during migration.">Survey</span>` +
+      `<span class="res-name has-tooltip" data-tooltip="Survey points gathered by Explorers and Survey Flights; spent to reveal additional landing choices during migration.">Survey</span>` +
       `<span class="res-amount">${fmt(state.surveyPoints || 0)}</span>` +
       `<span class="res-rate ${cls}">${fmtRate(rate) || '0/s'}</span>` +
       `</div>`;
@@ -4014,18 +4140,21 @@ function renderBuild() {
     any = true;
     const cost = buildingCost(b);
     const beaconProject = b.id === 'beacon' && !count;
-    const queued = state.queues.build.some(entry => entry.id === (beaconProject ? 'beaconStage' : b.id));
+    const airControlProject = b.id === 'airControl' && !count;
+    const stagedProject = beaconProject || airControlProject;
+    const stageId = beaconProject ? 'beaconStage' : 'airControlStage';
+    const queued = state.queues.build.some(entry => entry.id === (stagedProject ? stageId : b.id));
     const forbidden = trialActive('overflow') && Object.values(STORAGE).some(s => s.bld === b.id);
     const ok = !maxed && !forbidden &&
       (canAfford(cost) || state.queues.build.length < queueCapacity('build'));
     h += `<div class="card"><div class="card-head">` +
       `<span class="card-title has-tooltip" data-tooltip="${attrText(b.desc)}">${b.name}</span>` +
       (b.max === Infinity ? `<span class="card-count">${count} built</span>` : b.max > 1 ? `<span class="card-count">${count} / ${b.max}</span>` : (count ? `<span class="card-count">built</span>` : '')) +
-      `<span class="card-effect">${beaconProject ? `${beaconProgress()} / ${BEACON_STAGE_COUNT} stages` : b.effect()}</span></div>` +
+      `<span class="card-effect">${beaconProject ? `${beaconProgress()} / ${BEACON_STAGE_COUNT} stages` : airControlProject ? `${airControlProgress()} / ${AIR_CONTROL_STAGE_COUNT} stages` : b.effect()}</span></div>` +
       `<div class="card-cost">cost: ${costHtml(cost)}</div>` +
       renderBuildingPower(b.id) +
       (b.id === 'steamPlant' ? woodFuelControls('steamPlant', count) : '') +
-      `<div class="card-actions"><button data-action="build" data-id="${b.id}"${beaconProject ? ' data-repeat' : ''} ${ok ? '' : 'disabled'}>${maxed ? 'Complete' : queued ? 'Queued' : beaconProject ? `Commit stage ${beaconProgress() + 1}` : canAfford(cost) ? 'Build' : 'Queue'}</button></div>` +
+      `<div class="card-actions"><button data-action="build" data-id="${b.id}"${stagedProject ? ' data-repeat' : ''} ${ok ? '' : 'disabled'}>${maxed ? 'Complete' : queued ? 'Queued' : beaconProject ? `Commit stage ${beaconProgress() + 1}` : airControlProject ? `Commit stage ${airControlProgress() + 1}` : canAfford(cost) ? 'Build' : 'Queue'}</button></div>` +
       `</div>`;
   }
   if (!any) h += `<div class="res-note">${buildFilter === 'complete' ? 'No completed buildings yet.' : 'Nothing remains to build yet. Learn from the world first.'}</div>`;
@@ -4061,12 +4190,14 @@ function renderDiplomacy() {
   const knownEntries = Object.entries(state.diplomacy || {});
   const nearbyCount = knownEntries.filter(([id]) => localTribe(id)).length;
   const distantCount = knownEntries.length - nearbyCount;
-  const tab = state.diplomacyTab === 'distant' ? 'distant' : 'nearby';
+  const tab = state.diplomacyTab === 'trade' && bld('tradeBlimp') > 0 ? 'trade' : state.diplomacyTab === 'distant' ? 'distant' : 'nearby';
   state.diplomacyTab = tab;
   h += `<div class="subtabs" role="tablist" aria-label="Diplomacy contacts">` +
     `<button class="subtab ${tab === 'nearby' ? 'active' : ''}" data-action="diplomacy-tab" data-diplomacy-tab="nearby" role="tab" aria-selected="${tab === 'nearby'}">Here <span class="subtab-count">${nearbyCount}</span></button>` +
     `<button class="subtab ${tab === 'distant' ? 'active' : ''}" data-action="diplomacy-tab" data-diplomacy-tab="distant" role="tab" aria-selected="${tab === 'distant'}">Known elsewhere <span class="subtab-count">${distantCount}</span></button>` +
+    (bld('tradeBlimp') > 0 ? `<button class="subtab ${tab === 'trade' ? 'active' : ''}" data-action="diplomacy-tab" data-diplomacy-tab="trade" role="tab" aria-selected="${tab === 'trade'}">Trade <span class="subtab-count">${bld('tradeBlimp')}</span></button>` : '') +
     '</div>';
+  if (tab === 'trade') return h + renderTradeBlimps();
   if (!tech('currency')) {
     h += '<div class="card"><div class="card-desc">The tribes will speak, but trade requires Currency. Research it to honor their requests with goods.</div></div>';
   }
@@ -4134,6 +4265,24 @@ function renderDiplomacy() {
     h += '</div>';
   }
   if (!visible) h += `<div class="res-note">${tab === 'nearby' ? 'No contacts are currently here.' : 'No distant contacts are recorded yet.'}</div>`;
+  return h;
+}
+
+function renderTradeBlimps() {
+  let h = '<h2 class="section">Trade Blimps</h2>';
+  h += '<div class="res-note">Each blimp carries one good at a time. Buying starts at 1 unit/s and rises by ×1.2 for each higher good; selling returns half the purchase value. Orders pause automatically when storage or Currency is insufficient.</div>';
+  for (let index = 0; index < bld('tradeBlimp'); index++) {
+    const order = tradeBlimpOrders()[index];
+    const resource = order?.resource || TRADE_GOODS[0];
+    const mode = order?.mode || 'buy';
+    const rate = tradeRate(resource);
+    const value = tradeValue(resource);
+    h += `<div class="card"><div class="card-head"><span class="card-title">Trade Blimp ${index + 1}</span><span class="card-count">${order ? `${mode}ing` : 'idle'}</span></div>` +
+      `<div class="card-desc">${order ? `${mode === 'buy' ? 'Buys' : 'Sells'} ${fmt(rate)} ${resourceName(resource)}/s at ${fmt(value)} Currency each${mode === 'sell' ? ' (receives half value)' : ''}.` : 'Choose one good and an order.'}</div>` +
+      `<div class="card-actions"><select data-trade-resource="${index}" aria-label="Good for Trade Blimp ${index + 1}">${TRADE_GOODS.map(id => `<option value="${id}" ${id === resource ? 'selected' : ''}>${resourceName(id)} — ${fmt(tradeRate(id))}/s — ${fmt(tradeValue(id))} Currency</option>`).join('')}</select>` +
+      `<button data-action="trade-order" data-index="${index}" data-mode="buy" data-resource="${resource}">Buy</button>` +
+      `<button data-action="trade-order" data-index="${index}" data-mode="sell" data-resource="${resource}">Sell</button></div></div>`;
+  }
   return h;
 }
 
@@ -4438,6 +4587,7 @@ function renderShop() {
     if (u.id === 'fearOfTheConqueror' && !fearOfTheConquerorAvailable()) continue;
     if (u.id === 'practicedMigrator' && !practicedMigratorAvailable()) continue;
     if (u.id === 'animalHusbandry' && !animalHusbandryAvailable()) continue;
+    if (u.id === 'blackGoldDrills' && !perm('surveyFlights')) continue;
     const lvl = upg(u.id);
     const maxed = lvl >= u.max;
     const nextCost = maxed ? null : upgradeCost(u, lvl);
@@ -4869,7 +5019,8 @@ function runAction(btn) {
     case 'research': attemptResearch(btn.dataset.id); render(); break;
     case 'queue-cancel': cancelQueue(btn.dataset.type, +btn.dataset.index); render(); break;
     case 'diplomacy-supply': supplyDiplomacyRequest(btn.dataset.tribe); render(); break;
-    case 'diplomacy-tab': state.diplomacyTab = btn.dataset.diplomacyTab === 'distant' ? 'distant' : 'nearby'; render(); break;
+    case 'diplomacy-tab': state.diplomacyTab = btn.dataset.diplomacyTab === 'trade' ? 'trade' : btn.dataset.diplomacyTab === 'distant' ? 'distant' : 'nearby'; render(); break;
+    case 'trade-order': setTradeBlimpOrder(+btn.dataset.index, btn.dataset.mode, btn.dataset.resource); render(); break;
     case 'spy-hire': hireSpy(btn.dataset.tribe); render(); break;
     case 'espionage': beginEspionage(btn.dataset.tribe); render(); break;
     case 'raid': doRaid(btn.dataset.tribe, btn.dataset.stage); render(); break;
@@ -5059,6 +5210,13 @@ function ensureQueueDragPreview() {
 }
 
 document.addEventListener('change', (e) => {
+  const tradeSelect = e.target.closest('[data-trade-resource]');
+  if (tradeSelect) {
+    const card = tradeSelect.closest('.card');
+    card?.querySelectorAll('[data-action="trade-order"]').forEach(button => { button.dataset.resource = tradeSelect.value; });
+    render();
+    return;
+  }
   const select = e.target.closest('[data-raid-select]');
   if (!select) return;
   const stage = raidStage(select.value);
@@ -5211,7 +5369,7 @@ function boot() {
   state.achievements = state.achievements || {};
   state.shopTab = ['buy', 'purchased'].includes(state.shopTab) ? state.shopTab : 'buy';
   state.statsTab = ['stats', 'achievements', 'perks'].includes(state.statsTab) ? state.statsTab : 'stats';
-  state.diplomacyTab = ['nearby', 'distant'].includes(state.diplomacyTab) ? state.diplomacyTab : 'nearby';
+  state.diplomacyTab = ['nearby', 'distant', 'trade'].includes(state.diplomacyTab) ? state.diplomacyTab : 'nearby';
   applySettings();
   state.tribesSeen = state.tribesSeen || { human: true };
   state.species = state.species || 'human';
