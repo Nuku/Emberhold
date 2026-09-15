@@ -2044,6 +2044,14 @@ test('Steel Hearted boosts every Steel output path without increasing costs', ()
   assert.equal(run('state.achievements.steelHearted'), true);
 });
 
+test('constructing a Trade Blimp completes the first flight achievement', () => {
+  const { run } = game();
+  assert.equal(run("ACHIEVEMENTS.find(a => a.id === 'firstFlight').test()"), false);
+  run('state.bld.tradeBlimp = 1; updateAchievements()');
+  assert.equal(run('state.achievements.firstFlight'), 1);
+  assert.equal(run("ACHIEVEMENTS.find(a => a.id === 'firstFlight').progress()"), '1 / 1 Trade Blimp');
+});
+
 test('Lightning Metal boosts factory Steel output and input costs', () => {
   const { run } = game();
   run(`state.bld.factory = 1; state.bld.steamPlant = 1; state.res.power = 10;
