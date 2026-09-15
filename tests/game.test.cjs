@@ -316,6 +316,17 @@ test('season changes are logged as events rather than progress', () => {
   }
 });
 
+test('event text mentioning builders stays out of the building log', () => {
+  const { run } = game();
+  assert.equal(run('logCategory("Beaverkin builders dismantle an obsolete spillway and recover its seasoned beams.")'), 'events');
+  assert.equal(run('logCategory("Hut completed (1).")'), 'building');
+  assert.equal(run('logCategory("The Beacon burns. Its light will outlive the village.")'), 'building');
+  run(`state.logs.building = [{ d: 1051239, t: 'Beaverkin builders dismantle an obsolete spillway and recover its seasoned beams.', c: '', k: 'building', n: 1 }];
+    state = normalizeSave(JSON.parse(JSON.stringify(state)))`);
+  assert.equal(run('state.logs.building.length'), 0);
+  assert.equal(run('state.logs.events[0].t'), 'Beaverkin builders dismantle an obsolete spillway and recover its seasoned beams.');
+});
+
 test('achievement messages have their own log category', () => {
   const { run } = game();
   assert.equal(run('logCategory("Achievement completed: Many Hands.")'), 'achievements');

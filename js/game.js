@@ -2149,7 +2149,9 @@ function logCategory(text) {
   if (/research complete|research completed|wonder research completed|technology/.test(value)) return 'research';
   if (/raid|attack|siege|guard|injur|killed|die|combat|riot/.test(value)) return 'combat';
   if (/queue|queued/.test(value)) return 'queue';
-  if (/completed \(\d+\)|build|built|construction|beacon/.test(value)) return 'building';
+  // Match construction terminology as words. In particular, ordinary event
+  // text such as "Beaverkin builders" must remain in the Events category.
+  if (/completed \(\d+\)|\b(?:build|built|building|construction|beacon)\b/.test(value)) return 'building';
   if (/achievement/.test(value)) return 'achievements';
   if (/chronicle resumes|village has grown|era|migration|expedition returned|saved|imported|exported/.test(value)) return 'progress';
   return 'events';
@@ -3431,11 +3433,19 @@ function normalizeSave(s) {
     s.logs = Object.fromEntries(LOG_CATEGORIES.map(category => [category, []]));
     let sequence = legacyLog.length;
     for (const entry of legacyLog) {
-      const category = LOG_CATEGORIES.includes(entry.k) ? entry.k : logCategory(entry.t);
+      const category = logCategory(entry.t);
       s.logs[category].push({ ...entry, k: category, n: sequence-- });
     }
   }
   if (!object(s.logs)) throw new Error('Invalid chronicle');
+  if (hadSeparateLogs) {
+    const entries = LOG_CATEGORIES.flatMap(category => s.logs[category] || []);
+    s.logs = Object.fromEntries(LOG_CATEGORIES.map(category => [category, []]));
+    for (const entry of entries) {
+      const category = logCategory(entry.t);
+      s.logs[category].push({ ...entry, k: category });
+    }
+  }
   let maxSequence = 0;
   for (const category of LOG_CATEGORIES) {
     if (!Array.isArray(s.logs[category])) throw new Error('Invalid chronicle');

@@ -4,6 +4,7 @@ All notable changes to Emberhold are recorded here, with the newest changes firs
 
 ## 2026-09-14
 
+- Fixed Chronicle migration and categorization so event text such as “builders” is not mistaken for a construction entry, and existing categorized logs are reclassified consistently when loaded.
 - Added independent Chronicle log categories, each retaining its own recent history while preserving chronological All view compatibility for older saves and integrations.
 - Fixed Chronicle clearing so category filters and the All view remove only the intended entries, with categorized logs and sequence state preserved through migration and saves.
 - Fixed failed save loads so a malformed or unreadable chronicle is preserved instead of being overwritten by a new settlement; autosave is disabled until a backup is imported.
