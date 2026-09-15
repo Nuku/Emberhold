@@ -1156,10 +1156,6 @@ function queueDef(entry) {
 }
 
 function queueCost(entry) {
-  // A queued action keeps the price the player saw when they added it. Without
-  // this, a temporary price modifier ending can make it dispatch immediately
-  // at a lower recalculated cost.
-  if (entry?.cost) return entry.cost;
   const def = queueDef(entry);
   if (!def) return null;
   if (entry.type === 'build') return effectiveCoalCost(buildingCost(def));
@@ -1270,7 +1266,7 @@ function queueEntry(type, id) {
   }
   const cost = queueCost({ type, id });
   if (canAfford(cost)) return false;
-  state.queues[type].push({ type, id, cost: { ...cost } });
+  state.queues[type].push({ type, id });
   return true;
 }
 
@@ -1337,7 +1333,7 @@ function attemptBuild(id) {
     const cost = beaconStageCost();
     if (canAfford(cost)) advanceBeaconProject();
     else if (!state.queues.build.some(entry => entry.id === 'beaconStage') && state.queues.build.length < queueCapacity('build'))
-      state.queues.build.push({ type: 'build', id: 'beaconStage', cost: { ...cost } });
+      state.queues.build.push({ type: 'build', id: 'beaconStage' });
     return;
   }
   if (id === 'airControl') {
@@ -1345,7 +1341,7 @@ function attemptBuild(id) {
     const cost = airControlStageCost();
     if (canAfford(cost)) advanceAirControlProject();
     else if (!state.queues.build.some(entry => entry.id === 'airControlStage') && state.queues.build.length < queueCapacity('build'))
-      state.queues.build.push({ type: 'build', id: 'airControlStage', cost: { ...cost } });
+      state.queues.build.push({ type: 'build', id: 'airControlStage' });
     return;
   }
   if (!canBuild(id) || (Number.isFinite(def.max) &&
@@ -1365,7 +1361,7 @@ function attemptWonderObstacle() {
   }
   if (canAfford(obstacle.cost)) return buildWonderObstacle();
   if (state.queues.build.length >= queueCapacity('build')) return false;
-  state.queues.build.push({ type: 'build', id, cost: { ...obstacle.cost } });
+  state.queues.build.push({ type: 'build', id });
   state.paused = false;
   addLog(`${obstacle.name} added to the Construction queue.`, 'log-important');
   return true;
@@ -1408,10 +1404,10 @@ function updateQueues() {
         type === 'research' ? doResearch(entry.id) : doExpedition(entry.id);
       if (completed && type === 'build' && entry.id === 'beaconStage' && beaconProgress() < BEACON_STAGE_COUNT) {
         state.queues[type].splice(i, 1);
-        state.queues[type].push({ type: 'build', id: 'beaconStage', cost: { ...beaconStageCost() } });
+        state.queues[type].push({ type: 'build', id: 'beaconStage' });
       } else if (completed && type === 'build' && entry.id === 'airControlStage' && airControlProgress() < AIR_CONTROL_STAGE_COUNT) {
         state.queues[type].splice(i, 1);
-        state.queues[type].push({ type: 'build', id: 'airControlStage', cost: { ...airControlStageCost() } });
+        state.queues[type].push({ type: 'build', id: 'airControlStage' });
       } else if (completed) state.queues[type].splice(i, 1);
     }
   }
@@ -1543,11 +1539,11 @@ function moraleMult() {
   return 1 + (cappedMorale - 70) * moraleSlope + excessMorale * moraleSlope * 0.5;
 }
 
-function globalProductionFactors() {
+function globalProductionFactors(resource = null) {
   const achievementPower = state.migrationChallenges?.includes('forgottenTruths') ? 0.25 : 1;
   return [
     ['Morale', moraleMult()],
-    [`Shrines (${bld('shrine')} × 5%) + factories (${bld('factory')} × 10%)`, 1 + 0.05 * bld('shrine') + 0.10 * bld('factory')],
+    [`Shrines (${bld('shrine')} × 5%) + factories (${bld('factory')} × 10%)`, 1 + 0.05 * bld('shrine') + (resource === 'food' || resource === 'coal' ? 0 : 0.10 * bld('factory'))],
     ['Dynamos', 1 + 0.15 * bld('dynamo')],
     ['Allied tribes', 1 + localTribeIds().reduce((bonus, id) => {
       const entry = state.diplomacy?.[id];
@@ -2020,7 +2016,7 @@ function production(dt = 0.25, breakdown = null) {
   if (era() >= 2) add('copper', 'Stone age trace deposits', 0.02);
 
   // per-resource modifiers
-  scale('food', [...global, [`${SEASONS[seasonIndex()].name}${trialActive('longnight') ? ' (Long Night)' : perm('everwarm') ? ' (Everwarm)' : ''}`, seasonMult()],
+  scale('food', [...globalProductionFactors('food'), [`${SEASONS[seasonIndex()].name}${trialActive('longnight') ? ' (Long Night)' : perm('everwarm') ? ' (Everwarm)' : ''}`, seasonMult()],
     ['Forager Lodges', 1 + 0.10 * bld('foragerLodge')], ['Aqueducts', 1 + 0.20 * bld('aqueduct')],
     ['Scarcity completions', 1 + 0.10 * trialCount('scarcity')], ['Scarcity trial', trialActive('scarcity') ? trialDifficulty('scarcity') : 1],
     ['Restored River Crown', wonderChoice('floodmeadows', 'restore') ? 1.20 : 1]]);
@@ -2048,7 +2044,7 @@ function production(dt = 0.25, breakdown = null) {
     ['Metallurgy', tech('metallurgy') ? 2 : 1], ['Electrical Engineering', tech('electricalEngineering') ? 1.5 : 1]]);
   scale('aether', [...global, ['Glacial Peaks', expDone('glacialPeaks') ? 1.10 : 1],
     ['Restored Mirrored Orrery', wonderChoice('windmere', 'restore') ? 1.20 : 1]]);
-  scale('coal', [...global, ['Restored Renewal Basin', wonderChoice('ashfen', 'restore') ? 1.15 : 1]]);
+  scale('coal', [...globalProductionFactors('coal'), ['Restored Renewal Basin', wonderChoice('ashfen', 'restore') ? 1.15 : 1]]);
   scale('tools', [...global, ['Restored Renewal Basin', wonderChoice('ashfen', 'restore') ? 1.25 : 1]]);
   scale('currency', global);
   if (trialActive('industrialization')) {
@@ -2887,7 +2883,7 @@ function startGameClock() {
   // lose time; it only wakes the simulation to account for elapsed time.
   if (typeof Worker === 'function') {
     try {
-      gameClockWorker = new Worker('js/game-clock.worker.js?v=publish-20260915u87');
+      gameClockWorker = new Worker('js/game-clock.worker.js?v=publish-20260915u88');
       gameClockWorker.addEventListener('message', () => {
         updateGameClock(true);
         renderBonusTimer();
@@ -3489,16 +3485,13 @@ function normalizeSave(s) {
       else if (object(s.queues[type])) s.queues[type] = [s.queues[type]];
       else throw new Error(`Invalid ${type} queue`);
     }
-    for (const entry of s.queues[type])
+    for (const entry of s.queues[type]) {
       if (!object(entry) || entry.type !== type || typeof entry.id !== 'string' || !queueDef(entry))
         throw new Error(`Invalid ${type} queue`);
-  }
-  // Metallurgy's Knowledge price was permanently reduced from 9,000 to
-  // 3,000. Refresh the old queued price while retaining any selected fuel
-  // substitution and the other material costs on the saved entry.
-  for (const entry of s.queues.research) {
-    if (entry.id === 'metallurgy' && entry.cost?.knowledge === 9000)
-      entry.cost.knowledge = researchCost(TECH_BY_ID.get('metallurgy')).knowledge;
+      // Queue prices are intentionally live. Discard the legacy snapshot so
+      // imported saves cannot resurrect the old price-locking behavior.
+      delete entry.cost;
+    }
   }
   let queuedBuildings = Object.create(null);
   s.queues.build = s.queues.build.filter(entry => {
@@ -4756,7 +4749,7 @@ function renderSidePanel() {
 function loadLatestUpdatesTooltip() {
   const button = document.getElementById('btn-updates');
   if (!button || typeof fetch !== 'function' || typeof DOMParser !== 'function') return;
-  fetch('changelog.html?v=publish-20260915u87')
+  fetch('changelog.html?v=publish-20260915u88')
     .then(response => response.ok ? response.text() : Promise.reject(new Error('changelog unavailable')))
     .then(source => {
       const doc = new DOMParser().parseFromString(source, 'text/html');

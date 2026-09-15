@@ -387,7 +387,7 @@ test('physical research requires its material inputs in addition to Knowledge', 
   assert.equal(run('state.res.tools'), 0);
 });
 
-test('legacy queued Metallurgy research receives its reduced Knowledge cost', () => {
+test('legacy queued costs are removed during save normalization', () => {
   const { run } = game();
   assert.equal(run(`(() => {
     const save = defaultState();
@@ -395,8 +395,8 @@ test('legacy queued Metallurgy research receives its reduced Knowledge cost', ()
       knowledge: 9000, iron: 180, coal: 120, tools: 30
     } }];
     normalizeSave(save);
-    return save.queues.research[0].cost.knowledge;
-  })()`), 3000);
+    return Object.hasOwn(save.queues.research[0], 'cost');
+  })()`), false);
 });
 
 test('failed save loads do not overwrite the preserved save with a new game', () => {
@@ -418,14 +418,26 @@ test('research cannot be queued more than once and stale duplicates are removed'
   assert.equal(run('state.queues.research.filter(entry => entry.id === "writing").length'), 1);
 });
 
-test('queued actions keep their displayed cost when price modifiers change', () => {
+test('queued actions use the current cost when price modifiers change', () => {
   const { run } = game();
   run(`state.trial = { id: 'frugality', buildings: 0 }; state.res.wood = 0;
     attemptBuild('hut'); state.trial = null; state.res.wood = 30;
     updateQueues();`);
-  assert.equal(run("bld('hut')"), 0);
-  assert.equal(run('state.queues.build.length'), 1);
-  assert.equal(run('state.queues.build[0].cost.wood'), 45);
+  assert.equal(run("bld('hut')"), 1);
+  assert.equal(run('state.queues.build.length'), 0);
+});
+
+test('legacy queued costs are ignored', () => {
+  const { run } = game();
+  run(`state.techs.aluminum = true; state.bld.aluminumWorks = 3;
+    state.bld.aluminumWorks = 4;
+    state.res.steel = 1700; state.res.machinery = 400;
+    state.res.goods = 600; state.res.copper = 1200;
+    state.settings.strictQueueOrder = true;
+    state.queues.build = [{ type: 'build', id: 'aluminumWorks', cost: { steel: 1, machinery: 1, goods: 1, copper: 1 } }];
+    updateQueues();`);
+  assert.equal(run("bld('aluminumWorks')"), 5);
+  assert.equal(run('state.queues.build.length'), 0);
 });
 
 test('one-off buildings cannot be queued more than once and stale duplicates are removed', () => {
@@ -2024,6 +2036,15 @@ test('Dynamos boost factory output without multiplying factory input costs', () 
   assert.equal(run('rates.iron'), -0.6);
   assert.equal(run('rates.coal'), -0.4);
   assert.ok(run("detail.steel.find(e => e.label.startsWith('Factories')).factors.some(([label, factor]) => label === 'Dynamos' && factor === 1.15)"));
+});
+
+test('factories do not modify food or coal production rates', () => {
+  const { run } = game();
+  run(`state.jobs.forager = 1; state.jobs.digger = 1; state.bld.coalSeam = 1; state.bld.steamPlant = 1;
+    state.bld.factory = 0; const withoutFactories = production(0); state.bld.factory = 3;
+    const withFactories = production(0);`);
+  assert.equal(run('withFactories.food'), run('withoutFactories.food'));
+  assert.equal(run('withFactories.coal'), run('withoutFactories.coal'));
 });
 
 test('Steel Hearted boosts every Steel output path without increasing costs', () => {

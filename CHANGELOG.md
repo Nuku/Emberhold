@@ -4,6 +4,8 @@ All notable changes to Emberhold are recorded here, with the newest changes firs
 
 ## 2026-09-15
 
+- Fixed queued construction and research so they use the current cost when they dispatch instead of locking in a stale cost from when they were queued; legacy saved queue costs are discarded during migration.
+- Fixed Factory bonuses so they no longer affect Food or Coal production.
 - Adjusted morale production scaling above 100 so excess morale continues to help at half strength instead of being fully capped.
 - Added Distant Stores, which expands Wood, Stone, Steel, Aluminum, and Machinery capacity after Survey Flights.
 - Added Fur costs to Trade Blimps and to Shrine construction from the fifth Shrine onward.
