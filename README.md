@@ -172,8 +172,10 @@ technology IDs in `api.getState().techs`, then select an unlocked line with
 - `requested`: demand from all enabled power buildings, including unsupplied buildings.
 - `shortfall`: requested capacity beyond generation, clamped to zero.
 - `buildings`: owned buildings with unlocked power controls, keyed by building ID.
-  Each entry provides `built`, `enabled`, `active`, `powerPerBuilding`,
-  `requested`, `used`, `resource`, and `productionBonus` (a fraction: `0.1` = +10%).
+  Each entry provides `built`, `capacity`, `enabled`, `active`,
+  `powerPerBuilding`, `requested`, `used`, `resource`, and `productionBonus`
+  (a fraction: `0.1` = +10%). For dig sites, `capacity` is the associated
+  worker capacity and the entry also provides `job` and `workerCapacity`.
 
 Power controls are available for Living Blocks and Factories as well as Awaken
 Ancients dig sites. Existing saves keep existing workers enabled by default.

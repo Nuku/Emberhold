@@ -4762,7 +4762,7 @@ function renderSidePanel() {
 function loadLatestUpdatesTooltip() {
   const button = document.getElementById('btn-updates');
   if (!button || typeof fetch !== 'function' || typeof DOMParser !== 'function') return;
-  fetch('changelog.html?v=publish-20260915u90')
+  fetch('changelog.html?v=publish-20260915u92')
     .then(response => response.ok ? response.text() : Promise.reject(new Error('changelog unavailable')))
     .then(source => {
       const doc = new DOMParser().parseFromString(source, 'text/html');
@@ -4868,8 +4868,11 @@ function powerStatus() {
   for (const [id, info] of Object.entries(POWER_BUILDINGS)) {
     if (!powerBuildingControllable(id) || bld(id) < 1) continue;
     const enabled = buildingPowerCount(id);
-    buildings[id] = { built: bld(id), enabled, active: active[id], powerPerBuilding: info.power,
+    const capacity = powerBuildingMax(id);
+    const job = DIG_SITE_WORKERS[id] || null;
+    buildings[id] = { built: bld(id), capacity, enabled, active: active[id], powerPerBuilding: info.power,
       requested: enabled * info.power, used: active[id] * info.power,
+      ...(job ? { job, workerCapacity: capacity } : {}),
       ...(DIG_SITE_RESOURCES[id] ? { resource: DIG_SITE_RESOURCES[id], productionBonus: active[id] * 0.10 } : {}) };
   }
   const requested = used + Object.values(buildings).reduce((sum, building) => sum + building.requested - building.used, 0);

@@ -271,6 +271,9 @@ test('power API exposes live capacity, controllable buildings, and action events
   assert.equal(run("window.emberhold.actions.setBuildingPower('quarry', 3)"), true);
   assert.ok(Math.abs(run('window.emberhold.getState().power.used') - 1.6) < 1e-10);
   assert.ok(Math.abs(run('window.emberhold.getPower().available') - 1.4) < 1e-10);
+  assert.equal(run("window.emberhold.getPower().buildings.quarry.capacity"), 10);
+  assert.equal(run("window.emberhold.getPower().buildings.quarry.workerCapacity"), 10);
+  assert.equal(run("window.emberhold.getPower().buildings.quarry.job"), 'miner');
   assert.equal(run('events.at(-1).action'), 'setBuildingPower');
   assert.equal(run('events.at(-1).state.power.buildings.quarry.enabled'), 3);
   run(`const detached = window.emberhold.getPower(); detached.buildings.quarry.enabled = 0`);
