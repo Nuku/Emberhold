@@ -161,7 +161,7 @@ function era() { return state.era; }
 function expDone(id) { return !!state.expeditions[id]; }
 const POST_STONE_AGE_KNOWLEDGE_COST_MULTIPLIER = 15;
 const POST_STONE_AGE_RESEARCH = new Set([
-  'metallurgy', 'ironMites', 'weaponry', 'chainmail', 'machineryTech', 'aluminum', 'airControl', 'oilPower', 'reclaimining', 'lightningMetal',
+  'metallurgy', 'ironMites', 'weaponry', 'chainmail', 'machineryTech', 'aluminum', 'airControl', 'distantStores', 'oilPower', 'reclaimining', 'lightningMetal',
   'livingAlloy', 'heartwood', 'starGlass', 'basinTempering', 'understandingHome', 'awakenAncients', 'advancedScience',
   'windHarness', 'banking', 'diplomacy', 'spies', 'espionage', 'civics',
   'council', 'commonality', 'festivals', 'civicHarmony', 'workplaceEthics', 'weaponEfficiency',
@@ -954,7 +954,8 @@ function capacityOf(id) {
   const permanentStorage = 1 + 0.2 * trialCount('overflow');
   const runStorage = overflowActive ? 1 : 1 + 0.15 * upg('deepCellars');
   const governanceStorage = overflowActive ? 1 : governanceStorageMod();
-  return Math.ceil((s.base + s.per * bld(s.bld)) *
+  const bonusCapacity = s.bonus ? s.bonus.per * bld(s.bonus.bld) : 0;
+  return Math.ceil((s.base + s.per * bld(s.bld) + bonusCapacity) *
     permanentStorage * runStorage * governanceStorage *
     (overflowActive ? 1 : 1 + 0.01 * upg('cleverStorage')) *
     (overflowActive ? trialDifficulty('overflow') : 1));
@@ -1043,6 +1044,9 @@ function buildingCost(def) {
     (perm('blueprints') ? 0.85 : 1) * governanceCostMod();
   const out = {};
   for (const r in def.cost) out[r] = def.cost[r] * mult;
+  if (def.additionalCost) {
+    for (const [r, amount] of Object.entries(def.additionalCost(bld(def.id)))) out[r] = (out[r] || 0) + amount * mult;
+  }
   return out;
 }
 
@@ -1121,7 +1125,7 @@ function isWonderObstacleQueueId(id) { return typeof id === 'string' && id.start
 function canBuild(id) {
   const def = BUILDING_BY_ID.get(id);
   if (!def || bld(id) >= def.max || (def.req && !def.req())) return false;
-  return !(trialActive('overflow') && Object.values(STORAGE).some(s => s.bld === id));
+  return !(trialActive('overflow') && Object.values(STORAGE).some(s => s.bld === id || s.bonus?.bld === id));
 }
 function payCost(cost) {
   const effective = effectiveCoalCost(cost);
@@ -2879,7 +2883,7 @@ function startGameClock() {
   // lose time; it only wakes the simulation to account for elapsed time.
   if (typeof Worker === 'function') {
     try {
-      gameClockWorker = new Worker('js/game-clock.worker.js?v=publish-20260915u84');
+      gameClockWorker = new Worker('js/game-clock.worker.js?v=publish-20260915u86');
       gameClockWorker.addEventListener('message', () => {
         updateGameClock(true);
         renderBonusTimer();
@@ -3032,7 +3036,7 @@ function doBuild(id) {
   const def = BUILDING_BY_ID.get(id);
   if (!def) return false;
   if (!canBuild(id)) {
-    if (trialActive('overflow') && Object.values(STORAGE).some(s => s.bld === id)) {
+    if (trialActive('overflow') && Object.values(STORAGE).some(s => s.bld === id || s.bonus?.bld === id)) {
     addLog('The oath of the Overflow forbids new storage.', 'log-bad');
     }
     return false;
@@ -4147,7 +4151,7 @@ function renderBuild() {
     const stagedProject = beaconProject || airControlProject;
     const stageId = beaconProject ? 'beaconStage' : 'airControlStage';
     const queued = state.queues.build.some(entry => entry.id === (stagedProject ? stageId : b.id));
-    const forbidden = trialActive('overflow') && Object.values(STORAGE).some(s => s.bld === b.id);
+    const forbidden = trialActive('overflow') && Object.values(STORAGE).some(s => s.bld === b.id || s.bonus?.bld === b.id);
     const ok = !maxed && !forbidden &&
       (canAfford(cost) || state.queues.build.length < queueCapacity('build'));
     h += `<div class="card"><div class="card-head">` +
@@ -4748,7 +4752,7 @@ function renderSidePanel() {
 function loadLatestUpdatesTooltip() {
   const button = document.getElementById('btn-updates');
   if (!button || typeof fetch !== 'function' || typeof DOMParser !== 'function') return;
-  fetch('changelog.html?v=publish-20260915u84')
+  fetch('changelog.html?v=publish-20260915u86')
     .then(response => response.ok ? response.text() : Promise.reject(new Error('changelog unavailable')))
     .then(source => {
       const doc = new DOMParser().parseFromString(source, 'text/html');

@@ -4,6 +4,8 @@ All notable changes to Emberhold are recorded here, with the newest changes firs
 
 ## 2026-09-15
 
+- Added Distant Stores, which expands Wood, Stone, Steel, Aluminum, and Machinery capacity after Survey Flights.
+- Added Fur costs to Trade Blimps and to Shrine construction from the fifth Shrine onward.
 - Added the “Up, Up and Away” achievement for constructing your first Trade Blimp.
 - Fixed trial starts so the migration Echoes earned by the current village are awarded immediately before the trial resets the settlement, with the grant recorded in the chronicle.
 - Added the Air Control project, Trade Blimps, Survey Flights, the Trial of the Whiteout, Oil, Black Gold Drills, and Oil Power Plants as a new late-game sky-and-fuel progression.

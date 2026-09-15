@@ -2052,6 +2052,20 @@ test('constructing a Trade Blimp completes the first flight achievement', () => 
   assert.equal(run("ACHIEVEMENTS.find(a => a.id === 'firstFlight').progress()"), '1 / 1 Trade Blimp');
 });
 
+test('Trade Blimp construction requires Fur', () => {
+  const { run } = game();
+  assert.deepEqual(JSON.parse(run("JSON.stringify(BUILDING_BY_ID.get('tradeBlimp').cost)")),
+    { aluminum: 120, steel: 100, machinery: 50, fur: 100 });
+});
+
+test('Distant Stores cost more Fur and the fifth Shrine adds a Fur cost', () => {
+  const { run } = game();
+  assert.equal(run("BUILDING_BY_ID.get('removedStorage').cost.fur"), 200);
+  assert.equal(run("buildingCost(BUILDING_BY_ID.get('shrine')).fur"), undefined);
+  run('state.bld.shrine = 4');
+  assert.equal(run("buildingCost(BUILDING_BY_ID.get('shrine')).fur"), 100 * 1.8 ** 4);
+});
+
 test('Lightning Metal boosts factory Steel output and input costs', () => {
   const { run } = game();
   run(`state.bld.factory = 1; state.bld.steamPlant = 1; state.res.power = 10;

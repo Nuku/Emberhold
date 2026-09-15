@@ -82,15 +82,15 @@ const ERA_GATE = { stoneWorking: 2, metallurgy: 3, machineryTech: 4, astronomy: 
 // capacity = (base + per * buildingLevel) * (1 + 0.2 per Overflow completion)
 const STORAGE = {
   food:      { base: 200, per: 400, bld: 'storehouse' },
-  wood:      { base: 200, per: 400, bld: 'storehouse' },
-  stone:     { base: 150, per: 350, bld: 'storehouse' },
+  wood:      { base: 200, per: 400, bld: 'storehouse', bonus: { bld: 'removedStorage', per: 200 } },
+  stone:     { base: 150, per: 350, bld: 'storehouse', bonus: { bld: 'removedStorage', per: 200 } },
   tools:     { base: 50,  per: 60,  bld: 'storehouse' },
   iron:      { base: 100, per: 250, bld: 'deepStore' },
   copper:    { base: 25,  per: 100, bld: 'deepStore' },
   coal:      { base: 100, per: 300, bld: 'deepStore' },
-  steel:     { base: 50,  per: 100, bld: 'deepStore' },
-  machinery: { base: 10,  per: 50,  bld: 'vault' },
-  aluminum:  { base: 50,  per: 150, bld: 'aluminumWorks' },
+  steel:     { base: 50,  per: 100, bld: 'deepStore', bonus: { bld: 'removedStorage', per: 100 } },
+  machinery: { base: 10,  per: 50, bld: 'vault', bonus: { bld: 'removedStorage', per: 50 } },
+  aluminum:  { base: 50,  per: 150, bld: 'aluminumWorks', bonus: { bld: 'removedStorage', per: 100 } },
   aether:    { base: 25,  per: 50,  bld: 'vault' },
   oil:       { base: 0,   per: 500, bld: 'deepStore' },
   livingAlloy: { base: 50, per: 150, bld: 'alloyMine' },
@@ -276,6 +276,7 @@ const BUILDINGS = [
 
   { id: 'shrine', name: 'Shrine', max: Infinity, scale: 1.8,
     cost: { wood: 220, stone: 220, currency: 30 },
+    additionalCost: level => level >= 4 ? { fur: 100 } : {},
     effect: () => '+5% all production',
     req: () => era() >= 3, desc: 'for whatever watches over Emberhold. Each Shrine adds +5% to all production. Having at least one Shrine adds +0.012 morale/s while morale is below 75; additional Shrines do not increase this morale bonus.' },
 
@@ -356,7 +357,7 @@ const BUILDINGS = [
     req: () => tech('airControl'), desc: 'a broad stone field, light-metal gantries, and enough faith to trust the sky' },
 
   { id: 'tradeBlimp', name: 'Trade Blimp', max: Infinity, scale: 1.8,
-    cost: { aluminum: 120, steel: 100, machinery: 50 },
+    cost: { aluminum: 120, steel: 100, machinery: 50, fur: 100 },
     effect: () => `supports ${bld('tradeBlimp')} trade route${bld('tradeBlimp') === 1 ? '' : 's'}`,
     req: () => bld('airControl') > 0, desc: 'a lighter-than-air cargo ship, held together by ambition and practical metal' },
 
@@ -365,6 +366,11 @@ const BUILDINGS = [
     effect: () => `gathers ${fmt(0.05 * bld('surveyFlights'))} Survey/s from the upper air`,
     req: () => bld('airControl') > 0 && perm('surveyFlights'),
     desc: 'small planes circle the storm line and return with maps of the world below' },
+
+  { id: 'removedStorage', name: 'Removed Storage', max: Infinity, scale: 2.0,
+    cost: { wood: 300, stone: 300, steel: 180, machinery: 40, aluminum: 60, fur: 200 },
+    effect: () => '+200 wood, +200 stone, +100 steel, +100 aluminum, +50 machinery capacity',
+    req: () => tech('distantStores'), desc: 'stores built where the road is long and the nearest hand is farther still' },
 
   { id: 'blackGoldDrill', name: 'Black Gold Drill', max: Infinity, scale: 1.8,
     cost: { steel: 300, machinery: 120, aluminum: 100 },
@@ -437,6 +443,9 @@ const TECHS = [
   { id: 'airControl', name: 'Air Control', cost: 2600, materials: { aluminum: 80, steel: 200, machinery: 100 },
     desc: 'The sky is wide, but not empty. With enough Sky Metal and stone, we can make a place where machines may rise and return. Unlocks the multi-stage Air Control project.',
     req: () => tech('aluminum') },
+  { id: 'distantStores', name: 'Distant Stores', cost: 3000, materials: { steel: 220, machinery: 100, aluminum: 100 },
+    desc: 'We have tried so hard to keep what we need close at hand. They did not always do this. Perhaps we should not either? Unlocks Removed Storage, which adds moderate capacity for Wood, Stone, Steel, Aluminum, and Machinery per building.',
+    req: () => bld('surveyFlights') > 0 },
   { id: 'oilPower', name: 'Oil Power', cost: 3200, materials: { steel: 240, machinery: 100, oil: 50 },
     desc: 'This black sludge was once the reason for wars among the Ancients. Touching it does not encourage the need for battle in you. Best to be careful. Still, it does burn steadily and so brightly. There are uses for this.',
     req: () => tech('machineryTech') && perm('blackGoldDrills') && state.res.oil > 0 },
