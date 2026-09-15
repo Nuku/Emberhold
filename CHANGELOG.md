@@ -4,6 +4,7 @@ All notable changes to Emberhold are recorded here, with the newest changes firs
 
 ## 2026-09-15
 
+- Adjusted morale production scaling above 100 so excess morale continues to help at half strength instead of being fully capped.
 - Added Distant Stores, which expands Wood, Stone, Steel, Aluminum, and Machinery capacity after Survey Flights.
 - Added Fur costs to Trade Blimps and to Shrine construction from the fifth Shrine onward.
 - Added the “Up, Up and Away” achievement for constructing your first Trade Blimp.

@@ -1536,7 +1536,11 @@ function allMult() {
 }
 
 function moraleMult() {
-  return 1 + (Math.max(0, Math.min(100, Number(state.morale) || 0)) - 70) * (0.3 / 70);
+  const morale = Math.max(0, Number(state.morale) || 0);
+  const cappedMorale = Math.min(100, morale);
+  const excessMorale = Math.max(0, morale - 100);
+  const moraleSlope = 0.3 / 70;
+  return 1 + (cappedMorale - 70) * moraleSlope + excessMorale * moraleSlope * 0.5;
 }
 
 function globalProductionFactors() {
@@ -2883,7 +2887,7 @@ function startGameClock() {
   // lose time; it only wakes the simulation to account for elapsed time.
   if (typeof Worker === 'function') {
     try {
-      gameClockWorker = new Worker('js/game-clock.worker.js?v=publish-20260915u86');
+      gameClockWorker = new Worker('js/game-clock.worker.js?v=publish-20260915u87');
       gameClockWorker.addEventListener('message', () => {
         updateGameClock(true);
         renderBonusTimer();
@@ -4752,7 +4756,7 @@ function renderSidePanel() {
 function loadLatestUpdatesTooltip() {
   const button = document.getElementById('btn-updates');
   if (!button || typeof fetch !== 'function' || typeof DOMParser !== 'function') return;
-  fetch('changelog.html?v=publish-20260915u86')
+  fetch('changelog.html?v=publish-20260915u87')
     .then(response => response.ok ? response.text() : Promise.reject(new Error('changelog unavailable')))
     .then(source => {
       const doc = new DOMParser().parseFromString(source, 'text/html');
