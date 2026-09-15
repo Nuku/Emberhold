@@ -471,7 +471,7 @@ const TECHS = [
     desc: 'We have learned the whispers of this place, and they speak clearly once you care to listen. Trait tooltips reveal their direct effects on the current location.',
     req: () => tech('machineryTech') && currentPlaceTraits().length > 0 },
   { id: 'awakenAncients', name: 'Awaken Ancients', cost: 1500, materials: { steel: 50, machinery: 60 },
-    desc: 'Old diggers stir beneath the works, carrying out orders no living foreman remembers giving. Quarries, Deep Mines, and Coal Seams can each use 0.2 Power for +10% production per powered building. Adjust their supply in the Village or Construction.',
+    desc: 'Old diggers stir beneath the works, carrying out orders no living foreman remembers giving. Each worker in a Quarry, Deep Mine, or Coal Seam can use 0.2 Power for +10% production. Adjust their supply in the Village or Construction.',
     req: () => tech('machineryTech') },
   { id: 'advancedScience', name: 'Advanced Science', cost: 2200, materials: { copper: 180, steel: 100, machinery: 40 },
     desc: 'Questions become dangerous once they can be measured precisely. Unlocks the uncapped Instrument Hall and Experimentalists, whose work advances Knowledge beyond the Thinkers.',

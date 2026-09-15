@@ -1810,6 +1810,7 @@ function chooseFactoryRecipe(id) {
 }
 
 const DIG_SITE_RESOURCES = { quarry: 'stone', deepMine: 'iron', coalSeam: 'coal' };
+const DIG_SITE_WORKERS = { quarry: 'miner', deepMine: 'ironminer', coalSeam: 'digger' };
 const DIG_SITE_POWER = 0.2;
 const POWER_BUILDINGS = {
   livingBlock: { power: LIVING_BLOCK_POWER_REQUIREMENT, label: 'Living Blocks' },
@@ -1825,17 +1826,23 @@ function powerBuildingControllable(id) {
     (id === 'livingBlock' || id === 'factory' || id === 'forge' || id === 'aluminumWorks' || tech('awakenAncients'));
 }
 
+function powerBuildingMax(id) {
+  const worker = DIG_SITE_WORKERS[id];
+  return worker ? (bld(id) > 0 ? Math.max(0, Math.floor(state.jobs[worker] || 0)) : 0) : Math.floor(bld(id));
+}
+
 function buildingPowerCount(id) {
   if (!powerBuildingControllable(id)) return 0;
   const count = state.buildingPower[id];
+  const max = powerBuildingMax(id);
   // New controls default existing buildings to enabled so older saves keep
   // their previous behavior.
-  return Number.isFinite(count) ? Math.max(0, Math.min(Math.floor(bld(id)), Math.floor(count))) : Math.floor(bld(id));
+  return Number.isFinite(count) ? Math.max(0, Math.min(max, Math.floor(count))) : max;
 }
 
 function setBuildingPower(id, count) {
   if (!powerBuildingControllable(id) || !bld(id) || !Number.isFinite(count)) return false;
-  state.buildingPower[id] = Math.max(0, Math.min(Math.floor(bld(id)), Math.floor(count)));
+  state.buildingPower[id] = Math.max(0, Math.min(powerBuildingMax(id), Math.floor(count)));
   return true;
 }
 
@@ -1862,16 +1869,17 @@ function digSitePower() {
 function renderBuildingPower(id, active = powerAllocation()) {
   if (!powerBuildingControllable(id) || !bld(id)) return '';
   const count = buildingPowerCount(id);
+  const max = powerBuildingMax(id);
   const info = POWER_BUILDINGS[id];
   const resource = DIG_SITE_RESOURCES[id] ? resourceName(DIG_SITE_RESOURCES[id]) : null;
   const effect = resource ? `, +${active[id] * 10}% ${resource} production` : '';
-  const supply = info.power ? `Power allocation: ${count} / ${bld(id)} enabled; ${active[id]} active (${+(active[id] * info.power).toFixed(2)} capacity)` :
-    `Production: ${count} / ${bld(id)} enabled; ${active[id]} active`;
+  const supply = info.power ? `Power allocation: ${count} / ${max} workers enabled; ${active[id]} active (${+(active[id] * info.power).toFixed(2)} capacity)` :
+    `Production: ${count} / ${max} enabled; ${active[id]} active`;
   return `<div class="card-desc">${supply}${effect}.</div>` +
     `<div class="card-actions"><button data-action="power-off" data-id="${id}" ${count ? '' : 'disabled'}>Off</button>` +
     `<button data-action="power-dec" data-id="${id}" data-repeat aria-label="Reduce ${id} power" ${count ? '' : 'disabled'}>−</button>` +
-    `<button data-action="power-inc" data-id="${id}" data-repeat aria-label="Increase ${id} power" ${count < bld(id) ? '' : 'disabled'}>+</button>` +
-    `<button data-action="power-all" data-id="${id}" ${count < bld(id) ? '' : 'disabled'}>All</button></div>`;
+    `<button data-action="power-inc" data-id="${id}" data-repeat aria-label="Increase ${id} power" ${count < max ? '' : 'disabled'}>+</button>` +
+    `<button data-action="power-all" data-id="${id}" ${count < max ? '' : 'disabled'}>All</button></div>`;
 }
 
 function production(dt = 0.25, breakdown = null) {
@@ -3469,9 +3477,12 @@ function normalizeSave(s) {
   // unbuilt type would make its first completed instance look explicitly off.
   s.buildingPower = Object.fromEntries(Object.keys(POWER_BUILDINGS)
     .filter(id => s.bld[id] > 0)
-    .map(id => [id, Number.isFinite(s.buildingPower[id])
-      ? Math.max(0, Math.min(Math.floor(s.bld[id]), Math.floor(s.buildingPower[id])))
-      : Math.floor(s.bld[id]) ]));
+    .map(id => {
+      const max = DIG_SITE_WORKERS[id] ? Math.max(0, Math.floor(s.jobs[DIG_SITE_WORKERS[id]] || 0)) : Math.floor(s.bld[id]);
+      return [id, Number.isFinite(s.buildingPower[id])
+        ? Math.max(0, Math.min(max, Math.floor(s.buildingPower[id])))
+        : max];
+    }));
   if (!savedTradePartners) s.tradePartners = [legacyTradePartner || 'human'];
   s.tradePartners = [...new Set(s.tradePartners.filter(id => typeof id === 'string'))];
   if (!s.tradePartners.length) s.tradePartners = [s.tradePartner || 'human'];
@@ -4130,7 +4141,7 @@ function renderBuild() {
     (controllablePowerBuildings.length ? `<button class="subtab ${buildFilter === 'power' ? 'active' : ''}" data-action="build-filter" data-filter="power" role="tab" aria-selected="${buildFilter === 'power'}">Power</button>` : '') +
     `</div>`;
   if (buildFilter === 'power' && controllablePowerBuildings.length) {
-    h += '<div class="res-note">Set how many buildings are enabled. Power is allocated to Living Blocks first, then Quarry, Deep Mine, Coal Seam, and finally Factories; enabled buildings without capacity remain inactive. Forges can be toggled here and do not use Power capacity.</div>';
+    h += '<div class="res-note">Set how many workers are powered. Power is allocated to Living Blocks first, then Quarry, Deep Mine, Coal Seam, and finally Factories; enabled workers without capacity remain inactive. Forges can be toggled here and do not use Power capacity.</div>';
     const active = powerAllocation();
     for (const id of controllablePowerBuildings) {
       h += `<div class="card"><div class="card-title">${BUILDING_BY_ID.get(id).name}</div>${renderBuildingPower(id, active)}</div>`;
@@ -5019,7 +5030,7 @@ function runAction(btn) {
     case 'power-off': setBuildingPower(btn.dataset.id, 0); render(); break;
     case 'power-dec': setBuildingPower(btn.dataset.id, buildingPowerCount(btn.dataset.id) - 1); render(); break;
     case 'power-inc': setBuildingPower(btn.dataset.id, buildingPowerCount(btn.dataset.id) + 1); render(); break;
-    case 'power-all': setBuildingPower(btn.dataset.id, bld(btn.dataset.id)); render(); break;
+    case 'power-all': setBuildingPower(btn.dataset.id, powerBuildingMax(btn.dataset.id)); render(); break;
     case 'wood-coal-dec': setWoodForCoal(btn.dataset.id, woodForCoalCount(btn.dataset.id, woodFuelTotal(btn.dataset.id)) - 1); render(); break;
     case 'wood-coal-inc': setWoodForCoal(btn.dataset.id, woodForCoalCount(btn.dataset.id, woodFuelTotal(btn.dataset.id)) + 1); render(); break;
     case 'research': attemptResearch(btn.dataset.id); render(); break;

@@ -230,12 +230,12 @@ test('Tree Husbandry unlocks after Aqueducts and improves wood income', () => {
 test('dig site power supports partial counts, shortages, save normalization, and fresh settlements', () => {
   const { run } = game();
   run(`state.techs.awakenAncients = true; state.bld.quarry = 20;
-    state.bld.deepMine = 1; state.bld.dynamo = 1;
+    state.bld.deepMine = 1; state.bld.dynamo = 1; state.jobs.miner = 7; state.jobs.ironminer = 1;
     setBuildingPower('quarry', 3); setBuildingPower('deepMine', 1)`);
   assert.equal(run('digSitePower().quarry'), 3);
   assert.equal(run('digSitePower().deepMine'), 1);
   run("setBuildingPower('quarry', 100)");
-  assert.equal(run("buildingPowerCount('quarry')"), 20);
+  assert.equal(run("buildingPowerCount('quarry')"), 7);
   assert.equal(run('digSitePower().quarry'), 7);
   assert.equal(run('digSitePower().deepMine'), 0);
   run('state.bld.dynamo = 0; state.res.power = 100');
@@ -247,10 +247,10 @@ test('dig site power supports partial counts, shortages, save normalization, and
   assert.equal(run("buildingPowerCount('quarry')"), 2);
   run(`state.buildingPower.quarry = 100; state.buildingPower.deepMine = -1;
     state = normalizeSave(JSON.parse(JSON.stringify(state)))`);
-  assert.equal(run("buildingPowerCount('quarry')"), 20);
+  assert.equal(run("buildingPowerCount('quarry')"), 7);
   assert.equal(run("buildingPowerCount('deepMine')"), 0);
   run('delete state.buildingPower; state = normalizeSave(JSON.parse(JSON.stringify(state)))');
-  assert.equal(run("buildingPowerCount('quarry')"), 20);
+  assert.equal(run("buildingPowerCount('quarry')"), 7);
   assert.equal(run("buildingPowerCount('deepMine')"), 1);
   run(`state.bld.factory = 0;
     state = normalizeSave(JSON.parse(JSON.stringify(state)));
@@ -267,7 +267,7 @@ test('power API exposes live capacity, controllable buildings, and action events
   assert.equal(run('window.emberhold.getPower().available'), 2);
   assert.equal(run('Object.keys(window.emberhold.getPower().buildings).length'), 1);
   assert.equal(run("window.emberhold.actions.setBuildingPower('quarry', 1)"), false);
-  run('state.techs.awakenAncients = true');
+  run('state.techs.awakenAncients = true; state.jobs.miner = 10');
   assert.equal(run("window.emberhold.actions.setBuildingPower('quarry', 3)"), true);
   assert.ok(Math.abs(run('window.emberhold.getState().power.used') - 1.6) < 1e-10);
   assert.ok(Math.abs(run('window.emberhold.getPower().available') - 1.4) < 1e-10);
@@ -277,8 +277,8 @@ test('power API exposes live capacity, controllable buildings, and action events
   assert.equal(run('window.emberhold.getPower().buildings.quarry.enabled'), 3);
   assert.equal(run("window.emberhold.action('setBuildingPower', 'quarry', 20)"), true);
   assert.equal(run('window.emberhold.getPower().buildings.quarry.active'), 10);
-  assert.equal(run('window.emberhold.getPower().requested'), 5);
-  assert.equal(run('window.emberhold.getPower().shortfall'), 2);
+  assert.equal(run('window.emberhold.getPower().requested'), 3);
+  assert.equal(run('window.emberhold.getPower().shortfall'), 0);
   assert.equal(run('window.emberhold.getPower().available'), 0);
   run("window.emberhold.actions.setBuildingPower('quarry', 0)");
   assert.equal(run('window.emberhold.getPower().available'), 2);

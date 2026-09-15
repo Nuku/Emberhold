@@ -176,12 +176,12 @@ technology IDs in `api.getState().techs`, then select an unlocked line with
   `requested`, `used`, `resource`, and `productionBonus` (a fraction: `0.1` = +10%).
 
 Power controls are available for Living Blocks and Factories as well as Awaken
-Ancients dig sites. Existing saves keep those buildings enabled by default.
+Ancients dig sites. Existing saves keep existing workers enabled by default.
 
 ```js
 const api = window.emberhold;
 const power = api.getPower();
-api.actions.setBuildingPower('quarry', 1); // Enable one owned Quarry.
+api.actions.setBuildingPower('quarry', 1); // Power one Quarry worker.
 api.action('setBuildingPower', 'quarry', 0); // Turn its power off.
 ```
 
