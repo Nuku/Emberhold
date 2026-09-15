@@ -2185,6 +2185,19 @@ test('every Wonder fate grants the normal migration Echoes', () => {
   }
 });
 
+test('a Wonder can be found and completed again after all fates are known', () => {
+  const { run } = game();
+  run(`state.landing = 'emberplain'; state.techs.optics = true;
+    state.beaconsLit = { emberplain: true }; state.beaconRevisited = { emberplain: true };
+    state.surveyPoints = 100000; state.res.steel = 1000; state.res.machinery = 1000; state.res.food = 5000;
+    wonderRecord('emberplain').outcomes = { restore: true, silence: true, become: true };
+    findWonder();`);
+  assert.equal(run('state.wonders.emberplain.found'), true);
+  run(`state.wonders.emberplain.sections = [true, true, true, true, true]; chooseWonderFate('silence');`);
+  assert.equal(run('state.hope'), 1);
+  assert.equal(run('state.wonders.emberplain.outcomes.silence'), true);
+});
+
 test('self-challenges add 20% per bump to migration rewards', () => {
   const { run } = game();
   run(`state.bld.monument = 1; state.pop = 30; beginMigration();

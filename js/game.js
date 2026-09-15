@@ -629,7 +629,9 @@ function payWonderCost(cost) {
   return true;
 }
 function remainingWonderChoices(record = wonderRecord()) {
-  return ['restore', 'silence', 'become'].filter(choice => !record.outcomes?.[choice]);
+  // Outcomes are permanent history and rewards, not a limit on future
+  // expeditions. A Wonder can be faced again after all of its fates are known.
+  return ['restore', 'silence', 'become'];
 }
 function findWonder() {
   const def = wonderDef();
@@ -4451,8 +4453,8 @@ function renderWonder() {
     ];
     fates.forEach(([id, name, text]) => {
       const done = !!record.outcomes?.[id];
-      h += `<div class="card ${done ? 'done' : ''}"><div class="card-head"><span class="card-title">${name}</span><span class="card-count">${done ? 'Already faced' : 'Ends this attempt'}</span></div><div class="card-desc">${text}</div>` +
-        `<div class="card-actions"><button data-action="wonder-fate" data-id="${id}" ${done ? 'disabled' : ''}>${done ? 'Completed previously' : 'Choose this fate'}</button></div></div>`;
+      h += `<div class="card ${done ? 'done' : ''}"><div class="card-head"><span class="card-title">${name}</span><span class="card-count">${done ? 'Faced before — repeatable' : 'Ends this attempt'}</span></div><div class="card-desc">${text}</div>` +
+        `<div class="card-actions"><button data-action="wonder-fate" data-id="${id}">${done ? 'Choose this fate again' : 'Choose this fate'}</button></div></div>`;
     });
   }
   return h;

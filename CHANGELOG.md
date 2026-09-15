@@ -4,6 +4,7 @@ All notable changes to Emberhold are recorded here, with the newest changes firs
 
 ## 2026-09-15
 
+- Fixed Wonders so they can be revisited after all three fates have been discovered, with previously completed fates clearly marked as repeatable.
 - Fixed queued construction and research so they use the current cost when they dispatch instead of locking in a stale cost from when they were queued; legacy saved queue costs are discarded during migration.
 - Fixed Factory bonuses so they no longer affect Food or Coal production.
 - Adjusted morale production scaling above 100 so excess morale continues to help at half strength instead of being fully capped.
