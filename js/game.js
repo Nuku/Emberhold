@@ -1754,13 +1754,14 @@ const POWER_BUILDINGS = {
   livingBlock: { power: LIVING_BLOCK_POWER_REQUIREMENT, label: 'Living Blocks' },
   ...Object.fromEntries(Object.keys(DIG_SITE_RESOURCES).map(id => [id, { power: DIG_SITE_POWER }])),
   factory: { power: FACTORY_POWER_REQUIREMENT, label: 'Factories' },
+  aluminumWorks: { power: 1, label: 'Sky Metal Forges' },
   // Forges can be switched off, but do not draw from power capacity.
   forge: { power: 0, label: 'Forges' },
 };
 
 function powerBuildingControllable(id) {
   return Object.hasOwn(POWER_BUILDINGS, id) &&
-    (id === 'livingBlock' || id === 'factory' || id === 'forge' || tech('awakenAncients'));
+    (id === 'livingBlock' || id === 'factory' || id === 'forge' || id === 'aluminumWorks' || tech('awakenAncients'));
 }
 
 function buildingPowerCount(id) {
@@ -1781,7 +1782,7 @@ function powerAllocation() {
   const powerFactor = settlementProductionFactors('power').reduce((value, [, factor]) => value * factor, 1);
   let available = Math.max(0, (bld('steamPlant') * POWER_PER_STEAM_PLANT + bld('dynamo') * 1.5 + bld('windDevice') * POWER_PER_WIND_DEVICE) * powerFactor);
   const active = { forge: buildingPowerCount('forge') };
-  for (const id of ['livingBlock', ...Object.keys(DIG_SITE_RESOURCES), 'factory']) {
+  for (const id of ['livingBlock', ...Object.keys(DIG_SITE_RESOURCES), 'factory', 'aluminumWorks']) {
     active[id] = Math.min(buildingPowerCount(id), Math.floor((available + 1e-9) / POWER_BUILDINGS[id].power));
     available = Math.max(0, available - active[id] * POWER_BUILDINGS[id].power);
   }
@@ -1878,13 +1879,22 @@ function production(dt = 0.25, breakdown = null) {
           add(r, `Tinkerer inputs (${recipe.name}): ${n} × ${inputRate}/s`, -n * inputRate);
         }
       } else if (!job.winterproof) {
+        const poweredBuilding = job.poweredBuilding;
+        const enabledBuildings = poweredBuilding ? buildingPowerCount(poweredBuilding) : 0;
+        const activeWorkers = poweredBuilding ? Math.min(n, enabledBuildings * 2) : n;
+        if (poweredBuilding && activeWorkers < 1) continue;
         const supplied = !job.inputs || (state.res.wood > 0 && state.res.stone > 0);
         const factors = [
           ...(j === 'ironminer' && tech('ironMites') ? [['Iron Mites', 1.30]] : []),
           ...(workplaceEthicsFull(j) ? [['Workplace Ethics', 1.10]] : []),
         ];
-        add(job.res, `${jobName(j)}: ${n} × ${job.base}/s`, n * job.base,
+        add(job.res, `${jobName(j)}: ${activeWorkers} × ${job.base}/s`, activeWorkers * job.base,
           [...factors, ...(supplied ? [] : [['Missing wood or stone', 0]])]);
+        if (poweredBuilding) {
+          const poweredBuildings = power[poweredBuilding] || 0;
+          const fuelBuildings = Math.max(0, Math.min(Math.ceil(activeWorkers / 2), enabledBuildings) - poweredBuildings);
+          if (fuelBuildings) add('coal', `${jobName(j)} fuel: ${fuelBuildings} × 5/s`, -fuelBuildings * 5);
+        }
       }
       if (job.inputs && !tinkererFactory) {
         for (const r in job.inputs) add(r, `${jobName(j)} inputs: ${n} × ${job.inputs[r]}/s`, -n * job.inputs[r]);
@@ -4585,7 +4595,7 @@ function renderSidePanel() {
 function loadLatestUpdatesTooltip() {
   const button = document.getElementById('btn-updates');
   if (!button || typeof fetch !== 'function' || typeof DOMParser !== 'function') return;
-  fetch('changelog.html?v=publish-20260915u80')
+  fetch('changelog.html?v=publish-20260915u82')
     .then(response => response.ok ? response.text() : Promise.reject(new Error('changelog unavailable')))
     .then(source => {
       const doc = new DOMParser().parseFromString(source, 'text/html');

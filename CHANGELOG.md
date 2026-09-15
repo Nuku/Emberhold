@@ -5,6 +5,7 @@ All notable changes to Emberhold are recorded here, with the newest changes firs
 ## 2026-09-15
 
 - Added Aluminum, Aluminum Workers, the Aluminum technology, and the Sky Metal Forge for a new light-metal production path.
+- Integrated Sky Metal Forge production with power allocation and coal fuel, limiting Aluminum Workers to powered forge capacity.
 - Changed Clever Storage's uncapped Echo cost to a gentler 1.4x growth curve, rounded up per level; the first levels now cost 1, 2, 2, and 3 Echoes.
 
 ## 2026-09-14
