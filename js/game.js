@@ -2743,7 +2743,7 @@ function startGameClock() {
   // lose time; it only wakes the simulation to account for elapsed time.
   if (typeof Worker === 'function') {
     try {
-  gameClockWorker = new Worker('js/game-clock.worker.js?v=publish-20260914u76');
+  gameClockWorker = new Worker('js/game-clock.worker.js?v=publish-20260914u78');
       gameClockWorker.addEventListener('message', () => {
         updateGameClock(true);
         renderBonusTimer();
@@ -4585,7 +4585,7 @@ function renderSidePanel() {
 function loadLatestUpdatesTooltip() {
   const button = document.getElementById('btn-updates');
   if (!button || typeof fetch !== 'function' || typeof DOMParser !== 'function') return;
-  fetch('changelog.html?v=publish-20260914u76')
+  fetch('changelog.html?v=publish-20260914u78')
     .then(response => response.ok ? response.text() : Promise.reject(new Error('changelog unavailable')))
     .then(source => {
       const doc = new DOMParser().parseFromString(source, 'text/html');
@@ -4974,9 +4974,26 @@ document.addEventListener('dragstart', (e) => {
   item.classList.add('queue-dragging');
   e.dataTransfer.effectAllowed = 'move';
   e.dataTransfer.setData('text/plain', `${draggedQueueItem.type}:${draggedQueueItem.index}`);
+  // The queue renders its own insertion preview. Hide the browser's native
+  // drag ghost so it does not appear as a second copy of the dragged item.
+  const dragImage = document.createElement('canvas');
+  dragImage.width = 1;
+  dragImage.height = 1;
+  e.dataTransfer.setDragImage(dragImage, 0, 0);
 });
 
 document.addEventListener('dragover', (e) => {
+  const insertionPreview = draggedQueueItem?.preview;
+  const onPreview = insertionPreview && (e.target === insertionPreview || insertionPreview.contains(e.target));
+  if (onPreview) {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    draggedQueueItem.drop = {
+      index: +insertionPreview.dataset.index,
+      after: insertionPreview.dataset.after === 'true',
+    };
+    return;
+  }
   const target = e.target.closest('[data-queue-item]');
   if (!draggedQueueItem || !target || target.dataset.type !== draggedQueueItem.type) return;
   e.preventDefault();
