@@ -211,7 +211,7 @@ const BUILDINGS = [
 
   { id: 'monument', name: 'Monument', max: 1, scale: 1,
     cost: { wood: 260, stone: 220, tools: 15, currency: 20 },
-    effect: () => 'unlocks the Trials',
+    effect: () => 'unlocks Trials and Migrations',
     req: () => era() >= 3, desc: 'a stone that dares the village to be better' },
 
   { id: 'barracks', name: 'Barracks', max: Infinity, scale: 1.8,
