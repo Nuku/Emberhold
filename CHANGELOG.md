@@ -4,6 +4,7 @@ All notable changes to Emberhold are recorded here, with the newest changes firs
 
 ## 2026-09-15
 
+- Fixed trial starts so the migration Echoes earned by the current village are awarded immediately before the trial resets the settlement, with the grant recorded in the chronicle.
 - Added the Air Control project, Trade Blimps, Survey Flights, the Trial of the Whiteout, Oil, Black Gold Drills, and Oil Power Plants as a new late-game sky-and-fuel progression.
 - Added Trade Blimp buy/sell orders for common goods, with automatic pausing when Currency or storage is insufficient; Survey Flights now contribute Survey while consuming Aether, Aluminum, and Machinery.
 - Added the 50-stage Air Control construction project and migration-aware Whiteout setup, including storm weather, no Forager work, and a five-year food-survival objective.

@@ -2289,11 +2289,13 @@ function startTrial(id) {
   if (def.repeat > 0 && trialCount(id) >= trialMax(def)) return;
   if (def.repeat === 0 && trialCount(id) > 0) return;
   if (def.req && !def.req()) return;
-  if (!confirm(`Start ${def.name}? This restarts your migration in the same location with the same lineage, upgrades, and governance settings. Your village, resources, and jobs reset to migration starting values; permanent progress is kept. All four difficulty options will be turned on for the trial and will remain active until it ends. No Echoes are awarded. Continue?`)) return;
+  if (!confirm(`Start ${def.name}? This restarts your migration in the same location with the same lineage, upgrades, and governance settings. Your village, resources, and jobs reset to migration starting values; permanent progress is kept. You will receive the migration Echoes due from your village immediately, since there will be no chance to spend them first. All four difficulty options will be turned on for the trial and will remain active until it ends. Continue?`)) return;
+  const earned = echoesEarned([]);
+  state.echoes += earned;
   state.migrationChallenges = MIGRATION_CHALLENGES.map(challenge => challenge.id);
   state.badAncestry = rollBadAncestry(state.species);
   setOut(id);
-  addLog(`The village swears the ${def.name}. ${trialModifierText(def)}`, 'log-important');
+  addLog(`The village swears the ${def.name}. The migration's deeds grant ${earned} Echo${earned === 1 ? '' : 'es'} immediately. ${trialModifierText(def)}`, 'log-important');
   saveGame(true);
 }
 
@@ -2877,7 +2879,7 @@ function startGameClock() {
   // lose time; it only wakes the simulation to account for elapsed time.
   if (typeof Worker === 'function') {
     try {
-  gameClockWorker = new Worker('js/game-clock.worker.js?v=publish-20260914u78');
+      gameClockWorker = new Worker('js/game-clock.worker.js?v=publish-20260915u84');
       gameClockWorker.addEventListener('message', () => {
         updateGameClock(true);
         renderBonusTimer();
@@ -4745,7 +4747,7 @@ function renderSidePanel() {
 function loadLatestUpdatesTooltip() {
   const button = document.getElementById('btn-updates');
   if (!button || typeof fetch !== 'function' || typeof DOMParser !== 'function') return;
-  fetch('changelog.html?v=publish-20260915u82')
+  fetch('changelog.html?v=publish-20260915u84')
     .then(response => response.ok ? response.text() : Promise.reject(new Error('changelog unavailable')))
     .then(source => {
       const doc = new DOMParser().parseFromString(source, 'text/html');

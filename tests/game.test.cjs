@@ -1428,6 +1428,16 @@ test('starting a trial enables every difficulty option until it ends', () => {
   assert.equal(run('state.badAncestry'), null);
 });
 
+test('starting a trial grants the migration Echoes immediately', () => {
+  const { run } = game();
+  run(`confirm = () => true;
+    state.bld.storehouse = 1; state.pop = 30;
+    startTrial('overflow')`);
+  assert.equal(run('state.echoes'), 4);
+  assert.equal(run('state.pendingEchoes'), 0);
+  assert.equal(run('state.trial.id'), 'overflow');
+});
+
 test('Overflow suppresses non-trial storage bonuses while sworn', () => {
   const { run } = game();
   run(`state.trialDone.overflow = 1; state.upgrades.deepCellars = 3; state.techs.civics = true; state.governor = 'quartermaster';
