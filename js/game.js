@@ -1174,6 +1174,24 @@ function queueCost(entry) {
   return effectiveCoalCost(expeditionCost(def));
 }
 
+// Every staged construction registers its queue entry here. Queue behavior is
+// then shared: each update can consume any number of complete stages, while
+// never spending materials toward an incomplete stage.
+function stagedBuildProject(entry) {
+  if (!entry || entry.type !== 'build') return null;
+  if (entry.id === 'beaconStage') return {
+    count: BEACON_STAGE_COUNT,
+    progress: beaconProgress,
+    advance: advanceBeaconProject,
+  };
+  if (entry.id === 'airControlStage') return {
+    count: AIR_CONTROL_STAGE_COUNT,
+    progress: airControlProgress,
+    advance: advanceAirControlProject,
+  };
+  return null;
+}
+
 function researchCost(def) {
   const knowledgeMultiplier = POST_STONE_AGE_RESEARCH.has(def.id)
     ? POST_STONE_AGE_KNOWLEDGE_COST_MULTIPLIER : 1;
@@ -1264,10 +1282,8 @@ function queueWaitingHtml(type, index, entry) {
 }
 
 function queueProgressHtml(entry) {
-  if (entry.type !== 'build') return '';
-  if (entry.id === 'beaconStage') return `<span class="queue-progress">Part ${beaconProgress() + 1} of ${BEACON_STAGE_COUNT}</span>`;
-  if (entry.id === 'airControlStage') return `<span class="queue-progress">Part ${airControlProgress() + 1} of ${AIR_CONTROL_STAGE_COUNT}</span>`;
-  return '';
+  const project = stagedBuildProject(entry);
+  return project ? `<span class="queue-progress">Part ${project.progress() + 1} of ${project.count}</span>` : '';
 }
 
 function queueEntry(type, id) {
@@ -1416,16 +1432,13 @@ function updateQueues() {
         continue;
       }
       if (!canAfford(queueCost(entry))) continue;
-      const completed = type === 'build' && entry.id === 'beaconStage' ? advanceBeaconProject() :
-        type === 'build' && entry.id === 'airControlStage' ? advanceAirControlProject() :
-        type === 'build' ? doBuild(entry.id) :
+      const staged = stagedBuildProject(entry);
+      const multiPartSteps = upg('tillItIsComplete') && staged ? staged.count : 1;
+      const completed = staged ? staged.advance(multiPartSteps) : type === 'build' ? doBuild(entry.id) :
         type === 'research' ? doResearch(entry.id) : doExpedition(entry.id);
-      if (completed && type === 'build' && entry.id === 'beaconStage' && beaconProgress() < BEACON_STAGE_COUNT) {
+      if (completed && staged && staged.progress() < staged.count) {
         state.queues[type].splice(i, 1);
-        state.queues[type].push({ type: 'build', id: 'beaconStage' });
-      } else if (completed && type === 'build' && entry.id === 'airControlStage' && airControlProgress() < AIR_CONTROL_STAGE_COUNT) {
-        state.queues[type].splice(i, 1);
-        state.queues[type].push({ type: 'build', id: 'airControlStage' });
+        state.queues[type].push(entry);
       } else if (completed) state.queues[type].splice(i, 1);
     }
   }
@@ -2615,6 +2628,7 @@ function migrationBuy(id) {
   if (id === 'practicedMigrator' && !practicedMigratorAvailable()) return;
   if (id === 'animalHusbandry' && !animalHusbandryAvailable()) return;
   if (id === 'blackGoldDrills' && !perm('surveyFlights')) return;
+  if (def.req && !def.req()) return;
   const lvl = upg(id);
   if (lvl >= def.max) return;
   const cost = upgradeCost(def, lvl);
@@ -2918,7 +2932,7 @@ function startGameClock() {
   // lose time; it only wakes the simulation to account for elapsed time.
   if (typeof Worker === 'function') {
     try {
-      gameClockWorker = new Worker('js/game-clock.worker.js?v=publish-20260916u99');
+      gameClockWorker = new Worker('js/game-clock.worker.js?v=publish-20260916u100');
       gameClockWorker.addEventListener('message', () => {
         updateGameClock(true);
         renderBonusTimer();
@@ -4632,6 +4646,7 @@ function renderShop() {
     }
   }
   for (const u of UPGRADES) {
+    if (u.req && !u.req()) continue;
     if (u.id === 'farHorizons' && !LINEAGES.some(l => l.id !== 'human' && lineageUnlocked(l.id))) continue;
     if (u.id === 'fearOfTheConqueror' && !fearOfTheConquerorAvailable()) continue;
     if (u.id === 'practicedMigrator' && !practicedMigratorAvailable()) continue;
@@ -4794,7 +4809,7 @@ function renderSidePanel() {
 function loadLatestUpdatesTooltip() {
   const button = document.getElementById('btn-updates');
   if (!button || typeof fetch !== 'function' || typeof DOMParser !== 'function') return;
-  fetch('changelog.html?v=publish-20260916u99')
+  fetch('changelog.html?v=publish-20260916u100')
     .then(response => response.ok ? response.text() : Promise.reject(new Error('changelog unavailable')))
     .then(source => {
       const doc = new DOMParser().parseFromString(source, 'text/html');

@@ -417,6 +417,21 @@ test('staged projects show the next part and total parts in the queue', () => {
   assert.match(html, /Part 13 of 50/);
 });
 
+test('Till It Is Complete requires Known Task and advances every affordable queued stage', () => {
+  const { run } = game();
+  run(`state.migrating = true; state.echoes = 100;
+    migrationBuy('tillItIsComplete');`);
+  assert.equal(run("upg('tillItIsComplete')"), 0);
+  assert.equal(run('state.echoes'), 100);
+  run(`state.echoes = 110; migrationBuy('knownTask'); migrationBuy('tillItIsComplete');
+    state.queues.build = [{ type: 'build', id: 'airControlStage' }];
+    state.airControlProgress = 7; state.res.aluminum = 100000; state.res.steel = 100000;
+    state.res.stone = 100000; updateQueues();`);
+  assert.equal(run("upg('tillItIsComplete')"), 1);
+  assert.equal(run('state.airControlProgress'), 50);
+  assert.equal(run('state.queues.build.length'), 0);
+});
+
 test('physical research requires its material inputs in addition to Knowledge', () => {
   const { run } = game();
   assert.deepEqual(JSON.parse(run("JSON.stringify(researchCost(TECHS.find(t => t.id === 'metallurgy')))")),
