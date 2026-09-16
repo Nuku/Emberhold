@@ -953,7 +953,7 @@ function conquestTrialAvailable() {
 // ---------- storage ----------
 function currencyCapacity(jobs = state?.jobs, source = state) {
   const storageBonus = state?.trial?.id === 'overflow' ? 1 : 1 + 0.01 * upg('cleverStorage');
-  return Math.ceil((CURRENCY_BASE_CAP * (1 + 0.10 * (jobs?.banker || 0)) * storageBonus * conqueredStorageMod(source)) - 1e-9);
+  return Math.ceil((CURRENCY_BASE_CAP * (1 + 0.10 * (jobs?.banker || 0)) * storageBonus * conqueredStorageMod(source)) - 1e-12);
 }
 
 function capacityOf(id) {
@@ -969,7 +969,7 @@ function capacityOf(id) {
     permanentStorage * runStorage * governanceStorage *
     (overflowActive ? 1 : 1 + 0.01 * upg('cleverStorage')) *
     conqueredStorageMod() *
-    (overflowActive ? trialDifficulty('overflow') : 1)) - 1e-9);
+    (overflowActive ? trialDifficulty('overflow') : 1)) - 1e-12);
 }
 function isFull(id) { return state.res[id] >= capacityOf(id) - 0.001; }
 
@@ -2189,7 +2189,9 @@ function jobProduction(jobId) {
   production(0, breakdown);
   state.jobs[jobId] = previous;
   const resultResource = job.factoryLike && tinkererFactoryAvailable() ? factoryRecipe().id : job.res;
-  const entry = (breakdown[resultResource] || []).find(item => item.label.startsWith(`${jobName(jobId)}:`) || item.label.startsWith(`${jobName(jobId)} (`));
+  const name = jobName(jobId);
+  const entry = (breakdown[resultResource] || []).find(item => item.label.startsWith(`${name}:`) ||
+    item.label.startsWith(`${name} (`) || item.label.startsWith(`${name}s (`));
   return entry ? entry.amount / (previous + 1) : 0;
 }
 
@@ -2916,7 +2918,7 @@ function startGameClock() {
   // lose time; it only wakes the simulation to account for elapsed time.
   if (typeof Worker === 'function') {
     try {
-      gameClockWorker = new Worker('js/game-clock.worker.js?v=publish-20260916u96');
+      gameClockWorker = new Worker('js/game-clock.worker.js?v=publish-20260916u97');
       gameClockWorker.addEventListener('message', () => {
         updateGameClock(true);
         renderBonusTimer();
@@ -4792,7 +4794,7 @@ function renderSidePanel() {
 function loadLatestUpdatesTooltip() {
   const button = document.getElementById('btn-updates');
   if (!button || typeof fetch !== 'function' || typeof DOMParser !== 'function') return;
-  fetch('changelog.html?v=publish-20260916u96')
+  fetch('changelog.html?v=publish-20260916u97')
     .then(response => response.ok ? response.text() : Promise.reject(new Error('changelog unavailable')))
     .then(source => {
       const doc = new DOMParser().parseFromString(source, 'text/html');

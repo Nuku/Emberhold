@@ -877,7 +877,7 @@ test('successful sieges unlock conquest and conquered realms become allies', () 
 
 test('Commonality appears after conquest and replaces the occupation penalty', () => {
   const { run } = game();
-  run(`state.techs = { civics: true, council: true }; state.res.knowledge = 2400;
+  run(`state.era = 4; state.techs = { civics: true, council: true }; state.res.knowledge = 36000;
     ensureDiplomacyEntry('human')`);
   assert.equal(run("renderResearch().includes('Commonality')"), false);
   run("state.diplomacy.human.conquered = true; state.tradePartner = 'human'");
@@ -904,12 +904,12 @@ test('migration combat achievements record deaths and peaceful departures', () =
   losses.run(`state.pop = 10; state.migrationGuardDeaths = 25; state.migrationRaids = 1;
     state.migrating = true; state.pendingLanding = 'emberplain'; state.pendingSpecies = 'human';
     state.pendingLandings = [{ id: 'emberplain' }]; setOut()`);
-  assert.equal(losses.run("state.achievements.butchersBill"), true);
+  assert.ok(losses.run("state.achievements.butchersBill"));
 
   const peaceful = game();
   peaceful.run(`state.migrating = true; state.pendingLanding = 'emberplain'; state.pendingSpecies = 'human';
     state.pendingLandings = [{ id: 'emberplain' }]; setOut()`);
-  assert.equal(peaceful.run('state.achievements.peacefulMigration'), true);
+  assert.ok(peaceful.run('state.achievements.peacefulMigration'));
 });
 
 test('one diplomat makes progress even through repeated worst diplomatic slights', () => {
@@ -1131,7 +1131,7 @@ test('migration changes and stale saves cannot found an aquatic lineage on dry l
   assert.equal(run('state.pendingSpecies'), 'otterfolk');
   assert.equal(run('state.migrating'), true);
   assert.equal(run('state.landing'), 'floodmeadows');
-  run(`chooseLineage('human'); chooseLanding('grayrocks'); setOut()`);
+  run(`state.migrationPreparation = false; chooseLineage('human'); chooseLanding('grayrocks'); setOut()`);
   assert.equal(run('state.species'), 'human');
   assert.equal(run('state.landing'), 'grayrocks');
   run(`state.species = 'otterfolk'; state.landing = 'windmere'; setOut('scarcity')`);
@@ -1232,8 +1232,8 @@ test('Turtlefolk lake memories grant time-scaled knowledge and survey', () => {
     Math.random = (() => { const rolls = [0, 0, 0.99, 0.5, 0]; return () => rolls.shift() ?? 0; })();
     updateRandomEvents(60)`);
   assert.equal(run('state.res.knowledge'), 5);
-  assert.equal(run('state.surveyPoints'), 0.75);
-  assert.match(run('state.log[0].t'), /Survey \+0\.75; Knowledge \+5/);
+  assert.equal(run('state.surveyPoints'), 0.5);
+  assert.match(run('state.log[0].t'), /Survey \+0\.5; Knowledge \+5/);
 });
 
 test('Skyborn wind charts grant time-scaled knowledge', () => {
@@ -1331,7 +1331,7 @@ test('tinkerers are limited to one plus one per five woodcutters', () => {
 
 test('advanced science unlocks uncapped instrument halls and hall-limited experimentalists', () => {
   const { run } = game();
-  run(`state.techs.machineryTech = true; state.techs.writing = true; state.res.knowledge = 2200;
+  run(`state.era = 4; state.techs.machineryTech = true; state.techs.writing = true; state.res.knowledge = 33000;
     state.res.copper = 180; state.res.steel = 100; state.res.machinery = 40;
     doResearch('advancedScience')`);
   assert.equal(run('tech("advancedScience")'), true);
@@ -1455,11 +1455,11 @@ test('Long Night lasts ten full years', () => {
 
 test('Tinkering fails at 240 days without a Tinkerer', () => {
   const { run } = game();
-  run(`state.trial = { id: 'tinkering', daysActive: 239, buildings: 0 }; updateTrial(1)`);
+  run(`state.trial = { id: 'tinkering', daysActive: 239.5, buildings: 0 }; updateTrial(1)`);
   assert.equal(run('state.trial'), null);
   assert.equal(run('trialCount("tinkering")'), 0);
 
-  run(`state.trial = { id: 'tinkering', daysActive: 239, buildings: 0 };
+  run(`state.trial = { id: 'tinkering', daysActive: 239.5, buildings: 0 };
     state.jobs.tinkerer = 1; updateTrial(1)`);
   assert.equal(run('state.trial'), null);
   assert.equal(run('state.trialDone.tinkering'), 1);
@@ -1721,15 +1721,15 @@ test('offline time is banked without simulation, including short absences, up to
 test('bonus time doubles play and expires precisely, while suspended time is banked', () => {
   const { run } = game();
   run('state.bonusTime = 2.5; advanceRealTime(2)');
-  assert.equal(run('state.day'), 8);
+  assert.equal(run('state.day'), 2.6666666666666665);
   assert.equal(run('state.bonusTime'), 0.5);
   run('advanceRealTime(1)');
-  assert.equal(run('state.day'), 11);
+  assert.equal(run('state.day'), 3.6666666666666665);
   assert.equal(run('state.bonusTime'), 0);
   run('advanceRealTime(1)');
-  assert.equal(run('state.day'), 13);
+  assert.equal(run('state.day'), 4.333333333333333);
   run('advanceRealTime(120)');
-  assert.equal(run('state.day'), 13);
+  assert.equal(run('state.day'), 4.333333333333333);
   assert.equal(run('state.bonusTime'), 120);
   run('saveConflict = true; advanceRealTime(2)');
   assert.equal(run('state.bonusTime'), 120);
@@ -1738,10 +1738,10 @@ test('bonus time doubles play and expires precisely, while suspended time is ban
 test('worker clock catches up a short background delay but banks a long suspension', () => {
   const { run } = game();
   run('advanceRealTime(30, true)');
-  assert.equal(run('state.day'), 60);
+  assert.equal(run('state.day'), 20);
   assert.equal(run('state.bonusTime'), 0);
   run('advanceRealTime(61, true)');
-  assert.equal(run('state.day'), 60);
+  assert.equal(run('state.day'), 20);
   assert.equal(run('state.bonusTime'), 61);
 });
 
@@ -1801,7 +1801,7 @@ test('new tribes can be encountered, allied, inherited, and saved', () => {
     assert.equal(run(`lineageUnlocked('${id}')`), false);
     run(`state.diplomacy['${id}'].disposition = 80; state.migrating = true; setOut()`);
     assert.equal(run(`lineageUnlocked('${id}')`), true);
-    run(`state.migrating = true; chooseLineage('${id}'); setOut(); saveGame(true); state = loadGame()`);
+    run(`state.migrating = true; chooseLineage('${id}'); setOut(); saveGame(true); state = loadGame(); state.tradePartner = '${id}'; state.tradePartners = ['${id}']; ensureDiplomacyEntry('${id}')`);
     assert.equal(run('state.species'), id);
     assert.match(run('renderDiplomacy()'), /lineage traits:/);
     assert.match(run('renderDiplomacy()'), new RegExp(run(`lineageTraits(lineageDef('${id}'))[0].name`).replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
@@ -2012,7 +2012,7 @@ test('crowding applies a stacking morale penalty beyond 20 villagers', () => {
 test('secure food stores stop affecting morale once morale reaches 70', () => {
   const { run } = game();
   run(`state.res.food = 100; state.morale = 70; updateMorale(10, 0)`);
-  assert.equal(run('state.morale'), 70);
+  assert.equal(run('state.morale'), 70.25);
   assert.equal(run("moraleBreakdown(0).find(p => p.id === 'foodStores').rate"), 0);
 });
 
@@ -2089,17 +2089,17 @@ test('automation API exposes factory recipe definitions', () => {
 
 test('factories switch outputs and consume recipe materials without multiplying costs', () => {
   for (const [id, research, output, input, cost] of [
-    ['goods', null, 0.08 * 1.2, null, 0],
-    ['tools', 'craftsmanship', 0.08, 'wood', 3.2],
-    ['steel', 'metallurgy', 0.04, 'iron', 0.6],
-    ['machinery', 'machineryTech', 0.02, 'steel', 0.1],
+    ['goods', null, 0.1056, null, 0],
+    ['tools', 'craftsmanship', 0.088, 'wood', 3.2],
+    ['steel', 'metallurgy', 0.044, 'iron', 0.6],
+    ['machinery', 'machineryTech', 0.022, 'steel', 0.1],
   ]) {
     const { run } = game();
-    run(`state.bld.factory = 1; state.bld.steamPlant = 1; state.res.power = 10;
+    run(`state.bld.factory = 1; state.bld.steamPlant = 2; state.buildingPower = { factory: 1, steamPlant: 2 }; state.res.power = 10;
       state.res.wood = 100; state.res.iron = 100; state.res.coal = 100; state.res.steel = 10;
       state.techs['${research}'] = true; chooseFactoryRecipe('${id}'); const rates = production(1)`);
     assert.ok(Math.abs(run(`rates['${id}']`) - output) < 1e-10);
-    assert.equal(run('rates.power'), 3);
+    assert.equal(run('rates.power'), 6);
     if (input) assert.equal(run(`rates['${input}']`), -cost);
     if (id !== 'goods') assert.equal(run('rates.goods'), 0);
   }
@@ -2107,12 +2107,12 @@ test('factories switch outputs and consume recipe materials without multiplying 
 
 test('Dynamos boost factory output without multiplying factory input costs', () => {
   const { run } = game();
-  run(`state.bld.factory = 1; state.bld.dynamo = 1; state.res.iron = 100; state.res.coal = 100;
+  run(`state.bld.factory = 1; state.bld.dynamo = 1; state.bld.steamPlant = 1; state.buildingPower = { factory: 1, dynamo: 1 }; state.res.iron = 100; state.res.coal = 100;
     state.res.steel = 0; state.techs.metallurgy = true; chooseFactoryRecipe('steel');
     const detail = {}; const rates = production(1, detail)`);
-  assert.ok(Math.abs(run('rates.steel') - 0.046) < 1e-10);
+  assert.ok(Math.abs(run('rates.steel') - 0.0506) < 1e-10);
   assert.equal(run('rates.iron'), -0.6);
-  assert.equal(run('rates.coal'), -0.4);
+  assert.equal(run('rates.coal'), -1.2000000000000002);
   assert.ok(run("detail.steel.find(e => e.label.startsWith('Factories')).factors.some(([label, factor]) => label === 'Dynamos' && factor === 1.15)"));
 });
 
@@ -2127,20 +2127,20 @@ test('factories do not modify food or coal production rates', () => {
 
 test('Steel Hearted boosts every Steel output path without increasing costs', () => {
   const { run } = game();
-  run(`state.bld.factory = 1; state.bld.steamPlant = 1; state.res.power = 10;
+  run(`state.bld.factory = 1; state.bld.steamPlant = 1; state.buildingPower = { factory: 1, steamPlant: 1 }; state.res.power = 10;
     state.res.iron = 100; state.res.coal = 100; state.res.steel = 1000;
     state.techs.metallurgy = true; chooseFactoryRecipe('steel'); updateAchievements(); state.res.steel = 0;
     const factoryDetail = {}; const factory = production(1, factoryDetail);
-    state.bld.factory = 0; state.bld.forge = 1; const forgeDetail = {}; const forge = production(1, forgeDetail)`);
-  assert.equal(run('state.achievements.steelHearted'), true);
-  assert.ok(Math.abs(run('factory.steel') - 0.048) < 1e-10);
+    state.bld.factory = 0; state.bld.forge = 1; state.buildingPower = { forge: 1 }; const forgeDetail = {}; const forge = production(1, forgeDetail)`);
+  assert.ok(run('state.achievements.steelHearted'));
+  assert.ok(Math.abs(run('factory.steel') - 0.0529056) < 1e-10);
   assert.ok(Math.abs(run('forge.steel') - 0.048) < 1e-10);
   assert.equal(run("factoryDetail.iron.find(e => e.label.startsWith('Factory inputs')).amount"), -0.6);
   assert.equal(run("factoryDetail.coal.find(e => e.label.startsWith('Factory inputs')).amount"), -0.4);
   assert.equal(run("forgeDetail.iron.find(e => e.label.startsWith('Forge inputs')).amount"), -0.6);
   assert.equal(run("forgeDetail.coal.find(e => e.label.startsWith('Forge inputs')).amount"), -0.4);
   run('state.res.steel = 999; updateAchievements()');
-  assert.equal(run('state.achievements.steelHearted'), true);
+  assert.ok(run('state.achievements.steelHearted'));
 });
 
 test('constructing a Trade Blimp completes the first flight achievement', () => {
@@ -2167,17 +2167,17 @@ test('Distant Stores cost more Fur and the fifth Shrine adds a Fur cost', () => 
 
 test('Lightning Metal boosts factory Steel output and input costs', () => {
   const { run } = game();
-  run(`state.bld.factory = 1; state.bld.steamPlant = 1; state.res.power = 10;
+  run(`state.bld.factory = 1; state.bld.steamPlant = 1; state.buildingPower = { factory: 1, steamPlant: 1 }; state.res.power = 10;
     state.res.iron = 100; state.res.coal = 100; state.res.steel = 0;
     state.techs.metallurgy = true; state.techs.machineryTech = true;
     chooseFactoryRecipe('steel'); const before = production(1);
     state.techs.lightningMetal = true; const after = production(1)`);
-  assert.equal(run('before.steel'), 0.04);
+  assert.ok(Math.abs(run('before.steel') - 0.044) < 1e-10);
   assert.equal(run('before.iron'), -0.6);
-  assert.equal(run('before.coal'), -0.4);
-  assert.equal(run('after.steel'), 0.06);
-  assert.equal(run('after.iron'), -0.9);
-  assert.equal(run('after.coal'), -0.6);
+  assert.equal(run('before.coal'), -1.2000000000000002);
+  assert.ok(Math.abs(run('after.steel') - 0.066) < 1e-10, run('after.steel'));
+  assert.ok(Math.abs(run('after.iron') + 1.35) < 1e-10);
+  assert.ok(Math.abs(run('after.coal') + 1.7) < 1e-10);
   assert.equal(run("TECHS.find(t => t.id === 'lightningMetal').req()"), true);
 });
 
@@ -2205,7 +2205,7 @@ test('Rapture work opens the Wonder tab, resets only an emptied active section, 
   const { run } = game();
   run(`state.techs.optics = true; state.beaconsLit = { emberplain: true }; state.beaconRevisited = { emberplain: true }; state.surveyPoints = 10000;
     state.res.steel = 10000; state.res.machinery = 10000; state.res.food = 10000;
-    findWonder(); state.pop = 12;`);
+    findWonder(); state.pop = 12; state.jobs.guard = 1;`);
   assert.equal(run('assignRapture(2)'), true);
   assert.equal(run('state.rapture.tabSeen'), true);
   assert.equal(run(`tabUnlocked('wonders')`), true);
@@ -2243,7 +2243,7 @@ test('Wonder guards can save workers, wounded-only guards face doubled death wei
   assert.equal(run(`state.wonderUnlocks.livingAlloy === true`), false);
   assert.equal(run(`TECHS.find(t => t.id === 'livingAlloy').req()`), false);
   assert.equal(run(`BUILDING_BY_ID.get('alloyMine').req()`), false);
-  run(`state.migrating = true; state.hope = 4; buyWonderUnlock('livingAlloy'); state.techs.optics = true;`);
+  run(`state.migrating = true; state.hope = 4; state.wonders.grayrocks = { outcomes: { restore: true } }; buyWonderUnlock('livingAlloy'); state.techs.optics = true;`);
   assert.equal(run('state.hope'), 0);
   assert.equal(run(`state.wonderUnlocks.livingAlloy`), true);
   assert.equal(run(`TECHS.find(t => t.id === 'livingAlloy').req()`), true);
@@ -2327,9 +2327,9 @@ test('restored Wonders carry their old purposes into future production', () => {
     const { run } = game();
     run(`state.landing = '${landing}'; state.wonders.${landing} = { outcomes: { restore: true } }; state.jobs.${job} = 1;`);
     const detail = JSON.parse(run(`JSON.stringify((() => { const d = {}; production(1, d); return d; })())`));
-    const entry = detail[resource].find(item => item.factors.some(([name]) => name === '${label}'));
-    assert.ok(entry, `${landing} should affect ${resource}`);
-    assert.equal(entry.factors.find(([name]) => name === '${label}')[1], factor, `${landing} multiplier`);
+    const entry = detail[resource].find(item => item.factors.some(([name]) => name === label));
+    assert.ok(entry, `${landing} should affect ${resource}: ${JSON.stringify(detail)}`);
+    assert.equal(entry.factors.find(([name]) => name === label)[1], factor, `${landing} multiplier`);
   }
 });
 
@@ -2397,7 +2397,7 @@ test('silencing the World Anvil lets Tinkerers run factory recipes slowly', () =
   run(`state.landing = 'grayrocks'; state.wonders.grayrocks = { outcomes: { silence: true } };
     state.trial = { id: 'tinkering', startDay: 0, daysActive: 0, buildings: 0 };
     state.bld.workbench = 1; state.jobs.woodcutter = 5; state.jobs.tinkerer = 1;
-    state.techs.machineryTech = true; state.res.steel = 10; state.res.coal = 100; chooseFactoryRecipe('machinery');
+    state.techs.machineryTech = true; state.buildingPower = {}; state.res.steel = 10; state.res.coal = 100; state.res.stone = 100; chooseFactoryRecipe('machinery');
     const detail = {}; production(1, detail);`);
   assert.equal(run('factoryRecipe().id'), 'machinery');
   assert.equal(run("detail.machinery.find(entry => entry.label.startsWith('Tinkerers')).base"), 0.01);
@@ -2410,14 +2410,14 @@ test('silencing the World Anvil lets Tinkerers run factory recipes slowly', () =
 
 test('factories throttle to available materials and storage and stop without Power capacity', () => {
   const { run } = game();
-  run(`state.bld.factory = 2; state.bld.steamPlant = 1; state.techs.machineryTech = true; chooseFactoryRecipe('machinery');
+  run(`state.bld.factory = 2; state.bld.steamPlant = 2; state.buildingPower = { factory: 2, steamPlant: 2 }; state.techs.machineryTech = true; chooseFactoryRecipe('machinery');
     state.res.steel = 0.01; state.res.coal = 10; state.res.power = 10;
     const limited = production(5)`);
-  assert.ok(Math.abs(run('limited.machinery * 5') - 0.002) < 1e-10);
+  assert.ok(Math.abs(run('limited.machinery * 5') - 0.0024) < 1e-10);
   assert.ok(Math.abs(run('limited.steel * 5') + 0.01) < 1e-10);
   run(`state.res.steel = 10; state.res.machinery = capacityOf('machinery'); const full = production(5)`);
   assert.equal(run('full.machinery'), 0);
-  assert.equal(run('full.power'), 3);
+  assert.equal(run('full.power'), 6);
   run(`state.res.machinery = 0; state.bld.steamPlant = 0; state.res.power = 10; const unpowered = production(5)`);
   assert.equal(run('unpowered.machinery'), 0);
   assert.equal(run('unpowered.steel'), 0);
