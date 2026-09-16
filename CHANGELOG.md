@@ -9,6 +9,7 @@ All notable changes to Emberhold are recorded here, with the newest changes firs
 - Reduced Known Task's cost from 100 Echoes to 10 Echoes.
 - Added the Till It Is Complete Echo upgrade, which lets queued multi-part projects commit every currently affordable full stage in one update after Known Task is learned.
 - Added queue progress labels for the staged Beacon and Air Control projects.
+- Fixed time-based random-event rewards so lineage-specific resource floors scale with the affected resource's storage capacity.
 - Fixed capacity calculations so fractional floating-point precision cannot incorrectly round resource storage upward.
 - Fixed production-rate inspection for worker types whose detailed breakdown uses a pluralized label.
 - Displayed the current landing name in the village overview.

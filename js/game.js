@@ -1803,7 +1803,7 @@ function updateRandomEvents(dt) {
   for (const { id: resource, name } of RESOURCES) {
     if (!event[resource] || !state.seen[resource]) continue;
     const amount = (event.timeReward
-      ? Math.max(randomRange(event[resource]), Math.round(Math.max(0, timeRates[resource] || 0) * timeSeconds))
+      ? Math.max(randomEventResourceAmount(resource, event[resource]), Math.round(Math.max(0, timeRates[resource] || 0) * timeSeconds))
       : randomEventResourceAmount(resource, event[resource])) * (local ? lineageSpecialValue('eventReward') : 1);
     const before = state.res[resource];
     // Rewards never discard an existing over-cap stockpile.
@@ -2932,7 +2932,7 @@ function startGameClock() {
   // lose time; it only wakes the simulation to account for elapsed time.
   if (typeof Worker === 'function') {
     try {
-      gameClockWorker = new Worker('js/game-clock.worker.js?v=publish-20260916u100');
+      gameClockWorker = new Worker('js/game-clock.worker.js?v=publish-20260916u110');
       gameClockWorker.addEventListener('message', () => {
         updateGameClock(true);
         renderBonusTimer();
@@ -4809,7 +4809,7 @@ function renderSidePanel() {
 function loadLatestUpdatesTooltip() {
   const button = document.getElementById('btn-updates');
   if (!button || typeof fetch !== 'function' || typeof DOMParser !== 'function') return;
-  fetch('changelog.html?v=publish-20260916u100')
+  fetch('changelog.html?v=publish-20260916u110')
     .then(response => response.ok ? response.text() : Promise.reject(new Error('changelog unavailable')))
     .then(source => {
       const doc = new DOMParser().parseFromString(source, 'text/html');

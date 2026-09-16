@@ -1241,6 +1241,20 @@ test('resource happenings scale with the affected resource storage capacity', ()
   assert.equal(run('state.res.wood'), baseGain * 3);
 });
 
+test('time-reward lineage happenings scale their listed resource floor', () => {
+  const { run } = game();
+  run(`state.species = 'lynxfolk'; state.seen.copper = true; state.res.copper = 0;
+    Math.random = (() => { const rolls = [0, 0, 0.99, 0, 0]; return () => rolls.shift() ?? 0; })();
+    updateRandomEvents(60)`);
+  const baseGain = run('state.res.copper');
+  assert.equal(baseGain, 2);
+
+  run(`state.res.copper = 0; state.bld.deepStore = 1; state.randomEventT = 60;
+    Math.random = (() => { const rolls = [0, 0, 0.99, 0, 0]; return () => rolls.shift() ?? 0; })();
+    updateRandomEvents(60)`);
+  assert.equal(run('state.res.copper'), baseGain * 5);
+});
+
 test('Turtlefolk lake memories grant time-scaled knowledge and survey', () => {
   const { run } = game();
   run(`state.species = 'turtlefolk'; state.seen.knowledge = true; state.res.knowledge = 0;
