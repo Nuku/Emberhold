@@ -699,6 +699,29 @@ test('Clever Storage is an uncapped, increasingly expensive Echo upgrade', () =>
   assert.equal(run("upg('cleverStorage')"), 3);
 });
 
+test('Known Task automatically commits migration supplies', () => {
+  const { run } = game();
+  run(`state.migrating = true; state.migrationPreparation = true;
+    state.upgrades.knownTask = 1; state.res.food = 1200; state.res.wood = 800;
+    state.res.stone = 120; state.res.tools = 20; autoFillMigrationSupplies()`);
+  assert.deepEqual(JSON.parse(run('JSON.stringify(state.projects)')), {
+    migrationProvisions: 2, migrationCaravan: 2, migrationRoadwork: 2, migrationTools: 2,
+  });
+  assert.equal(run('state.res.food'), 0);
+  assert.equal(run('state.res.wood'), 0);
+  assert.equal(run('state.res.stone'), 0);
+  assert.equal(run('state.res.tools'), 0);
+});
+
+test('Known Task fills supplies produced during migration preparation', () => {
+  const { run } = game();
+  run(`state.migrating = true; state.migrationPreparation = true;
+    state.upgrades.knownTask = 1; state.projects.migrationProvisions = 99;
+    state.bld.storehouse = 2; state.res.food = 599.95; state.jobs.forager = 1; tickStep(1)`);
+  assert.equal(run('state.projects.migrationProvisions'), 100);
+  assert.ok(run('state.res.food') < 0.1);
+});
+
 test('multiple local tribes can be active at once', () => {
   const { run } = game();
   run(`state.techs = { currency: true, diplomacy: true };

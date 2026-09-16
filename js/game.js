@@ -2526,6 +2526,13 @@ function advanceResourceProject(id, parts = 1) {
   return completed;
 }
 
+function autoFillMigrationSupplies() {
+  if (!state.migrating || !state.migrationPreparation || !upg('knownTask')) return;
+  // Commit the available matching stores in whole 1% steps, including output
+  // that was produced during this simulation step.
+  for (const project of RESOURCE_PROJECTS) advanceResourceProject(project.id, 100);
+}
+
 function migrationPreparationComplete() {
   return RESOURCE_PROJECTS.every(project => projectProgress(project.id) >= 100);
 }
@@ -2902,7 +2909,7 @@ function startGameClock() {
   // lose time; it only wakes the simulation to account for elapsed time.
   if (typeof Worker === 'function') {
     try {
-      gameClockWorker = new Worker('js/game-clock.worker.js?v=publish-20260915u90');
+      gameClockWorker = new Worker('js/game-clock.worker.js?v=publish-20260916u94');
       gameClockWorker.addEventListener('message', () => {
         updateGameClock(true);
         renderBonusTimer();
@@ -2960,6 +2967,7 @@ function tickStep(dt) {
       state.seen[r] = true;
     }
   }
+  autoFillMigrationSupplies();
   if (trialActive('silence')) {
     state.trial.steelProduced = (state.trial.steelProduced || 0) +
       Math.max(0, state.res.steel - steelBefore);
@@ -4646,7 +4654,7 @@ function renderShop() {
 function renderMigrationPreparation() {
   if (!state.migrationPreparation) return '';
   let h = '<h2 class="section">Migration preparations</h2>';
-  h += '<div class="res-note">Each 1% consumes one hundredth of the total listed cost. Hold a button to commit available supplies as they arrive.</div>';
+  h += `<div class="res-note">Each 1% consumes one hundredth of the total listed cost. ${upg('knownTask') ? 'Known Task automatically commits matching supplies as they are produced.' : 'Hold a button to commit available supplies as they arrive.'}</div>`;
   for (const project of RESOURCE_PROJECTS) {
     const progress = projectProgress(project.id);
     const partCost = projectPartCost(project);
@@ -4776,7 +4784,7 @@ function renderSidePanel() {
 function loadLatestUpdatesTooltip() {
   const button = document.getElementById('btn-updates');
   if (!button || typeof fetch !== 'function' || typeof DOMParser !== 'function') return;
-  fetch('changelog.html?v=publish-20260915u93')
+  fetch('changelog.html?v=publish-20260916u94')
     .then(response => response.ok ? response.text() : Promise.reject(new Error('changelog unavailable')))
     .then(source => {
       const doc = new DOMParser().parseFromString(source, 'text/html');
