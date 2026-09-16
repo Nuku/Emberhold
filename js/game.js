@@ -77,6 +77,7 @@ function defaultState() {
     bld: {},
     queues: { build: [], research: [], expedition: [] },
     factoryRecipe: 'goods',
+    factoryRecipes: ['goods'],
     buildingPower: {},
     techs: {},
     trialDone: {},
@@ -1826,8 +1827,19 @@ function lineageMod(res) {
 }
 
 function factoryRecipe() {
-  const recipe = FACTORY_RECIPE_BY_ID.get(state.factoryRecipe);
+  const recipe = FACTORY_RECIPE_BY_ID.get(factoryRecipes()[0]);
   return recipe && (!recipe.tech || tech(recipe.tech)) ? recipe : FACTORY_RECIPES[0];
+}
+function factoryRecipes() {
+  const selected = upg('dividedAttention') > 0
+    ? (Array.isArray(state.factoryRecipes) ? state.factoryRecipes : [state.factoryRecipe])
+    : [state.factoryRecipe];
+  const valid = [...new Set(selected)].filter(id => {
+    const recipe = FACTORY_RECIPE_BY_ID.get(id);
+    return recipe && (!recipe.tech || tech(recipe.tech));
+  });
+  if (!valid.length) return ['goods'];
+  return upg('dividedAttention') > 0 ? valid.slice(0, 2) : [valid[0]];
 }
 function tinkererFactoryAvailable() {
   return wonderChoice('grayrocks', 'silence') && JOBS.tinkerer.unlock();
@@ -1835,7 +1847,14 @@ function tinkererFactoryAvailable() {
 function chooseFactoryRecipe(id) {
   const recipe = FACTORY_RECIPE_BY_ID.get(id);
   if ((!bld('factory') && !tinkererFactoryAvailable()) || !recipe || (recipe.tech && !tech(recipe.tech))) return;
-  state.factoryRecipe = id;
+  const selected = factoryRecipes();
+  if (upg('dividedAttention') > 0) {
+    if (selected.includes(id)) {
+      if (selected.length > 1) selected.splice(selected.indexOf(id), 1);
+    } else if (selected.length < 2) selected.push(id);
+    state.factoryRecipes = selected;
+  } else state.factoryRecipes = [id];
+  state.factoryRecipe = state.factoryRecipes[0];
 }
 
 const DIG_SITE_RESOURCES = { quarry: 'stone', deepMine: 'iron', coalSeam: 'coal' };
@@ -1966,16 +1985,19 @@ function production(dt = 0.25, breakdown = null) {
     if (n > 0) {
       const tinkererFactory = j === 'tinkerer' && tinkererFactoryAvailable();
       if (!job.winterproof && tinkererFactory) {
-        const recipe = factoryRecipe();
-        const recipeFactor = recipe.id === 'steel' && tech('lightningMetal') ? 1.5 : 1;
-        const keepsToolWork = recipe.id === 'tools';
-        const rate = keepsToolWork ? job.base : recipe.rate * 0.5 * recipeFactor;
-        const recipeInputs = keepsToolWork ? job.inputs : recipe.inputs;
-        add(recipe.id, `Tinkerers (${recipe.name}): ${n} × ${rate}/s`, n * rate);
-        const effectiveInputs = inputCosts(recipeInputs, 'tinkerer', n);
-        for (const r in effectiveInputs) {
-          const inputRate = keepsToolWork ? effectiveInputs[r] : effectiveInputs[r] * 0.5 * recipeFactor;
-          add(r, `Tinkerer inputs (${recipe.name}): ${n} × ${inputRate}/s`, -n * inputRate);
+        const selectedRecipes = factoryRecipes();
+        for (const recipe of selectedRecipes.map(id => FACTORY_RECIPE_BY_ID.get(id))) {
+          const workers = n / selectedRecipes.length;
+          const recipeFactor = recipe.id === 'steel' && tech('lightningMetal') ? 1.5 : 1;
+          const keepsToolWork = recipe.id === 'tools';
+          const rate = keepsToolWork ? job.base : recipe.rate * 0.5 * recipeFactor;
+          const recipeInputs = keepsToolWork ? job.inputs : recipe.inputs;
+          add(recipe.id, `Tinkerers (${recipe.name}): ${workers} × ${rate}/s`, workers * rate);
+          const effectiveInputs = inputCosts(recipeInputs, 'tinkerer', workers);
+          for (const r in effectiveInputs) {
+            const inputRate = keepsToolWork ? effectiveInputs[r] : effectiveInputs[r] * 0.5 * recipeFactor;
+            add(r, `Tinkerer inputs (${recipe.name}): ${workers} × ${inputRate}/s`, -workers * inputRate);
+          }
         }
       } else if (!job.winterproof) {
         const poweredBuilding = job.poweredBuilding;
@@ -2160,30 +2182,33 @@ function production(dt = 0.25, breakdown = null) {
   }
 
   if (bld('factory') > 0 && dt > 0) {
-    const recipe = factoryRecipe();
-    const factors = [...global, ...settlementProductionFactors(recipe.id)];
     const activeFactories = power.factory;
-    const lightningMetal = recipe.id === 'steel' && tech('lightningMetal');
-    const recipeFactor = lightningMetal ? 1.5 : 1;
-    const output = factors.reduce((value, [, factor]) => value * factor, activeFactories * recipe.rate * recipeFactor);
-    const inputs = inputCosts(Object.fromEntries(Object.entries(recipe.inputs).map(([resource, amount]) =>
-      [resource, amount * recipeFactor * activeFactories])), 'factory', activeFactories);
-    const recipeFactors = lightningMetal ? [...factors, ['Lightning Metal', recipeFactor]] : factors;
-    let fraction = output > 0 ? Math.min(1, Math.max(0, capacityOf(recipe.id) - state.res[recipe.id]) / (output * dt)) : 0;
-    let limitation = fraction < 1 ? `${recipe.name} storage space` : 'Factory utilization';
-    for (const r in inputs) {
-      const available = Math.max(0, state.res[r] + Math.min(0, rates[r]) * dt);
-      const supplied = activeFactories ? available / (inputs[r] * dt) : 0;
-      if (supplied < fraction) limitation = `${resourceName(r)} shortage`;
-      fraction = Math.min(fraction, supplied);
+    const selectedRecipes = factoryRecipes();
+    for (const recipe of selectedRecipes.map(id => FACTORY_RECIPE_BY_ID.get(id))) {
+      const assignedFactories = activeFactories / selectedRecipes.length;
+      const factors = [...global, ...settlementProductionFactors(recipe.id)];
+      const lightningMetal = recipe.id === 'steel' && tech('lightningMetal');
+      const recipeFactor = lightningMetal ? 1.5 : 1;
+      const output = factors.reduce((value, [, factor]) => value * factor, assignedFactories * recipe.rate * recipeFactor);
+      const inputs = inputCosts(Object.fromEntries(Object.entries(recipe.inputs).map(([resource, amount]) =>
+        [resource, amount * recipeFactor * assignedFactories])), 'factory', assignedFactories);
+      const recipeFactors = lightningMetal ? [...factors, ['Lightning Metal', recipeFactor]] : factors;
+      let fraction = output > 0 ? Math.min(1, Math.max(0, capacityOf(recipe.id) - state.res[recipe.id]) / (output * dt)) : 0;
+      let limitation = fraction < 1 ? `${recipe.name} storage space` : 'Factory utilization';
+      for (const r in inputs) {
+        const available = Math.max(0, state.res[r] + Math.min(0, rates[r]) * dt);
+        const supplied = assignedFactories ? available / (inputs[r] * dt) : 0;
+        if (supplied < fraction) limitation = `${resourceName(r)} shortage`;
+        fraction = Math.min(fraction, supplied);
+      }
+      if (activeFactories < bld('factory')) {
+        limitation = buildingPowerCount('factory') < bld('factory') ? 'Power disabled' : 'Power shortage';
+        if (!activeFactories) fraction = 0;
+      }
+      add(recipe.id, `Factories (${recipe.name}): ${assignedFactories} active × ${recipe.rate}/s`, assignedFactories * recipe.rate, [...recipeFactors, [limitation, fraction]]);
+      for (const r in inputs) add(r, `Factory inputs (${recipe.name}): ${assignedFactories} active × ${inputs[r] / assignedFactories}/s`, -inputs[r], [
+        ...(lightningMetal ? [['Lightning Metal', recipeFactor]] : []), [limitation, fraction]]);
     }
-    if (activeFactories < bld('factory')) {
-      limitation = buildingPowerCount('factory') < bld('factory') ? 'Power disabled' : 'Power shortage';
-      if (!activeFactories) fraction = 0;
-    }
-    add(recipe.id, `Factories (${recipe.name}): ${activeFactories} active × ${recipe.rate}/s`, activeFactories * recipe.rate, [...recipeFactors, [limitation, fraction]]);
-    for (const r in inputs) add(r, `Factory inputs (${recipe.name}): ${activeFactories} active × ${inputs[r] / activeFactories}/s`, -inputs[r], [
-      ...(lightningMetal ? [['Lightning Metal', recipeFactor]] : []), [limitation, fraction]]);
   }
   if (state.pop) add('food', `Villager upkeep: ${state.pop} × ${FOOD_PER_POP}/s`, -state.pop * FOOD_PER_POP);
   return rates;
@@ -2932,7 +2957,7 @@ function startGameClock() {
   // lose time; it only wakes the simulation to account for elapsed time.
   if (typeof Worker === 'function') {
     try {
-      gameClockWorker = new Worker('js/game-clock.worker.js?v=publish-20260916u110');
+      gameClockWorker = new Worker('js/game-clock.worker.js?v=publish-20260916u1205');
       gameClockWorker.addEventListener('message', () => {
         updateGameClock(true);
         renderBonusTimer();
@@ -3455,6 +3480,7 @@ function normalizeSave(s) {
   if (!object(s) || s.v !== 1 || !object(s.res) || !object(s.jobs) || !object(s.techs))
     throw new Error('Invalid save');
   const hadSeparateLogs = Object.prototype.hasOwnProperty.call(s, 'logs');
+  const hadFactoryRecipe = Object.prototype.hasOwnProperty.call(s, 'factoryRecipe');
   const savedTradePartners = Array.isArray(s.tradePartners);
   const legacyTradePartner = s.tradePartner;
   // Reject broken shapes and non-finite numbers before replacing any stored game.
@@ -3669,6 +3695,11 @@ function normalizeSave(s) {
   delete s.res.armor;
   s.armor = Math.max(s.armor, s.techs.chainmail ? 2 : s.techs.leatherArmor ? 1 : 0);
   if (!FACTORY_RECIPES.some(r => r.id === s.factoryRecipe && (!r.tech || s.techs[r.tech]))) s.factoryRecipe = 'goods';
+  s.factoryRecipes = hadFactoryRecipe && Array.isArray(s.factoryRecipes) ? [...new Set(s.factoryRecipes)].filter(id =>
+    FACTORY_RECIPES.some(r => r.id === id && (!r.tech || s.techs[r.tech]))).slice(0, 2) : [s.factoryRecipe];
+  if (!s.factoryRecipes.length) s.factoryRecipes = [s.factoryRecipe];
+  if (!(s.upgrades.dividedAttention > 0)) s.factoryRecipes = [s.factoryRecipes[0]];
+  s.factoryRecipe = s.factoryRecipes[0];
   // Reset controls are intentionally session-only and never reopen from a save.
   s.settings.resetControls = false;
   return s;
@@ -4063,10 +4094,12 @@ function renderVillage() {
     `<div class="res-note" style="margin:2px 0 6px">Guard armor: level ${fmt(armorLevel())} — each level reduces death odds by 8% (minimum 15%).</div>`;
 
   if (bld('factory') > 0 || tinkererFactoryAvailable()) {
-    h += '<h2 class="section">Factory production</h2><div class="res-note">All factories share one production line. After the World Anvil is silenced, Tinkerers can use this same recipe list at half the factory rate without needing Power. Production slows when supplies run short and pauses when output storage is full. The Industrialization trial requires Industrial Goods.</div>';
+    h += '<h2 class="section">Factory production</h2><div class="res-note">' +
+      (upg('dividedAttention') > 0 ? 'Divided Attention lets you select two outputs; factories and Tinkerers split their assigned workers evenly between them. ' : '') +
+      'All factories share one production line. After the World Anvil is silenced, Tinkerers can use this same recipe list at half the factory rate without needing Power. Production slows when supplies run short and pauses when output storage is full. The Industrialization trial requires Industrial Goods.</div>';
     for (const recipe of FACTORY_RECIPES) {
       const unlocked = !recipe.tech || tech(recipe.tech);
-      const selected = factoryRecipe().id === recipe.id;
+      const selected = factoryRecipes().includes(recipe.id);
       const recipeFactor = recipe.id === 'steel' && tech('lightningMetal') ? 1.5 : 1;
       const activeFactories = powerAllocation().factory;
       const inputs = Object.entries(effectiveCoalInputs(Object.fromEntries(Object.entries(recipe.inputs).map(([r, n]) => [r, n * recipeFactor * activeFactories])), 'factory', activeFactories))
@@ -4074,7 +4107,7 @@ function renderVillage() {
       const powerText = `${FACTORY_POWER_REQUIREMENT} Power capacity per factory`;
       h += `<div class="card"><div class="card-head"><span class="card-title">${recipe.name}</span><span class="card-count">${selected ? 'Active' : unlocked ? 'Available' : `Requires ${recipe.unlock}`}</span></div>` +
         `<div class="card-desc">Produces ${fmt(recipe.rate * recipeFactor)}/s; requires ${powerText}${inputs ? ` and consumes ${inputs}` : ''}.</div>` +
-        `<div class="card-actions"><button data-action="factory-recipe" data-id="${recipe.id}" ${!unlocked || selected ? 'disabled' : ''}>${selected ? 'Producing ' : 'Produce '}${recipe.name}</button></div>` +
+        `<div class="card-actions"><button data-action="factory-recipe" data-id="${recipe.id}" ${!unlocked || (selected && factoryRecipes().length === 1) || (!selected && factoryRecipes().length >= 2) ? 'disabled' : ''}>${selected ? 'Producing ' : 'Produce '}${recipe.name}</button></div>` +
         (selected ? woodFuelControls('factory', powerAllocation().factory) : '') + '</div>';
     }
   }
@@ -4809,7 +4842,7 @@ function renderSidePanel() {
 function loadLatestUpdatesTooltip() {
   const button = document.getElementById('btn-updates');
   if (!button || typeof fetch !== 'function' || typeof DOMParser !== 'function') return;
-  fetch('changelog.html?v=publish-20260916u110')
+  fetch('changelog.html?v=publish-20260916u1205')
     .then(response => response.ok ? response.text() : Promise.reject(new Error('changelog unavailable')))
     .then(source => {
       const doc = new DOMParser().parseFromString(source, 'text/html');
@@ -5012,6 +5045,7 @@ window.emberhold = {
     capacityOf,
     expeditionCost,
     factoryRecipe,
+    factoryRecipes,
     buildingPowerCount,
     digSitePower,
     setBuildingPower,
