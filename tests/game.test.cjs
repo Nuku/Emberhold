@@ -384,7 +384,7 @@ test('clear skies lift morale, storms depress it, and weather production appears
   assert.match(run('moraleTooltip()'), /Rainy weather/);
   run(`state.bld.monument = 1; state.migrating = true; state.pendingLandings = LANDINGS.map(l => ({id: l.id}))`);
   assert.match(run('renderMigration()'), /Stormbound heights/);
-  assert.match(run('renderVillage()'), /Sunlit plains/);
+  assert.match(run('renderVillage()'), /The Emberplain/);
 });
 
 test('ticks crossing midnight apply each day’s weather for its own duration', () => {
@@ -404,6 +404,17 @@ test('every queue item lists the resources it needs', () => {
     assert.match(run(`renderQueue('${type}')`), /queue-(needs|ready|waiting)/);
     assert.match(run(`renderQueue('${type}')`), /needs |ready|waiting/);
   }
+});
+
+test('staged projects show the next part and total parts in the queue', () => {
+  const { run } = game();
+  run(`state.queues.build = [
+    { type: 'build', id: 'beaconStage' },
+    { type: 'build', id: 'airControlStage' }
+  ]; state.beaconProgress = 7; state.airControlProgress = 12;`);
+  const html = run("renderQueue('build')");
+  assert.match(html, /Part 8 of 100/);
+  assert.match(html, /Part 13 of 50/);
 });
 
 test('physical research requires its material inputs in addition to Knowledge', () => {
@@ -475,8 +486,8 @@ test('legacy queued costs are ignored', () => {
   const { run } = game();
   run(`state.techs.aluminum = true; state.bld.aluminumWorks = 3;
     state.bld.aluminumWorks = 4;
-    state.res.steel = 1700; state.res.machinery = 400;
-    state.res.goods = 600; state.res.copper = 1200;
+    state.res.steel = 5000; state.res.machinery = 1000;
+    state.res.goods = 1000; state.res.copper = 3000;
     state.settings.strictQueueOrder = true;
     state.queues.build = [{ type: 'build', id: 'aluminumWorks', cost: { steel: 1, machinery: 1, goods: 1, copper: 1 } }];
     updateQueues();`);
@@ -529,12 +540,12 @@ test('later queue items include earlier queued costs in their estimates', () => 
   const { run } = game();
   run(`state.res.food = 0;
     state.queues.build = [
-      { type: 'build', id: 'first', cost: { food: 300 } },
-      { type: 'build', id: 'second', cost: { food: 300 } }
+      { type: 'build', id: 'hut' },
+      { type: 'build', id: 'hut' }
     ];`);
   const html = run("renderQueue('build')");
-  assert.match(html, /300 Food/);
-  assert.match(html, /600 Food/);
+  assert.match(html, /30 Wood/);
+  assert.match(html, /20 Wood/);
 });
 
 test('queue items can be reordered before or after another item', () => {

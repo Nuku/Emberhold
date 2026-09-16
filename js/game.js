@@ -953,7 +953,7 @@ function conquestTrialAvailable() {
 // ---------- storage ----------
 function currencyCapacity(jobs = state?.jobs, source = state) {
   const storageBonus = state?.trial?.id === 'overflow' ? 1 : 1 + 0.01 * upg('cleverStorage');
-  return Math.ceil(CURRENCY_BASE_CAP * (1 + 0.10 * (jobs?.banker || 0)) * storageBonus * conqueredStorageMod(source));
+  return Math.ceil((CURRENCY_BASE_CAP * (1 + 0.10 * (jobs?.banker || 0)) * storageBonus * conqueredStorageMod(source)) - 1e-9);
 }
 
 function capacityOf(id) {
@@ -965,11 +965,11 @@ function capacityOf(id) {
   const runStorage = overflowActive ? 1 : 1 + 0.15 * upg('deepCellars');
   const governanceStorage = overflowActive ? 1 : governanceStorageMod();
   const bonusCapacity = s.bonus ? s.bonus.per * bld(s.bonus.bld) : 0;
-  return Math.ceil((s.base + s.per * bld(s.bld) + bonusCapacity) *
+  return Math.ceil(((s.base + s.per * bld(s.bld) + bonusCapacity) *
     permanentStorage * runStorage * governanceStorage *
     (overflowActive ? 1 : 1 + 0.01 * upg('cleverStorage')) *
     conqueredStorageMod() *
-    (overflowActive ? trialDifficulty('overflow') : 1));
+    (overflowActive ? trialDifficulty('overflow') : 1)) - 1e-9);
 }
 function isFull(id) { return state.res[id] >= capacityOf(id) - 0.001; }
 
@@ -1261,6 +1261,13 @@ function queueWaitingHtml(type, index, entry) {
     const seconds = rate > 0 ? missing / rate : Infinity;
     return `<span class="queue-waiting-item"><span>${fmt(missing)} ${name}</span><span class="queue-time">${queueLabel(seconds)}</span></span>`;
   }).join('') + '</span>';
+}
+
+function queueProgressHtml(entry) {
+  if (entry.type !== 'build') return '';
+  if (entry.id === 'beaconStage') return `<span class="queue-progress">Part ${beaconProgress() + 1} of ${BEACON_STAGE_COUNT}</span>`;
+  if (entry.id === 'airControlStage') return `<span class="queue-progress">Part ${airControlProgress() + 1} of ${AIR_CONTROL_STAGE_COUNT}</span>`;
+  return '';
 }
 
 function queueEntry(type, id) {
@@ -2909,7 +2916,7 @@ function startGameClock() {
   // lose time; it only wakes the simulation to account for elapsed time.
   if (typeof Worker === 'function') {
     try {
-      gameClockWorker = new Worker('js/game-clock.worker.js?v=publish-20260916u95');
+      gameClockWorker = new Worker('js/game-clock.worker.js?v=publish-20260916u96');
       gameClockWorker.addEventListener('message', () => {
         updateGameClock(true);
         renderBonusTimer();
@@ -3529,7 +3536,7 @@ function normalizeSave(s) {
     const def = BUILDING_BY_ID.get(entry.id);
     if (!def || !Number.isFinite(def.max)) return true;
     const kept = queuedBuildings[entry.id] || 0;
-    if (s.bld[entry.id] + kept >= def.max) return false;
+    if ((s.bld[entry.id] || 0) + kept >= def.max) return false;
     queuedBuildings[entry.id] = kept + 1;
     return true;
   });
@@ -4034,6 +4041,7 @@ function renderStores() {
 function renderVillage() {
   const L = landingDef();
   let h = renderNextStep() +
+    `<div class="res-note">${L.name}</div>` +
     `<div class="res-note">Population growth: <span class="has-tooltip" tabindex="0" data-tooltip="${attrText(populationGrowthTooltip())}">${fmt(populationGrowthTime())} seconds</span> per new villager while food and housing are available. Guard healing: ${fmt(guardHealingNeed())} seconds per injury.</div>` +
     `<div class="res-note" style="margin:2px 0 6px">The land gives: ${modsHtml(L)}</div>` +
     `<div class="res-note" style="margin:2px 0 6px">Guard armor: level ${fmt(armorLevel())} — each level reduces death odds by 8% (minimum 15%).</div>`;
@@ -4145,7 +4153,7 @@ function renderQueue(type) {
     // that earlier items will take from the stores before it can be supplied.
     const details = queueWaitingHtml(type, index, entry);
     return `<button class="queue-item" draggable="true" data-action="queue-cancel" data-queue-item="true" data-type="${type}" data-index="${index}" title="Drag to reorder; click to cancel">` +
-      `<span class="queue-name">${esc(def ? def.name : entry.id)}</span>` +
+      `<span class="queue-name">${esc(def ? def.name : entry.id)}${queueProgressHtml(entry)}</span>` +
       `<span class="queue-details">${details}</span></button>`;
   }).join('') + `<div class="queue-capacity">${entries.length} / ${queueCapacity(type)} slots used</div>`;
 }
@@ -4784,7 +4792,7 @@ function renderSidePanel() {
 function loadLatestUpdatesTooltip() {
   const button = document.getElementById('btn-updates');
   if (!button || typeof fetch !== 'function' || typeof DOMParser !== 'function') return;
-  fetch('changelog.html?v=publish-20260916u95')
+  fetch('changelog.html?v=publish-20260916u96')
     .then(response => response.ok ? response.text() : Promise.reject(new Error('changelog unavailable')))
     .then(source => {
       const doc = new DOMParser().parseFromString(source, 'text/html');

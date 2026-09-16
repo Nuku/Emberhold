@@ -156,7 +156,8 @@ header { grid-area: header; }
 .queue-item.queue-drop-after { box-shadow: 0 2px 0 var(--amber); }
 .queue-item.queue-drag-preview { margin-top: 5px; border-style: dashed; background: rgba(242,164,71,.16); opacity: .8; }
 .queue-drag-preview .queue-details { opacity: .7; }
-.queue-name { min-width: 0; padding-top: 2px; }
+.queue-name { display: flex; min-width: 0; padding-top: 2px; flex-direction: column; gap: 2px; }
+.queue-progress { color: var(--blue); font-size: 10px; letter-spacing: .04em; text-transform: uppercase; }
 .queue-details { display: flex; flex-wrap: wrap; justify-content: flex-end; align-items: center; gap: 2px 8px; color: var(--dim); font-size: 11px; text-align: right; }
 .queue-cost { color: var(--muted); }
 .queue-needs { color: var(--muted); }
