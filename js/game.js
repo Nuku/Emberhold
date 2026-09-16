@@ -2909,7 +2909,7 @@ function startGameClock() {
   // lose time; it only wakes the simulation to account for elapsed time.
   if (typeof Worker === 'function') {
     try {
-      gameClockWorker = new Worker('js/game-clock.worker.js?v=publish-20260916u94');
+      gameClockWorker = new Worker('js/game-clock.worker.js?v=publish-20260916u95');
       gameClockWorker.addEventListener('message', () => {
         updateGameClock(true);
         renderBonusTimer();
@@ -3135,7 +3135,7 @@ function doResearch(id) {
   return true;
 }
 
-function policyChangeCooldown() { return POLICY_CHANGE_COOLDOWN; }
+function policyChangeCooldown() { return POLICY_CHANGE_COOLDOWN / (upg('adaptableGovernance') ? 2 : 1); }
 function policyCooldownRemaining() {
   if (!state.policyChangedAt) return 0;
   return Math.max(0, policyChangeCooldown() - (Date.now() - state.policyChangedAt) / 1000);
@@ -4784,7 +4784,7 @@ function renderSidePanel() {
 function loadLatestUpdatesTooltip() {
   const button = document.getElementById('btn-updates');
   if (!button || typeof fetch !== 'function' || typeof DOMParser !== 'function') return;
-  fetch('changelog.html?v=publish-20260916u94')
+  fetch('changelog.html?v=publish-20260916u95')
     .then(response => response.ok ? response.text() : Promise.reject(new Error('changelog unavailable')))
     .then(source => {
       const doc = new DOMParser().parseFromString(source, 'text/html');

@@ -4,6 +4,7 @@ All notable changes to Emberhold are recorded here, with the newest changes firs
 
 ## 2026-09-16
 
+- Added the Adaptable Governance Echo upgrade, which halves the government-swap cooldown.
 - Added the Known Task Echo upgrade, which automatically commits matching migration-preparation supplies as they are produced.
 
 ## 2026-09-15

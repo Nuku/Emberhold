@@ -167,6 +167,20 @@ test('policy changes wait one real-time hour, persist through saves and trials, 
   assert.equal(run('policyCooldownRemaining()'), 0);
 });
 
+test('Adaptable Governance halves the government-swap cooldown', () => {
+  const { run } = game();
+  run(`state.migrating = true; state.echoes = 20; migrationBuy('adaptableGovernance');
+    let now = 10000000; Date.now = () => now; state.techs.civics = true; choosePolicy('charter');`);
+  assert.equal(run("upg('adaptableGovernance')"), 1);
+  assert.equal(run('state.echoes'), 0);
+  assert.equal(run('policyChangeCooldown()'), 1800);
+  assert.equal(run('policyCooldownRemaining()'), 1800);
+  run("choosePolicy('guilds'); now += 1799999");
+  assert.equal(run('state.policy'), 'charter');
+  run("now += 1; choosePolicy('guilds')");
+  assert.equal(run('state.policy'), 'guilds');
+});
+
 test('Workplace Ethics adds mining seats, rewards full crews, and lowers morale', () => {
   const { run } = game();
   run(`state.techs.civics = true; state.techs.civicHarmony = true; state.techs.workplaceEthics = true;
