@@ -59,6 +59,14 @@ test('each currently held conquered nation adds 10% storage to every resource', 
   assert.equal(run('capacityOf("currency")'), 2200);
 });
 
+test('save normalization preserves conquered-nation storage bonuses before state assignment', () => {
+  const { run } = game();
+  run(`state = null; const save = defaultState();
+    save.tradePartners = ['human']; save.diplomacy.human = { disposition: 0, conquered: true };
+    save.res.currency = 5000; const loaded = normalizeSave(save);`);
+  assert.equal(run('loaded.res.currency'), 2200);
+});
+
 test('currency cap normalization works before the loaded state is assigned', () => {
   const { run } = game();
   run(`state = null; const save = defaultState(); save.jobs.banker = 2;
@@ -421,6 +429,13 @@ test('failed save loads do not overwrite the preserved save with a new game', ()
   assert.equal(run('state'), null);
   assert.equal(run('saveLoadFailed'), true);
   assert.equal(run('localStorage.getItem(SAVE_KEY)'), '{"broken":true}');
+});
+
+test('current categorized saves reload without the derived legacy log', () => {
+  const { run } = game();
+  run("addLog('Chronicle saved for reload test.'); saveGame(true); state = loadGame()");
+  assert.equal(run('saveLoadFailed'), false);
+  assert.equal(run('state.log[0].t'), 'Chronicle saved for reload test.');
 });
 
 test('research cannot be queued more than once and stale duplicates are removed', () => {

@@ -483,11 +483,13 @@ function alliedTribes() {
 function conqueredRealm() {
   return Object.values(state.diplomacy || {}).some(entry => entry?.conquered);
 }
-function conqueredNationCount() {
-  return localTribeIds().filter(id => state.diplomacy?.[id]?.conquered).length;
+function conqueredNationCount(source = state) {
+  if (!source) return 0;
+  const held = Array.isArray(source.tradePartners) ? source.tradePartners : [source.tradePartner];
+  return [...new Set(held)].filter(id => source.diplomacy?.[id]?.conquered).length;
 }
-function conqueredStorageMod() {
-  return trialActive('overflow') ? 1 : 1 + 0.10 * conqueredNationCount();
+function conqueredStorageMod(source = state) {
+  return source?.trial?.id === 'overflow' ? 1 : 1 + 0.10 * conqueredNationCount(source);
 }
 function commonalityLineageCount() {
   return Object.keys(state.commonalityLineages || {})
@@ -949,9 +951,9 @@ function conquestTrialAvailable() {
 }
 
 // ---------- storage ----------
-function currencyCapacity(jobs = state?.jobs) {
+function currencyCapacity(jobs = state?.jobs, source = state) {
   const storageBonus = state?.trial?.id === 'overflow' ? 1 : 1 + 0.01 * upg('cleverStorage');
-  return Math.ceil(CURRENCY_BASE_CAP * (1 + 0.10 * (jobs?.banker || 0)) * storageBonus * conqueredStorageMod());
+  return Math.ceil(CURRENCY_BASE_CAP * (1 + 0.10 * (jobs?.banker || 0)) * storageBonus * conqueredStorageMod(source));
 }
 
 function capacityOf(id) {
@@ -3530,7 +3532,7 @@ function normalizeSave(s) {
     return true;
   });
   for (const r of RESOURCES) if (s.res[r.id] === undefined) s.res[r.id] = 0;
-  s.res.currency = Math.min(currencyCapacity(s.jobs), s.res.currency);
+  s.res.currency = Math.min(currencyCapacity(s.jobs, s), s.res.currency);
   s.beaconsLit = Object.fromEntries(Object.entries(s.beaconsLit || {})
     .filter(([id, lit]) => LANDING_BY_ID.has(id) && lit === true));
   s.beaconRevisited = Object.fromEntries(Object.entries(s.beaconRevisited || {})
@@ -3585,8 +3587,13 @@ function normalizeSave(s) {
   }
   if (s.trial !== null && (!object(s.trial) || !TRIALS.some(t => t.id === s.trial.id)))
     throw new Error('Invalid trial');
+  const hasLegacyLog = Object.prototype.hasOwnProperty.call(s, 'log');
   const legacyLog = Array.isArray(s.log) ? s.log : [];
-  if (!Array.isArray(s.log) || !legacyLog.every(entry => object(entry) && typeof entry.t === 'string' && typeof entry.d === 'number'))
+  // Current saves omit the derived legacy `log` array and persist only the
+  // categorized logs. Validate `log` when an older save actually contains it,
+  // but do not reject valid current saves just because it is absent.
+  if ((hasLegacyLog && !Array.isArray(s.log)) ||
+      !legacyLog.every(entry => object(entry) && typeof entry.t === 'string' && typeof entry.d === 'number'))
     throw new Error('Invalid chronicle');
   if (!hadSeparateLogs && legacyLog.length) {
     s.logs = Object.fromEntries(LOG_CATEGORIES.map(category => [category, []]));
