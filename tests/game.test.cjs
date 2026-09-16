@@ -727,8 +727,9 @@ test('Clever Storage is an uncapped, increasingly expensive Echo upgrade', () =>
 test('Known Task automatically commits migration supplies', () => {
   const { run } = game();
   run(`state.migrating = true; state.migrationPreparation = true;
-    state.upgrades.knownTask = 1; state.res.food = 1200; state.res.wood = 800;
+    state.echoes = 10; migrationBuy('knownTask'); state.res.food = 1200; state.res.wood = 800;
     state.res.stone = 120; state.res.tools = 20; autoFillMigrationSupplies()`);
+  assert.equal(run('state.echoes'), 0);
   assert.deepEqual(JSON.parse(run('JSON.stringify(state.projects)')), {
     migrationProvisions: 2, migrationCaravan: 2, migrationRoadwork: 2, migrationTools: 2,
   });
@@ -741,7 +742,7 @@ test('Known Task automatically commits migration supplies', () => {
 test('Known Task fills supplies produced during migration preparation', () => {
   const { run } = game();
   run(`state.migrating = true; state.migrationPreparation = true;
-    state.upgrades.knownTask = 1; state.projects.migrationProvisions = 99;
+    state.echoes = 10; migrationBuy('knownTask'); state.projects.migrationProvisions = 99;
     state.bld.storehouse = 2; state.res.food = 599.95; state.jobs.forager = 1; tickStep(1)`);
   assert.equal(run('state.projects.migrationProvisions'), 100);
   assert.ok(run('state.res.food') < 0.1);

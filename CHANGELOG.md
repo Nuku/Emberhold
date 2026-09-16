@@ -6,6 +6,7 @@ All notable changes to Emberhold are recorded here, with the newest changes firs
 
 - Added the Adaptable Governance Echo upgrade, which halves the government-swap cooldown.
 - Added the Known Task Echo upgrade, which automatically commits matching migration-preparation supplies as they are produced.
+- Reduced Known Task's cost from 100 Echoes to 10 Echoes.
 - Added queue progress labels for the staged Beacon and Air Control projects.
 - Fixed capacity calculations so fractional floating-point precision cannot incorrectly round resource storage upward.
 - Fixed production-rate inspection for worker types whose detailed breakdown uses a pluralized label.

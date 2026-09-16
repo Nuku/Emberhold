@@ -1155,7 +1155,7 @@ const UPGRADES = [
   { id: 'caravans', name: 'Pack Caravans', max: 1, costs: [8],
     effect: 'begin each age with 300 food, 300 wood, 150 stone, 25 tools',
     desc: 'the wagons are loaded before the leaving' },
-  { id: 'knownTask', name: 'Known Task', max: 1, costs: [100],
+  { id: 'knownTask', name: 'Known Task', max: 1, costs: [10],
     effect: 'migration preparations automatically commit matching supplies as they are produced',
     desc: 'this is not our first migration, and it will not be the last; trained hands know the steps' },
   { id: 'oathkeepers', name: 'Oathkeepers', max: 1, costs: [10],
