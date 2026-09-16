@@ -4,6 +4,7 @@ All notable changes to Emberhold are recorded here, with the newest changes firs
 
 ## 2026-09-15
 
+- Added 10% storage capacity to every resource for each currently held conquered nation.
 - Expanded the power API with live capacity, worker-capacity, and job metadata for controllable dig sites, so automation can match power assignments to the current workforce.
 - Changed Awaken Ancients power allocation so Quarry, Deep Mine, and Coal Seam power is assigned per worker, matching the live mining workforce instead of the number of buildings.
 - Updated the Monument description to clarify that it unlocks both Trials and Migrations.

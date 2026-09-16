@@ -483,6 +483,12 @@ function alliedTribes() {
 function conqueredRealm() {
   return Object.values(state.diplomacy || {}).some(entry => entry?.conquered);
 }
+function conqueredNationCount() {
+  return localTribeIds().filter(id => state.diplomacy?.[id]?.conquered).length;
+}
+function conqueredStorageMod() {
+  return trialActive('overflow') ? 1 : 1 + 0.10 * conqueredNationCount();
+}
 function commonalityLineageCount() {
   return Object.keys(state.commonalityLineages || {})
     .filter(id => id !== 'human' && state.commonalityLineages[id]).length;
@@ -945,7 +951,7 @@ function conquestTrialAvailable() {
 // ---------- storage ----------
 function currencyCapacity(jobs = state?.jobs) {
   const storageBonus = state?.trial?.id === 'overflow' ? 1 : 1 + 0.01 * upg('cleverStorage');
-  return Math.ceil(CURRENCY_BASE_CAP * (1 + 0.10 * (jobs?.banker || 0)) * storageBonus);
+  return Math.ceil(CURRENCY_BASE_CAP * (1 + 0.10 * (jobs?.banker || 0)) * storageBonus * conqueredStorageMod());
 }
 
 function capacityOf(id) {
@@ -960,6 +966,7 @@ function capacityOf(id) {
   return Math.ceil((s.base + s.per * bld(s.bld) + bonusCapacity) *
     permanentStorage * runStorage * governanceStorage *
     (overflowActive ? 1 : 1 + 0.01 * upg('cleverStorage')) *
+    conqueredStorageMod() *
     (overflowActive ? trialDifficulty('overflow') : 1));
 }
 function isFull(id) { return state.res[id] >= capacityOf(id) - 0.001; }
@@ -4762,7 +4769,7 @@ function renderSidePanel() {
 function loadLatestUpdatesTooltip() {
   const button = document.getElementById('btn-updates');
   if (!button || typeof fetch !== 'function' || typeof DOMParser !== 'function') return;
-  fetch('changelog.html?v=publish-20260915u92')
+  fetch('changelog.html?v=publish-20260915u93')
     .then(response => response.ok ? response.text() : Promise.reject(new Error('changelog unavailable')))
     .then(source => {
       const doc = new DOMParser().parseFromString(source, 'text/html');

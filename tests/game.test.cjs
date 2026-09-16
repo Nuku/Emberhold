@@ -47,6 +47,18 @@ test('currency uses a 2000 base cap and does not accumulate past it', () => {
   assert.equal(run('state.res.currency'), 2000);
 });
 
+test('each currently held conquered nation adds 10% storage to every resource', () => {
+  const { run } = game();
+  run(`state.tradePartners = ['human', 'stonekin'];
+    state.diplomacy.human = { conquered: true };
+    state.diplomacy.stonekin = { conquered: true };`);
+  assert.equal(run('capacityOf("food")'), 240);
+  assert.equal(run('capacityOf("currency")'), 2400);
+  run('state.diplomacy.stonekin.conquered = false');
+  assert.equal(run('capacityOf("food")'), 220);
+  assert.equal(run('capacityOf("currency")'), 2200);
+});
+
 test('currency cap normalization works before the loaded state is assigned', () => {
   const { run } = game();
   run(`state = null; const save = defaultState(); save.jobs.banker = 2;
