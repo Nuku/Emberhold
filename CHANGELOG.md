@@ -4,6 +4,7 @@ All notable changes to Emberhold are recorded here, with the newest changes firs
 
 ## 2026-09-16
 
+- Added the Idle Hands Echo upgrade, which makes unassigned villagers produce Food as Foragers.
 - Added the Divided Attention Echo upgrade, which lets factories and Tinkerers split their assigned workers between two selected outputs.
 - Added the Adaptable Governance Echo upgrade, which halves the government-swap cooldown.
 - Added the Known Task Echo upgrade, which automatically commits matching migration-preparation supplies as they are produced.

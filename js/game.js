@@ -140,6 +140,7 @@ function defaultState() {
     won: false,
     achievements: {},
     commonalityLineages: {},
+    commonalityGuardsReturned: {},
     tutorialDismissed: false,
     settings: { autosave: true, reducedMotion: false, compactStores: false, strictQueueOrder: false, tooltips: true, resetControls: false, woodForCoal: {} },
     // Each category is persisted independently. `log` remains a derived,
@@ -516,6 +517,13 @@ function alliedIncomeBonus() { return commonalityActive() ? 0.075 : 0.05; }
 function alliedTribeIncomeBonus(id) {
   const conquered = state.diplomacy?.[id]?.conquered;
   return commonalityActive() && conquered ? 0.075 : 0.05;
+}
+function returnCommonalityGuards(id) {
+  if (!commonalityActive() || !id) return;
+  state.commonalityGuardsReturned = state.commonalityGuardsReturned || {};
+  if (state.commonalityGuardsReturned[id]) return;
+  state.jobs.guard = Math.min(guardCap(), (state.jobs.guard || 0) + 5);
+  state.commonalityGuardsReturned[id] = true;
 }
 function ableGuards() { return Math.floor(Math.max(0, (state.jobs.guard || 0) - (state.guardInjuries || 0))); }
 function guardAttackPower(guardCount = ableGuards()) {
@@ -2022,6 +2030,8 @@ function production(dt = 0.25, breakdown = null) {
       }
     }
   }
+  if (upg('idleHands') && !trialActive('whiteout') && unassigned() > 0)
+    add('food', `Idle Hands: ${unassigned()} × ${JOBS.forager.base}/s`, unassigned() * JOBS.forager.base);
   if (tech('reclaimining') && (state.jobs.forager || 0) > 0)
     add('aluminum', `Foragers reclaiming Aluminum: ${state.jobs.forager} × 0.005/s`, state.jobs.forager * 0.005);
 
@@ -3197,6 +3207,7 @@ function choosePolicy(id) {
   if (id === 'commonality' && state.diplomacy?.[state.tradePartner]?.conquered) {
     state.commonalityLineages = state.commonalityLineages || {};
     state.commonalityLineages[state.tradePartner] = true;
+    returnCommonalityGuards(state.tradePartner);
   }
   addLog(`The Civic Hall adopts ${def.name}. ${def.desc}`, 'log-important');
 }
@@ -3453,6 +3464,7 @@ function conquerTown(id) {
   state.guardInjuries = Math.min(state.guardInjuries || 0, state.jobs.guard);
   entry.conquered = true;
   entry.siegeReady = false;
+  returnCommonalityGuards(id);
   addLog(`Emberhold conquers the ${tribeDef(id).name}. The occupation train costs ${costText(CONQUEST_COST)}, and the town joins the realm while steadily weighing on morale.`, 'log-good');
   return { ok: true, action: 'conquer', target: id, deployedGuards: 15, cost: { ...CONQUEST_COST } };
 }

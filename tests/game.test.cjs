@@ -722,6 +722,17 @@ test('migration shop separates available upgrades from fully purchased ones', ()
   assert.doesNotMatch(run('renderShop()'), /Wandering Kin/);
 });
 
+test('Idle Hands makes unassigned villagers produce Food as Foragers', () => {
+  const { run } = game();
+  run(`state.migrating = true; state.echoes = 250; migrationBuy('idleHands');
+    state.migrating = false; state.pop = 4; state.jobs = {}; const detail = {}; production(1, detail);`);
+  assert.equal(run('state.upgrades.idleHands'), 1);
+  assert.equal(run('state.echoes'), 0);
+  assert.equal(run("detail.food.find(entry => entry.label.startsWith('Idle Hands:')).base"), 2.2);
+  run("state.trial = { id: 'whiteout' }; const whiteout = {}; production(1, whiteout)");
+  assert.equal(run("whiteout.food?.find(entry => entry.label.startsWith('Idle Hands:'))"), undefined);
+});
+
 test('Clever Storage is an uncapped, increasingly expensive Echo upgrade', () => {
   const { run } = game();
   run(`state.migrating = true; state.echoes = 5; state.res.currency = 0;
@@ -913,6 +924,21 @@ test('Commonality appears after conquest and replaces the occupation penalty', (
   assert.equal(run("lineageMod('food')"), 1);
   run("state.policy = 'commons'");
   assert.equal(run("lineageMod('tools')"), 1);
+});
+
+test('Commonality returns five Guards from occupation duty per conquered lineage', () => {
+  const { run } = game();
+  run(`state.era = 4; state.techs = { civics: true, council: true, commonality: true, guards: true };
+    state.bld.barracks = 10; state.jobs.guard = 2; state.diplomacy.human = { conquered: true };
+    state.tradePartner = 'human'; state.policy = 'commons'; choosePolicy('commonality')`);
+  assert.equal(run('state.jobs.guard'), 7);
+  run('state.policy = "commons"; choosePolicy("commonality")');
+  assert.equal(run('state.jobs.guard'), 7);
+  run(`state.jobs.guard = 20; state.res.food = 500; state.res.tools = 20;
+    state.policy = 'commonality'; state.tradePartners = ['human', 'clocklings'];
+    state.diplomacy.clocklings = { conquered: false, siegeReady: true };
+    conquerTown('clocklings')`);
+  assert.equal(run('state.jobs.guard'), 10);
 });
 
 test('migration combat achievements record deaths and peaceful departures', () => {
