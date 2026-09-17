@@ -396,6 +396,12 @@ function diplomacyRequestText(tribe, entry) {
 }
 function diplomatCount(id) { return (state.diplomats && state.diplomats[id]) || 0; }
 function totalDiplomats() { return Object.values(state.diplomats || {}).reduce((sum, n) => sum + n, 0); }
+function diplomatCost(id) {
+  const entry = state.diplomacy && state.diplomacy[id];
+  const activeScale = 1 + 0.5 * diplomatCount(id);
+  const economicScale = economicStrength(entry) / 100;
+  return { currency: Math.ceil(50 * economicScale * activeScale) };
+}
 function spyCount(id) { return (state.spies && state.spies[id]) || 0; }
 function spyTrainingCost(id) {
   const entry = state.diplomacy && state.diplomacy[id];
@@ -1000,7 +1006,7 @@ function popCap() {
 function assignedWorkers() {
   let n = 0;
   for (const j in state.jobs) if (JOBS[j] && !JOBS[j].targeted && j !== 'guard') n += state.jobs[j];
-  return n + totalDiplomats() + performerCount() + explorerCount() + raptureWorkers();
+  return n + performerCount() + explorerCount() + raptureWorkers();
 }
 function jobName(id) {
   return id === 'forager' && wonderChoice('floodmeadows', 'silence') ? 'Farmer' : JOBS[id]?.name || id;
@@ -1046,11 +1052,9 @@ function reconcileWorkers() {
   }
   for (const id of Object.keys(state.jobs)) if (!JOBS[id]) delete state.jobs[id];
   for (const id of Object.keys(state.diplomats)) {
-    const n = tech('diplomacy') && state.diplomacy[id]
-      ? Math.min(count(state.diplomats[id]), remaining) : 0;
+    const n = tech('diplomacy') && state.diplomacy[id] ? count(state.diplomats[id]) : 0;
     if (n) state.diplomats[id] = n;
     else delete state.diplomats[id];
-    remaining -= n;
   }
   if (state.rapture && state.rapture.landing === state.landing && raptureActiveHere()) {
     state.rapture.workers = Math.min(count(state.rapture.workers), remaining);
@@ -2973,7 +2977,7 @@ function startGameClock() {
   // lose time; it only wakes the simulation to account for elapsed time.
   if (typeof Worker === 'function') {
     try {
-    gameClockWorker = new Worker('js/game-clock.worker.js?v=publish-20260917u1157');
+    gameClockWorker = new Worker('js/game-clock.worker.js?v=publish-20260917u1535');
       gameClockWorker.addEventListener('message', () => {
         updateGameClock(true);
         renderBonusTimer();
@@ -3289,13 +3293,16 @@ function doAssignExplorer(delta) {
 }
 
 function doAssignDiplomat(id, delta) {
-  if (!tech('diplomacy') || !localTribe(id) || !state.diplomacy || !state.diplomacy[id]) return;
+  if (!tech('diplomacy') || !localTribe(id) || !state.diplomacy || !state.diplomacy[id] ||
+      !Number.isInteger(delta) || delta === 0) return false;
   state.diplomats = state.diplomats || {};
   state.diplomats[id] = diplomatCount(id);
-  if (delta > 0 && unassigned() <= 0) return;
-  if (delta < 0 && diplomatCount(id) <= 0) return;
+  if (delta > 0 && !canAfford(diplomatCost(id))) return false;
+  if (delta < 0 && diplomatCount(id) <= 0) return false;
+  if (delta > 0) payCost(diplomatCost(id));
   state.diplomats[id] += delta;
   if (state.diplomats[id] <= 0) delete state.diplomats[id];
+  return true;
 }
 
 function raidLoot(id) {
@@ -4396,9 +4403,10 @@ function renderDiplomacy() {
       }
     }
     if (local && tech('diplomacy') && !entry.conquered && !conquestTrialRelationsLocked()) {
+      const diplomatCostNow = diplomatCost(id);
       h += `<div class="res-note">${JOBS.diplomat.name}s assigned: ${diplomatCount(id)} — each adds +3 relations per minute</div>` +
         `<div class="card-actions"><button data-action="diplomat-dec" data-tribe="${id}" ${diplomatCount(id) > 0 ? '' : 'disabled'}>−</button> ` +
-        `<button data-action="diplomat-inc" data-tribe="${id}" ${unassigned() > 0 ? '' : 'disabled'}>Assign Diplomat</button></div>`;
+        `<button data-action="diplomat-inc" data-tribe="${id}" ${canAfford(diplomatCostNow) ? '' : 'disabled'}>Assign Diplomat (${costHtml(diplomatCostNow)})</button></div>`;
     }
     h += '</div>';
   }
@@ -4884,7 +4892,7 @@ function renderSidePanel() {
 function loadLatestUpdatesTooltip() {
   const button = document.getElementById('btn-updates');
   if (!button || typeof fetch !== 'function' || typeof DOMParser !== 'function') return;
-  fetch('changelog.html?v=publish-20260917u1157')
+  fetch('changelog.html?v=publish-20260917u1535')
     .then(response => response.ok ? response.text() : Promise.reject(new Error('changelog unavailable')))
     .then(source => {
       const doc = new DOMParser().parseFromString(source, 'text/html');

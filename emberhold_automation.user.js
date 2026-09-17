@@ -144,8 +144,7 @@
     if (!performer || !jobUnlocked(performer)) return false;
     const performers = Number(state.jobs?.performer || 0);
     const assigned = Object.values(state.jobs || {}).reduce((sum, n) => sum + (Number(n) || 0), 0);
-    const diplomats = Object.values(state.diplomats || {}).reduce((sum, n) => sum + (Number(n) || 0), 0);
-    const available = Math.max(0, state.pop - assigned - diplomats);
+    const available = Math.max(0, state.pop - assigned);
     if ((state.morale || 0) < 100 && available > 0) {
       invoke('assignPerformer', 1);
       return Number(api().getState()?.jobs?.performer || 0) > performers;
@@ -216,9 +215,7 @@
     const assigned = Object.entries(state.jobs || {})
       .filter(([id]) => id !== 'guard')
       .reduce((sum, [, n]) => sum + (Number(n) || 0), 0);
-    const diplomats = Object.values(state.diplomats || {})
-      .reduce((sum, n) => sum + (Number(n) || 0), 0);
-    const available = Math.max(0, state.pop - assigned - diplomats);
+    const available = Math.max(0, state.pop - assigned);
     const underMinimum = minimums.find(([id, minimumCount]) =>
       minimumCount > 0 && assignable.includes(id) && count(id) < minimum(id));
     const productionJobs = assignable.filter(id => defs[id].res && Number(defs[id].base) > 0 &&

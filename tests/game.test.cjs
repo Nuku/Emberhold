@@ -870,11 +870,13 @@ test('spies reveal town strengths and espionage can weaken the military', () => 
   run(`state.techs = { spies: true }; state.tradePartner = 'human';
     state.res.currency = 300; state.res.tools = 20; ensureDiplomacyEntry('human');
     state.diplomacy.human.militaryStrength = 100; state.diplomacy.human.economicStrength = 120;
-    Math.random = () => 0.5; hireSpy('human')`);
+    Math.random = () => 0.5; state.pop = 7; hireSpy('human')`);
+  assert.equal(run('state.pop'), 7);
   assert.deepEqual(JSON.parse(run('JSON.stringify(spyTrainingCost("human"))')), { currency: 120, tools: 6 });
   assert.equal(run('state.res.currency'), 180);
   assert.equal(run('state.res.tools'), 14);
   run('updateSpies(180)');
+  assert.equal(run('state.pop'), 7);
   assert.equal(run('spyCount("human")'), 1);
   assert.equal(run('state.diplomacy.human.militaryKnown'), true);
   assert.equal(run('state.diplomacy.human.economicKnown'), undefined);
@@ -1002,6 +1004,18 @@ test('one diplomat makes progress even through repeated worst diplomatic slights
   assert.equal(run('state.diplomacy.human.disposition'), 80);
   run('state.diplomacy.human.disposition = 99; updateDiplomacy(60)');
   assert.equal(run('state.diplomacy.human.disposition'), 100);
+});
+
+test('diplomat hiring costs currency and scales by existing diplomats', () => {
+  const { run } = game();
+  run(`state.techs.diplomacy = true; state.tradePartner = 'human'; state.res.currency = 200;
+    ensureDiplomacyEntry('human'); state.diplomacy.human.economicStrength = 100;
+    doAssignDiplomat('human', 1)`);
+  assert.equal(run('state.res.currency'), 150);
+  assert.deepEqual(JSON.parse(run('JSON.stringify(diplomatCost("human"))')), { currency: 75 });
+  run('doAssignDiplomat("human", 1)');
+  assert.equal(run('state.res.currency'), 75);
+  assert.equal(run('diplomatCount("human")'), 2);
 });
 
 test('fulfilling requests gives meaningful recovery and caps relations at 100', () => {
@@ -1640,15 +1654,24 @@ test('starvation trims total assignments to surviving population', () => {
   assert.equal(run('state.jobs.forager'), 1);
 });
 
-test('specialists share the population limit and invalid jobs are removed', () => {
+test('specialists share the population limit while diplomats remain separate', () => {
   const { run } = game();
   run(`state.pop = 4; state.techs.diplomacy = true; state.bld.amphitheatre = 1;
     state.jobs = { forager: 2, performer: 2, ghost: 9 };
     state.diplomacy.human = { disposition: 50 }; state.diplomats.human = 3;
     reconcileWorkers()`);
   assert.equal(run('assignedWorkers()'), 4);
-  assert.equal(run('totalDiplomats()'), 0);
+  assert.equal(run('totalDiplomats()'), 3);
   assert.equal(run('state.jobs.ghost'), undefined);
+});
+
+test('diplomats can be assigned without available villagers and survive population loss', () => {
+  const { run } = game();
+  run(`state.pop = 1; state.techs.diplomacy = true; state.res.currency = 1000;
+    state.diplomacy.human = { disposition: 50 }; state.jobs = { forager: 1 };
+    doAssignDiplomat('human', 5); reconcileWorkers()`);
+  assert.equal(run('totalDiplomats()'), 5);
+  assert.equal(run('unassigned()'), 0);
 });
 
 test('guard cap and injuries are repaired on load', () => {
