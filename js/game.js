@@ -139,6 +139,8 @@ function defaultState() {
     shopTab: 'buy',
     won: false,
     achievements: {},
+    achievementChecks: {},
+    achievementChecksInitialized: false,
     commonalityLineages: {},
     commonalityGuardsReturned: {},
     tutorialDismissed: false,
@@ -867,7 +869,7 @@ function chooseWonderFate(choice) {
   record.expeditions = {};
   state.rapture.workers = 0;
   state.rapture.landing = null;
-  updateAchievements();
+  updateAchievements([`wonder-${def.id}-${choice}`]);
   beginForcedWonderMigration();
   return true;
 }
@@ -3913,22 +3915,34 @@ function achievementRequirementRating(achievement) {
   const ratings = required.map(achievementRating).filter(Boolean).sort((a, b) => b - a).slice(0, needed);
   return ratings.length === needed ? Math.min(...ratings) : 0;
 }
-function updateAchievements() {
+function updateAchievements(triggeredIds = []) {
   state.achievements = state.achievements || {};
+  state.achievementChecks = state.achievementChecks && typeof state.achievementChecks === 'object' && !Array.isArray(state.achievementChecks)
+    ? state.achievementChecks : {};
   state.migrationChallenges = Array.isArray(state.migrationChallenges) ? state.migrationChallenges : [];
   state.pendingMigrationChallenges = Array.isArray(state.pendingMigrationChallenges) ? state.pendingMigrationChallenges : [];
+  const initialized = !!state.achievementChecksInitialized;
+  const triggered = new Set(triggeredIds);
   for (const achievement of ACHIEVEMENTS) {
     const requirementRating = achievementRequirementRating(achievement);
-    if (achievement.test() && requirementRating) {
+    const met = achievement.test();
+    const newlyMet = initialized && met && !state.achievementChecks[achievement.id];
+    state.achievementChecks[achievement.id] = met;
+    if (met && requirementRating) {
       const oldRating = achievementRating(achievement.id);
       const newRating = Math.min(Math.max(1, migrationChallengeCount()), requirementRating);
-      if (newRating > oldRating) {
+      // A rating is a record of the conditions when the achievement was
+      // earned. Do not retrospectively promote it just because its persistent
+      // condition remains true during a later, harder migration. It can be
+      // raised only by meeting the condition again or completing its action.
+      if (newRating > oldRating && (!oldRating || newlyMet || triggered.has(achievement.id))) {
         state.achievements[achievement.id] = newRating;
         const ratingName = CHALLENGE_RATING_NAMES[newRating];
         addLog(`Achievement completed: ${achievement.name} (${ratingName}). Completion bonus +${(newRating * 0.1).toFixed(1)}% to all production.`, 'log-good');
       }
     }
   }
+  state.achievementChecksInitialized = true;
 }
 function totalTrialsCompleted() { return Object.values(state.trialDone || {}).reduce((sum, n) => sum + n, 0); }
 function totalUpgrades() { return Object.values(state.upgrades || {}).reduce((sum, n) => sum + n, 0); }

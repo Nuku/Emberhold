@@ -7,6 +7,8 @@ All notable changes to Emberhold are recorded here, with the newest changes firs
 - Fixed held-resource displays so fractional amounts are shown as whole units without changing the underlying state.
 - Fixed cost displays so fractional costs are rounded up, preventing the UI from understating requirements.
 - Fixed standalone achievements so completing all four migration self-challenges can award their full gold challenge rating.
+- Fixed achievement ratings so later migration challenges do not retroactively upgrade an already-earned achievement.
+- Fixed repeatable Wonder fates so repeating one can upgrade its existing achievement rating.
 
 ## 2026-09-16
 

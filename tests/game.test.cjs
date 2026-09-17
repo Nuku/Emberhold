@@ -2246,6 +2246,21 @@ test('four self-challenges award gold to achievements without prerequisites', ()
   assert.equal(run("CHALLENGE_RATING_NAMES[state.achievements.firstDay]"), 'gold');
 });
 
+test('completed achievements do not retroactively upgrade when challenges change', () => {
+  const { run } = game();
+  run('state.day = 1; updateAchievements(); state.migrationChallenges = MIGRATION_CHALLENGES.map(challenge => challenge.id); updateAchievements()');
+  assert.equal(run('state.achievements.firstDay'), 1);
+});
+
+test('repeating a Wonder fate upgrades its existing achievement rating', () => {
+  const { run } = game();
+  run(`state.landing = 'grayrocks'; state.achievements['wonder-grayrocks-silence'] = 1;
+    state.migrationChallenges = MIGRATION_CHALLENGES.map(challenge => challenge.id);
+    const record = wonderRecord('grayrocks'); record.found = true; record.sections = [true, true, true, true, true];
+    updateAchievements(); chooseWonderFate('silence')`);
+  assert.equal(run("state.achievements['wonder-grayrocks-silence']"), 4);
+});
+
 test('Trade Blimp construction requires Fur', () => {
   const { run } = game();
   assert.deepEqual(JSON.parse(run("JSON.stringify(BUILDING_BY_ID.get('tradeBlimp').cost)")),
