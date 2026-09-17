@@ -877,6 +877,20 @@ test('spies reveal town strengths and espionage can weaken the military', () => 
   assert.equal(run('state.diplomacy.human.espionageT || 0'), 0);
 });
 
+test('the automation API exposes deployed spies and can start espionage', () => {
+  const { run } = game();
+  run(`state.techs = { spies: true, espionage: true }; ensureDiplomacyEntry('human');
+    state.spies.human = 1; state.diplomacy.human.militaryStrength = 100;
+    Math.random = () => 0.5;`);
+  assert.equal(run('window.emberhold.state.diplomacy.human.spies'), 1);
+  assert.equal(run("window.emberhold.helpers.spyCount('human')"), 1);
+  assert.equal(run("typeof window.emberhold.actions.startEspionage"), 'function');
+  run("beginEspionage('human')");
+  assert.equal(run('window.emberhold.state.diplomacy.human.espionageT'), 1200);
+  run('updateSpies(1200)');
+  assert.equal(run('window.emberhold.state.diplomacy.human.enemyAttack'), 90);
+});
+
 test('a killed spy can betray the operation and damage relations', () => {
   const { run } = game();
   run(`ensureDiplomacyEntry('human'); state.diplomacy.human.disposition = 10;

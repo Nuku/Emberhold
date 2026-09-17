@@ -16,6 +16,7 @@ All notable changes to Emberhold are recorded here, with the newest changes firs
 - Fixed capacity calculations so fractional floating-point precision cannot incorrectly round resource storage upward.
 - Fixed production-rate inspection for worker types whose detailed breakdown uses a pluralized label.
 - Displayed the current landing name in the village overview.
+- Exposed deployed spies in the automation API, including a spy-count helper for starting and monitoring espionage operations.
 
 ## 2026-09-15
 
