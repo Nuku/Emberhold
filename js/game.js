@@ -1277,7 +1277,7 @@ function queueWaitingHtml(type, index, entry) {
   if (!cost) return '';
   const required = Object.entries(cost)
     .filter(([, amount]) => amount > 0)
-    .map(([resource, amount]) => `${fmt(amount)} ${resourceName(resource)}`)
+    .map(([resource, amount]) => `${fmtCost(amount)} ${resourceName(resource)}`)
     .join(' · ');
   const costHtml = `<span class="queue-cost">requires ${required}</span>`;
   const requirement = queuedCostThrough(type, index);
@@ -1290,7 +1290,7 @@ function queueWaitingHtml(type, index, entry) {
     const name = resourceName(resource);
     const rate = rates[resource] || 0;
     const seconds = rate > 0 ? missing / rate : Infinity;
-    return `<span class="queue-waiting-item"><span>${fmt(missing)} ${name}</span><span class="queue-time">${queueLabel(seconds)}</span></span>`;
+    return `<span class="queue-waiting-item"><span>${fmtHeld(missing)} ${name}</span><span class="queue-time">${queueLabel(seconds)}</span></span>`;
   }).join('') + '</span>';
 }
 
@@ -2971,7 +2971,7 @@ function startGameClock() {
   // lose time; it only wakes the simulation to account for elapsed time.
   if (typeof Worker === 'function') {
     try {
-      gameClockWorker = new Worker('js/game-clock.worker.js?v=publish-20260916u1917');
+      gameClockWorker = new Worker('js/game-clock.worker.js?v=publish-20260917u0900');
       gameClockWorker.addEventListener('message', () => {
         updateGameClock(true);
         renderBonusTimer();
@@ -3824,6 +3824,12 @@ function fmt(n) {
   else s = (Math.round(n * 100) / 100).toString();
   return neg ? '-' + s : s;
 }
+function fmtHeld(n) {
+  return fmt(Math.floor(n));
+}
+function fmtCost(n) {
+  return fmt(Math.ceil(n));
+}
 function fmtRate(n) {
   if (!n) return '';
   return ` ${n > 0 ? '+' : ''}${fmt(n)}/s`;
@@ -3833,12 +3839,12 @@ function costHtml(cost) {
   const effective = effectiveCoalCost(cost);
   for (const r in effective) {
     const have = state.res[r] || 0;
-    parts.push(`<span class="${have >= effective[r] ? 'ok' : 'lack'}">${fmt(effective[r])} ${resourceName(r)}</span>`);
+    parts.push(`<span class="${have >= effective[r] ? 'ok' : 'lack'}">${fmtCost(effective[r])} ${resourceName(r)}</span>`);
   }
   return parts.join(', ');
 }
 function costText(cost) {
-  return Object.entries(effectiveCoalCost(cost)).map(([r, amount]) => `${fmt(amount)} ${resourceName(r)}`).join(', ');
+  return Object.entries(effectiveCoalCost(cost)).map(([r, amount]) => `${fmtCost(amount)} ${resourceName(r)}`).join(', ');
 }
 
 function lineageAccessCount() { return LINEAGES.filter(lineage => lineageUnlocked(lineage.id)).length; }
@@ -3899,7 +3905,10 @@ function achievementRatingTotal() {
 }
 function achievementRequirementRating(achievement) {
   const required = achievement.requires || [];
-  if (!required.length) return 1;
+  // Achievements without prerequisites are eligible for the full challenge
+  // rating. Returning 1 here would silently cap every standalone achievement
+  // at wooden strength.
+  if (!required.length) return CHALLENGE_RATING_NAMES.length - 1;
   const needed = Math.max(1, Math.min(required.length, achievement.requireCount || required.length));
   const ratings = required.map(achievementRating).filter(Boolean).sort((a, b) => b - a).slice(0, needed);
   return ratings.length === needed ? Math.min(...ratings) : 0;
@@ -4053,8 +4062,8 @@ function renderHeader() {
   if (bld('monument') > 0 || state.echoes > 0 || state.migrating) {
     echoEl.classList.remove('hidden');
     echoEl.textContent = state.migrating
-      ? `Migration prepared — ${state.echoes} Echoes in the pouch`
-      : `${state.echoes} Echo${state.echoes === 1 ? '' : 'es'} in the pouch — next migration at this size: ${echoesEarned()}`;
+      ? `Migration prepared — ${fmtHeld(state.echoes)} Echoes in the pouch`
+      : `${fmtHeld(state.echoes)} Echo${Math.floor(state.echoes) === 1 ? '' : 'es'} in the pouch — next migration at this size: ${fmtHeld(echoesEarned())}`;
   } else {
     echoEl.classList.add('hidden');
   }
@@ -4078,10 +4087,10 @@ function renderStores() {
     const cls = rate > 0.0001 ? 'rate-pos' : (rate < -0.0001 ? 'rate-neg' : '');
     const cap = capacityOf(r.id);
     const amount = r.id === 'power'
-      ? `${fmt(Math.max(0, state.res[r.id] - activePower.factory * FACTORY_POWER_REQUIREMENT))} capacity`
+      ? `${fmtHeld(Math.max(0, state.res[r.id] - activePower.factory * FACTORY_POWER_REQUIREMENT))} capacity`
       : cap === Infinity
-      ? fmt(state.res[r.id])
-      : `${fmt(state.res[r.id])} / ${fmt(cap)}${isFull(r.id) ? ' FULL' : ''}`;
+      ? fmtHeld(state.res[r.id])
+      : `${fmtHeld(state.res[r.id])} / ${fmt(cap)}${isFull(r.id) ? ' FULL' : ''}`;
     const status = r.id === 'power' ? (rate > 0.0001 ? 'online' : 'offline') : (fmtRate(rate) || '0/s');
     h += `<div class="res-row">` +
       `<span class="res-name has-tooltip" data-tooltip="${attrText(r.note)}">${r.name}</span>` +
@@ -4094,7 +4103,7 @@ function renderStores() {
     const cls = rate > 0.0001 ? 'rate-pos' : '';
     h += `<div class="res-row">` +
       `<span class="res-name has-tooltip" data-tooltip="Survey points gathered by Explorers and Survey Flights; spent to reveal additional landing choices during migration.">Survey</span>` +
-      `<span class="res-amount">${fmt(state.surveyPoints || 0)}</span>` +
+      `<span class="res-amount">${fmtHeld(state.surveyPoints || 0)}</span>` +
       `<span class="res-rate ${cls}">${fmtRate(rate) || '0/s'}</span>` +
       `</div>`;
   }
@@ -4461,7 +4470,7 @@ function wonderCostHtml(cost) {
   return Object.entries(effectiveCoalCost(cost)).map(([id, amount]) => {
     const have = id === 'survey' ? state.surveyPoints || 0 : id === 'citizens' ? unassigned() : state.res[id] || 0;
     const label = id === 'survey' ? 'Survey' : id === 'citizens' ? 'unassigned citizens' : resourceName(id);
-    return `<span class="${have >= amount ? 'ok' : 'lack'}">${fmt(amount)} ${label}</span>`;
+    return `<span class="${have >= amount ? 'ok' : 'lack'}">${fmtCost(amount)} ${label}</span>`;
   }).join(', ');
 }
 function renderWonderDiscovery() {
@@ -4639,7 +4648,7 @@ function renderMigration() {
 
   h += `<div class="card trial-active"><div class="card-head">` +
     `<span class="card-title">The migration is prepared</span>` +
-    `<span class="card-count">+${state.pendingEchoes} Echoes earned — ${state.echoes} in the pouch</span></div>` +
+    `<span class="card-count">+${fmtHeld(state.pendingEchoes)} Echoes earned — ${fmtHeld(state.echoes)} in the pouch</span></div>` +
     `<div class="card-desc">The departure is sworn and cannot be recalled. ${state.migrationPreparation ? 'The village must now provision the road before it can leave. Each supply is filled in 100 small commitments, so the stores can be gathered and packed over time.' : 'The road is ready immediately; choose a destination and set out when ready.'}</div>` +
     renderMigrationPreparation() +
     `<div class="card-actions">` +
@@ -4735,9 +4744,9 @@ function renderMigrationPreparation() {
     const affordable = (state.res[project.resource] || 0) >= partCost;
     h += `<div class="card ${progress >= 100 ? 'done' : ''}">` +
       `<div class="card-head"><span class="card-title">${project.name}</span><span class="card-count">${progress}%</span></div>` +
-      `<div class="card-desc">${project.desc}. ${fmt(progress * partCost)} / ${fmt(project.total)} ${resourceName(project.resource)} committed.</div>` +
+      `<div class="card-desc">${fmtHeld(progress * partCost)} / ${fmtCost(project.total)} ${resourceName(project.resource)} committed.</div>` +
       `<progress value="${progress}" max="100" aria-label="${attrText(project.name)} progress"></progress>` +
-      `<div class="card-cost">${fmt(partCost)} ${resourceName(project.resource)} per 1% · ${fmt(state.res[project.resource] || 0)} available</div>` +
+      `<div class="card-cost">${fmtCost(partCost)} ${resourceName(project.resource)} per 1% · ${fmtHeld(state.res[project.resource] || 0)} available</div>` +
       `<div class="card-actions"><button data-action="migration-prepare" data-id="${project.id}" data-repeat ${progress >= 100 || !affordable ? 'disabled' : ''}>${progress >= 100 ? 'Complete' : 'Commit 1%'}</button></div></div>`;
   }
   return h;
@@ -4757,7 +4766,7 @@ function renderStats() {
   if (tab === 'perks') {
     h += '<div class="res-note stats-intro">Perks are your proof of passage — permanent progress and rare accomplishments worth showing off.</div>';
     const perks = [
-      ['Echoes carried', fmt(state.echoes), 'The ancestral currency of every migration.'],
+      ['Echoes carried', fmtHeld(state.echoes), 'The ancestral currency of every migration.'],
       ['Ancestral upgrades', `${totalUpgrades()} levels`, `${Object.keys(state.upgrades || {}).length} upgrade paths awakened.`],
       ['Trials completed', fmt(totalTrialsCompleted()), 'Oaths that left a mark on the lineage.'],
       ['Expeditions established', `${Object.keys(state.expeditions || {}).length} / ${LANDINGS.length}`, 'Roads and sites remembered across migrations.'],
@@ -4778,7 +4787,7 @@ function renderStats() {
     ['Current lineage', lineageDef(state.species).name, lineageTraitsText(lineageDef(state.species))],
     ['Completion bonus', `+${(achievementRatingTotal() * 0.1).toFixed(1)}%`, `${completed} of ${ACHIEVEMENTS.length} achievements completed; ratings add their strength`],
   ].map(([label, value, note]) => `<div class="stat-card"><div class="stat-label">${label}</div><div class="stat-value">${value}</div><div class="stat-note">${note}</div></div>`).join('') + '</div>';
-  h += '<h2 class="section">Lifetime marks</h2><div class="res-note">Completed trials: ' + fmt(totalTrialsCompleted()) + ' · Sites established: ' + Object.keys(state.expeditions || {}).length + ' · Echoes held: ' + fmt(state.echoes) + '</div>';
+  h += '<h2 class="section">Lifetime marks</h2><div class="res-note">Completed trials: ' + fmt(totalTrialsCompleted()) + ' · Sites established: ' + Object.keys(state.expeditions || {}).length + ' · Echoes held: ' + fmtHeld(state.echoes) + '</div>';
   return h;
 }
 
@@ -4858,7 +4867,7 @@ function renderSidePanel() {
 function loadLatestUpdatesTooltip() {
   const button = document.getElementById('btn-updates');
   if (!button || typeof fetch !== 'function' || typeof DOMParser !== 'function') return;
-  fetch('changelog.html?v=publish-20260916u1917')
+  fetch('changelog.html?v=publish-20260917u0900')
     .then(response => response.ok ? response.text() : Promise.reject(new Error('changelog unavailable')))
     .then(source => {
       const doc = new DOMParser().parseFromString(source, 'text/html');

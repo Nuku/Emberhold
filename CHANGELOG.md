@@ -2,6 +2,12 @@
 
 All notable changes to Emberhold are recorded here, with the newest changes first.
 
+## 2026-09-17
+
+- Fixed held-resource displays so fractional amounts are shown as whole units without changing the underlying state.
+- Fixed cost displays so fractional costs are rounded up, preventing the UI from understating requirements.
+- Fixed standalone achievements so completing all four migration self-challenges can award their full gold challenge rating.
+
 ## 2026-09-16
 
 - Added the Known Terrain Echo upgrade, which permanently provides the benefit of Understanding Home in future settlements.

@@ -25,6 +25,14 @@ function game() {
   return { run, context };
 }
 
+test('resource displays floor held amounts and ceil costs without changing state', () => {
+  const { run } = game();
+  run(`state.res.food = 2.8; state.seen.food = true;`);
+  assert.equal(run('fmtHeld(state.res.food)'), '2');
+  assert.equal(run('fmtCost(2.8)'), '3');
+  assert.equal(run('state.res.food'), 2.8);
+});
+
 test('paused real-time clock does not advance or bank time', () => {
   const { run } = game();
   run(`let now = 1000; Date.now = () => now;
@@ -538,7 +546,7 @@ test('stores display Survey after Explorers are unlocked', () => {
   run(`state.trialDone.wayfinding = 1; state.surveyPoints = 12.5; state.jobs.explorer = 2`);
   const stores = run('renderStores()');
   assert.match(stores, /Survey/);
-  assert.match(stores, /12\.5/);
+  assert.match(stores, /<span class="res-amount">12<\/span>/);
   assert.match(stores, /0\.05\/s/);
 });
 
@@ -2229,6 +2237,13 @@ test('constructing a Trade Blimp completes the first flight achievement', () => 
   run('state.bld.tradeBlimp = 1; updateAchievements()');
   assert.equal(run('state.achievements.firstFlight'), 1);
   assert.equal(run("ACHIEVEMENTS.find(a => a.id === 'firstFlight').progress()"), '1 / 1 Trade Blimp');
+});
+
+test('four self-challenges award gold to achievements without prerequisites', () => {
+  const { run } = game();
+  run('state.day = 1; state.migrationChallenges = MIGRATION_CHALLENGES.map(challenge => challenge.id); updateAchievements()');
+  assert.equal(run('state.achievements.firstDay'), 4);
+  assert.equal(run("CHALLENGE_RATING_NAMES[state.achievements.firstDay]"), 'gold');
 });
 
 test('Trade Blimp construction requires Fur', () => {
