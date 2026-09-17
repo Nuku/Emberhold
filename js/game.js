@@ -157,7 +157,11 @@ function defaultState() {
 }
 
 // ---------- helpers ----------
-function tech(id) { return !!state.techs[id]; }
+function tech(id) {
+  // Known Terrain permanently carries the benefit of Understanding Home
+  // between settlements, as though that research were completed here.
+  return !!state.techs[id] || (id === 'understandingHome' && upg('knownTerrain') > 0);
+}
 function bld(id) { return state.bld[id] || 0; }
 function era() { return state.era; }
 function expDone(id) { return !!state.expeditions[id]; }
@@ -2967,7 +2971,7 @@ function startGameClock() {
   // lose time; it only wakes the simulation to account for elapsed time.
   if (typeof Worker === 'function') {
     try {
-      gameClockWorker = new Worker('js/game-clock.worker.js?v=publish-20260916u1205');
+      gameClockWorker = new Worker('js/game-clock.worker.js?v=publish-20260916u1906');
       gameClockWorker.addEventListener('message', () => {
         updateGameClock(true);
         renderBonusTimer();
@@ -4854,7 +4858,7 @@ function renderSidePanel() {
 function loadLatestUpdatesTooltip() {
   const button = document.getElementById('btn-updates');
   if (!button || typeof fetch !== 'function' || typeof DOMParser !== 'function') return;
-  fetch('changelog.html?v=publish-20260916u1205')
+  fetch('changelog.html?v=publish-20260916u1906')
     .then(response => response.ok ? response.text() : Promise.reject(new Error('changelog unavailable')))
     .then(source => {
       const doc = new DOMParser().parseFromString(source, 'text/html');

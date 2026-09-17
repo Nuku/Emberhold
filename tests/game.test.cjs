@@ -116,6 +116,16 @@ test('Understanding Home follows Mechanism, requires a local trait, and reveals 
   assert.doesNotMatch(run(`placeTraitTooltip(placeTraitDef('richTopsoil'))`), /Current location:/);
 });
 
+test('Known Terrain permanently provides Understanding Home', () => {
+  const { run } = game();
+  run(`state.migrating = true; state.echoes = 75; migrationBuy('knownTerrain');
+    state.placeTraits = ['wildOrchards'];`);
+  assert.equal(run("upg('knownTerrain')"), 1);
+  assert.equal(run('state.echoes'), 0);
+  assert.equal(run("tech('understandingHome')"), true);
+  assert.match(run("placeTraitTooltip(placeTraitDef('wildOrchards'))"), /Current location:/);
+});
+
 test('Air of Rage turns accumulated anger into a fading morale bonus after an attack', () => {
   const { run } = game();
   run(`state.placeTraits = ['airOfRage']; state.traitEffects.airOfRage = -0.02;
