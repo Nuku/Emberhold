@@ -33,6 +33,13 @@ test('resource displays floor held amounts and ceil costs without changing state
   assert.equal(run('state.res.food'), 2.8);
 });
 
+test('available Power display truncates to one decimal place', () => {
+  const { run } = game();
+  assert.equal(run('fmtAvailablePower(1.25)'), '1.2');
+  assert.equal(run('fmtAvailablePower(1.29)'), '1.2');
+  assert.equal(run('fmtAvailablePower(1.3)'), '1.3');
+});
+
 test('paused real-time clock does not advance or bank time', () => {
   const { run } = game();
   run(`let now = 1000; Date.now = () => now;

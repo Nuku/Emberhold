@@ -4,6 +4,7 @@ All notable changes to Emberhold are recorded here, with the newest changes firs
 
 ## 2026-09-17
 
+- Fixed available Power displays so fractional capacity is shown to one decimal place without exposing floating-point noise.
 - Fixed held-resource displays so fractional amounts are shown as whole units without changing the underlying state.
 - Fixed cost displays so fractional costs are rounded up, preventing the UI from understating requirements.
 - Fixed standalone achievements so completing all four migration self-challenges can award their full gold challenge rating.

@@ -2973,7 +2973,7 @@ function startGameClock() {
   // lose time; it only wakes the simulation to account for elapsed time.
   if (typeof Worker === 'function') {
     try {
-      gameClockWorker = new Worker('js/game-clock.worker.js?v=publish-20260917u0900');
+    gameClockWorker = new Worker('js/game-clock.worker.js?v=publish-20260917u1157');
       gameClockWorker.addEventListener('message', () => {
         updateGameClock(true);
         renderBonusTimer();
@@ -3832,6 +3832,9 @@ function fmtHeld(n) {
 function fmtCost(n) {
   return fmt(Math.ceil(n));
 }
+function fmtAvailablePower(n) {
+  return fmt(Math.floor((n + 1e-9) * 10) / 10);
+}
 function fmtRate(n) {
   if (!n) return '';
   return ` ${n > 0 ? '+' : ''}${fmt(n)}/s`;
@@ -4101,7 +4104,7 @@ function renderStores() {
     const cls = rate > 0.0001 ? 'rate-pos' : (rate < -0.0001 ? 'rate-neg' : '');
     const cap = capacityOf(r.id);
     const amount = r.id === 'power'
-      ? `${fmtHeld(Math.max(0, state.res[r.id] - activePower.factory * FACTORY_POWER_REQUIREMENT))} capacity`
+      ? `${fmtAvailablePower(Math.max(0, state.res[r.id] - activePower.factory * FACTORY_POWER_REQUIREMENT))} capacity`
       : cap === Infinity
       ? fmtHeld(state.res[r.id])
       : `${fmtHeld(state.res[r.id])} / ${fmt(cap)}${isFull(r.id) ? ' FULL' : ''}`;
@@ -4881,7 +4884,7 @@ function renderSidePanel() {
 function loadLatestUpdatesTooltip() {
   const button = document.getElementById('btn-updates');
   if (!button || typeof fetch !== 'function' || typeof DOMParser !== 'function') return;
-  fetch('changelog.html?v=publish-20260917u0916')
+  fetch('changelog.html?v=publish-20260917u1157')
     .then(response => response.ok ? response.text() : Promise.reject(new Error('changelog unavailable')))
     .then(source => {
       const doc = new DOMParser().parseFromString(source, 'text/html');
