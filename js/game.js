@@ -2988,7 +2988,7 @@ function startGameClock() {
   // lose time; it only wakes the simulation to account for elapsed time.
   if (typeof Worker === 'function') {
     try {
-    gameClockWorker = new Worker('js/game-clock.worker.js?v=publish-20260918u0003');
+    gameClockWorker = new Worker('js/game-clock.worker.js?v=publish-20260918u0004');
       gameClockWorker.addEventListener('message', () => {
         updateGameClock(true);
         renderBonusTimer();
@@ -4796,7 +4796,7 @@ function renderStats() {
     ['stats', 'achievements', 'perks'].map(id => `<button class="subtab ${tab === id ? 'active' : ''}" data-action="stats-tab" data-stats-tab="${id}" role="tab" aria-selected="${tab === id}">${id[0].toUpperCase() + id.slice(1)}${id === 'achievements' ? ` <span class="subtab-count">${completed}/${ACHIEVEMENTS.length}</span>` : ''}</button>`).join('') + '</div>';
   if (tab === 'achievements') {
     h += '<div class="res-note stats-intro">Achievements are the work Emberhold is expected to do. Complete them naturally as your settlement grows.</div>';
-    h += ACHIEVEMENTS.map(a => { const rating = achievementRating(a.id); const done = rating > 0; return `<div class="achievement-card card ${done ? 'done' : 'dimmed'}"><div class="card-head"><span class="card-title">${done ? '✦ ' : ''}${a.name}</span><span class="card-count">${done ? CHALLENGE_RATING_NAMES[rating] : 'In progress'}</span><span class="card-effect">${a.effect ? `${a.effect} ×${rating || 1}; ` : ''}+${(0.25 * (rating || 1)).toFixed(2)}% production</span></div><div class="card-desc">${a.desc}</div><div class="achievement-progress">${done ? `Achievement bonus at ${CHALLENGE_RATING_NAMES[rating]} strength` : a.progress()}</div></div>`; }).join('');
+    h += ACHIEVEMENTS.filter(a => achievementRating(a.id) > 0).map(a => { const rating = achievementRating(a.id); return `<div class="achievement-card card done"><div class="card-head"><span class="card-title">✦ ${a.name}</span><span class="card-count">${CHALLENGE_RATING_NAMES[rating]}</span><span class="card-effect">${a.effect ? `${a.effect} ×${rating}; ` : ''}+${(0.25 * rating).toFixed(2)}% production</span></div><div class="card-desc">${a.desc}</div><div class="achievement-progress">Achievement bonus at ${CHALLENGE_RATING_NAMES[rating]} strength</div></div>`; }).join('');
     return h;
   }
   if (tab === 'perks') {
@@ -4903,7 +4903,7 @@ function renderSidePanel() {
 function loadLatestUpdatesTooltip() {
   const button = document.getElementById('btn-updates');
   if (!button || typeof fetch !== 'function' || typeof DOMParser !== 'function') return;
-      fetch('changelog.html?v=publish-20260918u0003')
+      fetch('changelog.html?v=publish-20260918u0004')
     .then(response => response.ok ? response.text() : Promise.reject(new Error('changelog unavailable')))
     .then(source => {
       const doc = new DOMParser().parseFromString(source, 'text/html');
