@@ -569,6 +569,20 @@ test('queue items show each missing resource with its own estimate', () => {
   assert.equal((html.match(/queue-needs/g) || []).length, 0);
 });
 
+test('queued Wonder obstacles use their live direct cost for readiness', () => {
+  const { run } = game();
+  run(`state.queues.build = [{ type: 'build', id: 'wonderObstacle:emberplain:0:3' }];
+    state.res.machinery = 0; state.res.knowledge = 0; state.res.aether = 0;`);
+  const html = run("renderQueue('build')");
+  assert.match(html, /Silence Device/);
+  assert.doesNotMatch(html, /queue-ready/);
+  assert.match(html, /500 Machinery/);
+  assert.match(html, /5000 Knowledge/);
+  assert.match(html, /70 Aether/);
+  run(`state.res.machinery = 500; state.res.knowledge = 5000; state.res.aether = 70`);
+  assert.match(run("renderQueue('build')"), /queue-ready/);
+});
+
 test('queue wait labels switch to minutes and seconds after one minute', () => {
   const { run } = game();
   assert.equal(run("queueLabel(60)"), '60s');

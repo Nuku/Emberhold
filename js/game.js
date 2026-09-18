@@ -1190,7 +1190,12 @@ function queueDef(entry) {
 function queueCost(entry) {
   const def = queueDef(entry);
   if (!def) return null;
-  if (entry.type === 'build') return effectiveCoalCost(buildingCost(def));
+  if (entry.type === 'build') {
+    // Wonder obstacles are queued as construction entries, but unlike regular
+    // buildings they have a direct cost and no building scaling metadata.
+    if (isWonderObstacleQueueId(entry.id)) return effectiveCoalCost(def.cost);
+    return effectiveCoalCost(buildingCost(def));
+  }
   if (entry.type === 'research') return effectiveCoalCost(researchCost(def));
   return effectiveCoalCost(expeditionCost(def));
 }
@@ -2983,7 +2988,7 @@ function startGameClock() {
   // lose time; it only wakes the simulation to account for elapsed time.
   if (typeof Worker === 'function') {
     try {
-    gameClockWorker = new Worker('js/game-clock.worker.js?v=publish-20260918u0002');
+    gameClockWorker = new Worker('js/game-clock.worker.js?v=publish-20260918u0003');
       gameClockWorker.addEventListener('message', () => {
         updateGameClock(true);
         renderBonusTimer();
@@ -4898,7 +4903,7 @@ function renderSidePanel() {
 function loadLatestUpdatesTooltip() {
   const button = document.getElementById('btn-updates');
   if (!button || typeof fetch !== 'function' || typeof DOMParser !== 'function') return;
-      fetch('changelog.html?v=publish-20260918u0002')
+      fetch('changelog.html?v=publish-20260918u0003')
     .then(response => response.ok ? response.text() : Promise.reject(new Error('changelog unavailable')))
     .then(source => {
       const doc = new DOMParser().parseFromString(source, 'text/html');
