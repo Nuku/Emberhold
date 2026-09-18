@@ -1604,7 +1604,7 @@ function globalProductionFactors(resource = null) {
     ['All six sites explored', siteExpeditionsComplete() ? 1.05 : 1],
     ['Everwarm', perm('everwarm') ? 1.05 : 1],
     ['Deep Roots', 1 + 0.05 * upg('deepRoots')],
-    ['Completion bonus', 1 + 0.001 * achievementRatingTotal() * achievementPower],
+    ['Completion bonus', 1 + 0.0025 * achievementRatingTotal() * achievementPower],
     ['Haste trial', trialActive('haste') ? 0.70 : 1],
   ];
 }
@@ -2977,7 +2977,7 @@ function startGameClock() {
   // lose time; it only wakes the simulation to account for elapsed time.
   if (typeof Worker === 'function') {
     try {
-    gameClockWorker = new Worker('js/game-clock.worker.js?v=publish-20260917u1810');
+    gameClockWorker = new Worker('js/game-clock.worker.js?v=publish-20260918u0001');
       gameClockWorker.addEventListener('message', () => {
         updateGameClock(true);
         renderBonusTimer();
@@ -3948,7 +3948,7 @@ function updateAchievements(triggeredIds = []) {
       if (newRating > oldRating && (!oldRating || newlyMet || triggered.has(achievement.id))) {
         state.achievements[achievement.id] = newRating;
         const ratingName = CHALLENGE_RATING_NAMES[newRating];
-        addLog(`Achievement completed: ${achievement.name} (${ratingName}). Completion bonus +${(newRating * 0.1).toFixed(1)}% to all production.`, 'log-good');
+        addLog(`Achievement completed: ${achievement.name} (${ratingName}). Completion bonus +${(newRating * 0.25).toFixed(2)}% to all production.`, 'log-good');
       }
     }
   }
@@ -4784,7 +4784,7 @@ function renderStats() {
     ['stats', 'achievements', 'perks'].map(id => `<button class="subtab ${tab === id ? 'active' : ''}" data-action="stats-tab" data-stats-tab="${id}" role="tab" aria-selected="${tab === id}">${id[0].toUpperCase() + id.slice(1)}${id === 'achievements' ? ` <span class="subtab-count">${completed}/${ACHIEVEMENTS.length}</span>` : ''}</button>`).join('') + '</div>';
   if (tab === 'achievements') {
     h += '<div class="res-note stats-intro">Achievements are the work Emberhold is expected to do. Complete them naturally as your settlement grows.</div>';
-    h += ACHIEVEMENTS.map(a => { const rating = achievementRating(a.id); const done = rating > 0; return `<div class="achievement-card card ${done ? 'done' : 'dimmed'}"><div class="card-head"><span class="card-title">${done ? '✦ ' : ''}${a.name}</span><span class="card-count">${done ? CHALLENGE_RATING_NAMES[rating] : 'In progress'}</span><span class="card-effect">${a.effect ? `${a.effect} ×${rating || 1}; ` : ''}+${(0.1 * (rating || 1)).toFixed(1)}% production</span></div><div class="card-desc">${a.desc}</div><div class="achievement-progress">${done ? `Achievement bonus at ${CHALLENGE_RATING_NAMES[rating]} strength` : a.progress()}</div></div>`; }).join('');
+    h += ACHIEVEMENTS.map(a => { const rating = achievementRating(a.id); const done = rating > 0; return `<div class="achievement-card card ${done ? 'done' : 'dimmed'}"><div class="card-head"><span class="card-title">${done ? '✦ ' : ''}${a.name}</span><span class="card-count">${done ? CHALLENGE_RATING_NAMES[rating] : 'In progress'}</span><span class="card-effect">${a.effect ? `${a.effect} ×${rating || 1}; ` : ''}+${(0.25 * (rating || 1)).toFixed(2)}% production</span></div><div class="card-desc">${a.desc}</div><div class="achievement-progress">${done ? `Achievement bonus at ${CHALLENGE_RATING_NAMES[rating]} strength` : a.progress()}</div></div>`; }).join('');
     return h;
   }
   if (tab === 'perks') {
@@ -4809,7 +4809,7 @@ function renderStats() {
     ['Buildings raised', fmt(buildings), `${Object.keys(state.bld || {}).length} types`],
     ['Research completed', fmt(research), `${Object.keys(state.techs || {}).length} discoveries`],
     ['Current lineage', lineageDef(state.species).name, lineageTraitsText(lineageDef(state.species))],
-    ['Completion bonus', `+${(achievementRatingTotal() * 0.1).toFixed(1)}%`, `${completed} of ${ACHIEVEMENTS.length} achievements completed; ratings add their strength`],
+    ['Completion bonus', `+${(achievementRatingTotal() * 0.25).toFixed(2)}%`, `${completed} of ${ACHIEVEMENTS.length} achievements completed; ratings add their strength`],
   ].map(([label, value, note]) => `<div class="stat-card"><div class="stat-label">${label}</div><div class="stat-value">${value}</div><div class="stat-note">${note}</div></div>`).join('') + '</div>';
   h += '<h2 class="section">Lifetime marks</h2><div class="res-note">Completed trials: ' + fmt(totalTrialsCompleted()) + ' · Sites established: ' + Object.keys(state.expeditions || {}).length + ' · Echoes held: ' + fmtHeld(state.echoes) + '</div>';
   return h;
@@ -4891,7 +4891,7 @@ function renderSidePanel() {
 function loadLatestUpdatesTooltip() {
   const button = document.getElementById('btn-updates');
   if (!button || typeof fetch !== 'function' || typeof DOMParser !== 'function') return;
-      fetch('changelog.html?v=publish-20260917u1810')
+      fetch('changelog.html?v=publish-20260918u0001')
     .then(response => response.ok ? response.text() : Promise.reject(new Error('changelog unavailable')))
     .then(source => {
       const doc = new DOMParser().parseFromString(source, 'text/html');

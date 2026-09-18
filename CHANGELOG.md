@@ -2,6 +2,10 @@
 
 All notable changes to Emberhold are recorded here, with the newest changes first.
 
+## 2026-09-18
+
+- Increased the achievement completion bonus from 0.1% to 0.25% per rating point, including the production display and completion log.
+
 ## 2026-09-17
 
 - Changed Diplomats so they are separate from the population limit and remain assigned through population loss.
