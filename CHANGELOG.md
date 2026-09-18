@@ -4,6 +4,7 @@ All notable changes to Emberhold are recorded here, with the newest changes firs
 
 ## 2026-09-18
 
+- Added the Fit Together Echo upgrade, which reduces building price growth by 1 percentage point per level, down to a 25% minimum.
 - Fixed queued Wonder obstacles so readiness checks use their live direct costs.
 - Increased the achievement completion bonus from 0.1% to 0.25% per rating point, including the production display and completion log.
 - Made every completed Wonder fate double the migration Echo rewards for that Wonder's future migrations.

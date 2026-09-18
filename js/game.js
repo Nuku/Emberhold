@@ -1070,7 +1070,8 @@ function reconcileWorkers() {
 }
 
 function buildingCost(def) {
-  const mult = Math.pow(def.scale, bld(def.id)) *
+  const scale = def.scale > 1 ? Math.max(1.25, def.scale - 0.01 * upg('fitTogether')) : def.scale;
+  const mult = Math.pow(scale, bld(def.id)) *
     (trialActive('frugality') ? trialDifficulty('frugality') : 1) *
     Math.pow(0.9, trialCount('frugality')) *
     (perm('blueprints') ? 0.85 : 1) * governanceCostMod();
@@ -2988,7 +2989,7 @@ function startGameClock() {
   // lose time; it only wakes the simulation to account for elapsed time.
   if (typeof Worker === 'function') {
     try {
-    gameClockWorker = new Worker('js/game-clock.worker.js?v=publish-20260918u0004');
+    gameClockWorker = new Worker('js/game-clock.worker.js?v=publish-20260918u0005');
       gameClockWorker.addEventListener('message', () => {
         updateGameClock(true);
         renderBonusTimer();
@@ -4903,7 +4904,7 @@ function renderSidePanel() {
 function loadLatestUpdatesTooltip() {
   const button = document.getElementById('btn-updates');
   if (!button || typeof fetch !== 'function' || typeof DOMParser !== 'function') return;
-      fetch('changelog.html?v=publish-20260918u0004')
+      fetch('changelog.html?v=publish-20260918u0005')
     .then(response => response.ok ? response.text() : Promise.reject(new Error('changelog unavailable')))
     .then(source => {
       const doc = new DOMParser().parseFromString(source, 'text/html');
