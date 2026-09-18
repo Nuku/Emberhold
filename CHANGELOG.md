@@ -5,6 +5,8 @@ All notable changes to Emberhold are recorded here, with the newest changes firs
 ## 2026-09-18
 
 - Increased the achievement completion bonus from 0.1% to 0.25% per rating point, including the production display and completion log.
+- Made every completed Wonder fate double the migration Echo rewards for that Wonder's future migrations.
+- Factory recipe cards now appear only after their associated research is unlocked.
 
 ## 2026-09-17
 

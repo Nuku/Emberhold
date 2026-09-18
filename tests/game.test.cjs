@@ -2181,6 +2181,9 @@ test('expedition production bonuses do not scale outgoing amounts unless explici
 test('factory lines unlock through research, persist in saves, and default safely', () => {
   const { run } = game();
   assert.equal(run("BUILDINGS.find(b => b.id === 'factory').max"), Infinity);
+  run('state.bld.factory = 1');
+  assert.match(run('renderVillage()'), /Industrial Goods/);
+  assert.doesNotMatch(run('renderVillage()'), /Produce Steel|Produce Machinery/);
   run(`state.bld.factory = 1; chooseFactoryRecipe('machinery')`);
   assert.equal(run('state.factoryRecipe'), 'goods');
   run(`state.techs.machineryTech = true; chooseFactoryRecipe('machinery'); saveGame(true); state = loadGame()`);
@@ -2251,7 +2254,7 @@ test('Steel Hearted boosts every Steel output path without increasing costs', ()
     const factoryDetail = {}; const factory = production(1, factoryDetail);
     state.bld.factory = 0; state.bld.forge = 1; state.buildingPower = { forge: 1 }; const forgeDetail = {}; const forge = production(1, forgeDetail)`);
   assert.ok(run('state.achievements.steelHearted'));
-  assert.ok(Math.abs(run('factory.steel') - 0.0529056) < 1e-10);
+  assert.ok(Math.abs(run('factory.steel') - 0.053064) < 1e-10);
   assert.ok(Math.abs(run('forge.steel') - 0.048) < 1e-10);
   assert.equal(run("factoryDetail.iron.find(e => e.label.startsWith('Factory inputs')).amount"), -0.6);
   assert.equal(run("factoryDetail.coal.find(e => e.label.startsWith('Factory inputs')).amount"), -0.4);
@@ -2392,14 +2395,14 @@ test('Wonder guards can save workers, wounded-only guards face doubled death wei
   assert.equal(run(`BUILDING_BY_ID.get('alloyMine').req()`), true);
 });
 
-test('every Wonder fate grants the normal migration Echoes', () => {
+test('every Wonder fate doubles the migration Echoes reward', () => {
   for (const choice of ['silence', 'become', 'restore']) {
     const { run } = game();
     run(`state.landing = 'emberplain'; state.pop = 30;
       const record = wonderRecord(); record.found = true;
       record.sections = [true, true, true, true, true];
       chooseWonderFate('${choice}');`);
-    assert.equal(run('state.echoes'), 4, choice);
+    assert.equal(run('state.echoes'), 8, choice);
   }
 });
 
@@ -2452,7 +2455,7 @@ test('self-challenges add 20% per bump to Wonder rewards and forced-migration Ec
     chooseWonderFate('become');`);
   assert.equal(run('state.hope'), 1.4);
   assert.equal(run('state.ancient'), 1.4);
-  assert.equal(run('state.echoes'), 5.6);
+  assert.equal(run('state.echoes'), 11.2);
 });
 
 test('restored Wonders carry their old purposes into future production', () => {

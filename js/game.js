@@ -136,6 +136,7 @@ function defaultState() {
     migrationPreparation: false,
     projects: {},
     pendingEchoes: 0,
+    pendingEchoMultiplier: 1,
     shopTab: 'buy',
     won: false,
     achievements: {},
@@ -892,10 +893,11 @@ function beginForcedWonderMigration() {
   state.pendingLanding = landing.id;
   state.migrating = true;
   state.pendingMigrationChallenges = challenges;
-  state.pendingEchoes = echoesEarned(challenges);
+  state.pendingEchoMultiplier = 2;
+  state.pendingEchoes = state.pendingEchoMultiplier * echoesEarned(challenges);
   // The base reward is earned immediately; challenge bonuses stay pending
   // until the migration is actually completed.
-  state.echoes += baseEchoesEarned();
+  state.echoes += state.pendingEchoMultiplier * baseEchoesEarned();
   addLog(`The Wonder's deeds will echo: ${state.pendingEchoes} Echo${state.pendingEchoes === 1 ? '' : 's'} gained.`, 'log-important');
   addLog(`The Wonder has been decided. There is no vote on the road ahead; it carries Emberhold toward ${landing.name}.`, 'log-important');
   setOut();
@@ -2611,6 +2613,7 @@ function prepareMigration(id, parts = 1) {
 
 function beginMigration() {
   if (!canMigrate()) return;
+  state.pendingEchoMultiplier = 1;
   state.pendingEchoes = echoesEarned([]);
   state.echoes += state.pendingEchoes;
   state.pendingSpecies = state.species;
@@ -2628,6 +2631,7 @@ function beginSoftReset() {
   if (state.migrating) return;
   if (!window.confirm('Begin a soft reset? This ends the current settlement and any active trial without granting Echoes or other rewards. You will receive migration choices and can set out immediately. Continue?')) return;
   state.pendingEchoes = 0;
+  state.pendingEchoMultiplier = 1;
   state.pendingSpecies = state.species;
   state.pendingLandings = landingChoicesForMigration();
   state.pendingLanding = (state.pendingLandings.find(l => lineageSelectable(state.pendingSpecies, l.id)) || state.pendingLandings[0]).id;
@@ -2745,7 +2749,8 @@ function setOut(trialId = null) {
     // Challenge choices are only a projection while the migration is in
     // progress. Award their bonus once, on departure, without ever changing
     // the spendable pouch when a choice is toggled.
-    state.echoes += Math.max(0, echoesEarned(chosenChallenges) - baseEchoesEarned());
+    const echoMultiplier = Number.isFinite(state.pendingEchoMultiplier) ? state.pendingEchoMultiplier : 1;
+    state.echoes += echoMultiplier * Math.max(0, echoesEarned(chosenChallenges) - baseEchoesEarned());
   }
   const newSpecies = trialId ? state.species : candidate;
   const unlockedLineages = { ...(state.lineagesUnlocked || { human: true }) };
@@ -2901,6 +2906,7 @@ function setOut(trialId = null) {
   state.migrationPreparation = false;
   state.projects = {};
   state.pendingEchoes = 0;
+  state.pendingEchoMultiplier = 1;
   state.pendingSpecies = null;
   state.pendingLandings = [];
   state.pendingLanding = null;
@@ -2977,7 +2983,7 @@ function startGameClock() {
   // lose time; it only wakes the simulation to account for elapsed time.
   if (typeof Worker === 'function') {
     try {
-    gameClockWorker = new Worker('js/game-clock.worker.js?v=publish-20260918u0001');
+    gameClockWorker = new Worker('js/game-clock.worker.js?v=publish-20260918u0002');
       gameClockWorker.addEventListener('message', () => {
         updateGameClock(true);
         renderBonusTimer();
@@ -4148,15 +4154,16 @@ function renderVillage() {
       'All factories share one production line. After the World Anvil is silenced, Tinkerers can use this same recipe list at half the factory rate without needing Power. Production slows when supplies run short and pauses when output storage is full. The Industrialization trial requires Industrial Goods.</div>';
     for (const recipe of FACTORY_RECIPES) {
       const unlocked = !recipe.tech || tech(recipe.tech);
+      if (!unlocked) continue;
       const selected = factoryRecipes().includes(recipe.id);
       const recipeFactor = recipe.id === 'steel' && tech('lightningMetal') ? 1.5 : 1;
       const activeFactories = powerAllocation().factory;
       const inputs = Object.entries(effectiveCoalInputs(Object.fromEntries(Object.entries(recipe.inputs).map(([r, n]) => [r, n * recipeFactor * activeFactories])), 'factory', activeFactories))
         .map(([r, n]) => `${fmt(activeFactories ? n / activeFactories : n)} ${resourceName(r)}/s`).join(', ');
       const powerText = `${FACTORY_POWER_REQUIREMENT} Power capacity per factory`;
-      h += `<div class="card"><div class="card-head"><span class="card-title">${recipe.name}</span><span class="card-count">${selected ? 'Active' : unlocked ? 'Available' : `Requires ${recipe.unlock}`}</span></div>` +
+      h += `<div class="card"><div class="card-head"><span class="card-title">${recipe.name}</span><span class="card-count">${selected ? 'Active' : 'Available'}</span></div>` +
         `<div class="card-desc">Produces ${fmt(recipe.rate * recipeFactor)}/s; requires ${powerText}${inputs ? ` and consumes ${inputs}` : ''}.</div>` +
-        `<div class="card-actions"><button data-action="factory-recipe" data-id="${recipe.id}" ${!unlocked || (selected && factoryRecipes().length === 1) || (!selected && factoryRecipes().length >= 2) ? 'disabled' : ''}>${selected ? 'Producing ' : 'Produce '}${recipe.name}</button></div>` +
+        `<div class="card-actions"><button data-action="factory-recipe" data-id="${recipe.id}" ${(selected && factoryRecipes().length === 1) || (!selected && factoryRecipes().length >= 2) ? 'disabled' : ''}>${selected ? 'Producing ' : 'Produce '}${recipe.name}</button></div>` +
         (selected ? woodFuelControls('factory', powerAllocation().factory) : '') + '</div>';
     }
   }
@@ -4891,7 +4898,7 @@ function renderSidePanel() {
 function loadLatestUpdatesTooltip() {
   const button = document.getElementById('btn-updates');
   if (!button || typeof fetch !== 'function' || typeof DOMParser !== 'function') return;
-      fetch('changelog.html?v=publish-20260918u0001')
+      fetch('changelog.html?v=publish-20260918u0002')
     .then(response => response.ok ? response.text() : Promise.reject(new Error('changelog unavailable')))
     .then(source => {
       const doc = new DOMParser().parseFromString(source, 'text/html');
