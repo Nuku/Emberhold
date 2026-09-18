@@ -2977,7 +2977,7 @@ function startGameClock() {
   // lose time; it only wakes the simulation to account for elapsed time.
   if (typeof Worker === 'function') {
     try {
-    gameClockWorker = new Worker('js/game-clock.worker.js?v=publish-20260917u1535');
+    gameClockWorker = new Worker('js/game-clock.worker.js?v=publish-20260917u1810');
       gameClockWorker.addEventListener('message', () => {
         updateGameClock(true);
         renderBonusTimer();
@@ -4405,8 +4405,7 @@ function renderDiplomacy() {
     if (local && tech('diplomacy') && !entry.conquered && !conquestTrialRelationsLocked()) {
       const diplomatCostNow = diplomatCost(id);
       h += `<div class="res-note">${JOBS.diplomat.name}s assigned: ${diplomatCount(id)} — each adds +3 relations per minute</div>` +
-        `<div class="card-actions"><button data-action="diplomat-dec" data-tribe="${id}" ${diplomatCount(id) > 0 ? '' : 'disabled'}>−</button> ` +
-        `<button data-action="diplomat-inc" data-tribe="${id}" ${canAfford(diplomatCostNow) ? '' : 'disabled'}>Assign Diplomat (${costHtml(diplomatCostNow)})</button></div>`;
+        `<div class="card-actions"><button data-action="diplomat-inc" data-tribe="${id}" ${canAfford(diplomatCostNow) ? '' : 'disabled'}>Assign Diplomat (${costHtml(diplomatCostNow)})</button></div>`;
     }
     h += '</div>';
   }
@@ -4892,7 +4891,7 @@ function renderSidePanel() {
 function loadLatestUpdatesTooltip() {
   const button = document.getElementById('btn-updates');
   if (!button || typeof fetch !== 'function' || typeof DOMParser !== 'function') return;
-  fetch('changelog.html?v=publish-20260917u1535')
+      fetch('changelog.html?v=publish-20260917u1810')
     .then(response => response.ok ? response.text() : Promise.reject(new Error('changelog unavailable')))
     .then(source => {
       const doc = new DOMParser().parseFromString(source, 'text/html');

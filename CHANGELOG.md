@@ -6,6 +6,7 @@ All notable changes to Emberhold are recorded here, with the newest changes firs
 
 - Changed Diplomats so they are separate from the population limit and remain assigned through population loss.
 - Added a Currency cost to hiring Diplomats; the cost rises by 50% for each existing Diplomat assigned to that tribe and scales with the tribe's economic strength.
+- Removed the obsolete per-tribe decrement control from the Diplomacy panel now that Diplomats are not population-limited.
 - Fixed available Power displays so fractional capacity is shown to one decimal place without exposing floating-point noise.
 - Fixed held-resource displays so fractional amounts are shown as whole units without changing the underlying state.
 - Fixed cost displays so fractional costs are rounded up, preventing the UI from understating requirements.
