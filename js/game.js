@@ -2994,7 +2994,7 @@ function startGameClock() {
   // lose time; it only wakes the simulation to account for elapsed time.
   if (typeof Worker === 'function') {
     try {
-    gameClockWorker = new Worker('js/game-clock.worker.js?v=publish-20260919u0002');
+    gameClockWorker = new Worker('js/game-clock.worker.js?v=publish-20260919u0003');
       gameClockWorker.addEventListener('message', () => {
         updateGameClock(true);
         renderBonusTimer();
@@ -4211,7 +4211,7 @@ function renderVillage() {
     if (job.targeted || j === 'guard') continue;
     if (!job.unlock()) continue;
     const n = state.jobs[j] || 0;
-    const assignment = typeof job.max === 'function' || job.mining ? `${n}/${jobCapacity(j)}` : n;
+    const assignment = typeof job.max === 'function' || job.mining || j === 'astronomer' ? `${n}/${jobCapacity(j)}` : n;
     const tinkererFactory = j === 'tinkerer' && tinkererFactoryAvailable();
     const workRecipe = tinkererFactory ? factoryRecipe() : null;
     const workRate = workRecipe ? workRecipe.id === 'tools' ? job.base : workRecipe.rate * 0.5 * (workRecipe.id === 'steel' && tech('lightningMetal') ? 1.5 : 1) : job.base;
@@ -4909,7 +4909,7 @@ function renderSidePanel() {
 function loadLatestUpdatesTooltip() {
   const button = document.getElementById('btn-updates');
   if (!button || typeof fetch !== 'function' || typeof DOMParser !== 'function') return;
-      fetch('changelog.html?v=publish-20260919u0002')
+      fetch('changelog.html?v=publish-20260919u0003')
     .then(response => response.ok ? response.text() : Promise.reject(new Error('changelog unavailable')))
     .then(source => {
       const doc = new DOMParser().parseFromString(source, 'text/html');

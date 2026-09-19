@@ -1450,6 +1450,7 @@ test('astronomers are limited to two plus one per Wonder with an ending', () => 
   assert.equal(run('jobCapacity("astronomer")'), 4);
   run("state.wonders.emberplain.outcomes.silence = true");
   assert.equal(run('jobCapacity("astronomer")'), 4);
+  assert.match(run('renderVillage()'), /class="job-assign">2\/4<\/span>/);
 });
 
 test('tinkerers are limited to one plus one per five woodcutters', () => {
