@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Emberhold Automation
 // @namespace    https://github.com/emberhold
-// @version      1.25.8
+// @version      1.25.9
 // @description  Configurable automation for Emberhold
 // @updateURL    https://raw.githubusercontent.com/Nuku/Emberhold-Automation/main/emberhold_automation.user.js
 // @downloadURL  https://raw.githubusercontent.com/Nuku/Emberhold-Automation/main/emberhold_automation.user.js
@@ -362,6 +362,7 @@
       const demand = queuedDemand();
       if (settings.jobs && autoMorale(state)) return;
       if (settings.jobs) autoJobs(state, demand);
+      if (settings.buildings) autoFactoryRecipe(state, demand);
       if (settings.research) autoResearch(state, demand);
       if (settings.buildings) autoBuildings(state, demand);
       if (settings.crafting) autoCraft(state, demand);
@@ -414,6 +415,35 @@
     const status = document.querySelector('#emberhold-automation [data-status]');
     const current = state?.state || state;
     if (status) status.textContent = `${lastAction} · day ${Number.isFinite(current?.day) ? Math.floor(current.day) : 'unknown'}`;
+  }
+
+  function autoFactoryRecipe(state, demand) {
+    const factoryRecipes = definitions().FACTORY_RECIPES || [];
+    if (!(api().actions?.chooseFactoryRecipe || api().action) || !(state.bld?.factory > 0) || !factoryRecipes.length) return false;
+
+    const rates = api().helpers?.production?.(1) || {};
+    const target = factoryRecipes.find(recipe =>
+      (!recipe.tech || !!state.techs?.[recipe.tech]) &&
+      (demand[recipe.id] || 0) > (state.res[recipe.id] || 0) &&
+      (rates[recipe.id] || 0) <= 0);
+    if (!target) return false;
+
+    const selected = Array.isArray(state.factoryRecipes)
+      ? [...state.factoryRecipes]
+      : [state.factoryRecipe];
+    if (selected.length === 1 && selected[0] === target.id) return false;
+
+    // Divided Attention uses a toggle API. Add the target first, then remove
+    // other selected lines so a critical queued input gets the whole line.
+    if (!selected.includes(target.id)) invoke('chooseFactoryRecipe', target.id);
+    const refreshed = snapshot();
+    const refreshedSelected = Array.isArray(refreshed?.factoryRecipes)
+      ? refreshed.factoryRecipes
+      : [refreshed?.factoryRecipe];
+    for (const id of refreshedSelected) {
+      if (id !== target.id) invoke('chooseFactoryRecipe', id);
+    }
+    return true;
   }
 
   function restart() {

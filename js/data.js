@@ -1354,7 +1354,7 @@ const WONDERS = [
   { id: 'floodmeadows', name: 'The River Crown', short: 'A drowned machine that once told water where to go',
     findCost: { survey: 320, food: 1700, wood: 700, tools: 100 },
     findText: 'When the Floodmeadows recede, a circle of black towers rises from the mud. Their doors open only during the brief hour when the river holds its breath.',
-    calamity: { resource: 'wood', name: 'The flood takes the timber', values: [1.6, 3.5, 6.5, 10.0, 15.0],
+    calamity: { resource: 'wood', name: 'The flood takes the timber', values: [8.0, 17.5, 32.5, 50.0, 75.0],
       text: 'The River Crown calls water through forgotten channels. Flooding swells at the edges of Emberhold and carries timber away.' },
     sections: [
       ['The Low Gate', 'Water climbs the stairs ahead of the expedition, then pauses at each landing as though waiting to be introduced.'],

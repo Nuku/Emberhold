@@ -2,6 +2,10 @@
 
 All notable changes to Emberhold are recorded here, with the newest changes first.
 
+## 2026-09-19
+
+- Updated the Emberhold Automation userscript to choose factory recipes automatically when production is needed, including support for splitting and consolidating Divided Attention assignments. The userscript version is now 1.25.9.
+
 ## 2026-09-18
 
 - Rebalanced the River Crown calamity so its escalating timber loss matches the intended sustained Wonder pacing.
