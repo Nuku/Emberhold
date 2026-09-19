@@ -4,6 +4,7 @@ All notable changes to Emberhold are recorded here, with the newest changes firs
 
 ## 2026-09-19
 
+- Increased Astronomer capacity to two, plus one for each Wonder with a discovered ending.
 - Updated the Emberhold Automation userscript to choose factory recipes automatically when production is needed, including support for splitting and consolidating Divided Attention assignments. The userscript version is now 1.25.9.
 
 ## 2026-09-18

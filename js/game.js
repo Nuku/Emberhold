@@ -185,6 +185,10 @@ function wonderRecord(id = state.landing) {
 function beaconsLitCount() { return Object.keys(state.beaconsLit || {}).filter(id => state.beaconsLit[id]).length; }
 function wonderHintsAvailable() { return tech('optics') && !!state.beaconRevisited?.[state.landing]; }
 function wonderChoice(id, choice) { return !!state.wonders?.[id]?.outcomes?.[choice]; }
+function wondersWithAnEnding() {
+  return Object.values(state.wonders || {}).filter(record =>
+    Object.values(record?.outcomes || {}).some(Boolean)).length;
+}
 function wonderUnlock(id) { return !!state.wonderUnlocks?.[id]; }
 function animalHusbandryAvailable() { return wonderChoice('greenfold', 'silence'); }
 function solarPowerAvailable() { return wonderChoice('emberplain', 'restore') &&
@@ -1024,6 +1028,7 @@ function jobCapacity(job) {
   if (!j) return 0;
   if (job === 'forager' && trialActive('whiteout')) return 0;
   if (job === 'guard') return guardCap();
+  if (job === 'astronomer') return 2 + wondersWithAnEnding();
   const base = typeof j.max === 'function' ? j.max() : state.pop;
   return base + (workplaceEthicsActive() && j.mining ? 1 : 0);
 }
@@ -1046,7 +1051,7 @@ function reconcileWorkers() {
     const job = JOBS[id];
     let n = job.unlock() && id !== 'diplomat' ? count(state.jobs[id]) : 0;
     if (id === 'guard') n = Math.min(n, guardCap());
-    if (typeof job.max === 'function') n = Math.min(n, jobCapacity(id));
+    if (typeof job.max === 'function' || id === 'astronomer') n = Math.min(n, jobCapacity(id));
     if (id !== 'guard') n = Math.min(n, remaining);
     if (n) state.jobs[id] = n;
     else delete state.jobs[id];
@@ -2989,7 +2994,7 @@ function startGameClock() {
   // lose time; it only wakes the simulation to account for elapsed time.
   if (typeof Worker === 'function') {
     try {
-    gameClockWorker = new Worker('js/game-clock.worker.js?v=publish-20260919u0001');
+    gameClockWorker = new Worker('js/game-clock.worker.js?v=publish-20260919u0002');
       gameClockWorker.addEventListener('message', () => {
         updateGameClock(true);
         renderBonusTimer();
@@ -4904,7 +4909,7 @@ function renderSidePanel() {
 function loadLatestUpdatesTooltip() {
   const button = document.getElementById('btn-updates');
   if (!button || typeof fetch !== 'function' || typeof DOMParser !== 'function') return;
-      fetch('changelog.html?v=publish-20260919u0001')
+      fetch('changelog.html?v=publish-20260919u0002')
     .then(response => response.ok ? response.text() : Promise.reject(new Error('changelog unavailable')))
     .then(source => {
       const doc = new DOMParser().parseFromString(source, 'text/html');

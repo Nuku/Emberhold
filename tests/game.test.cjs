@@ -1438,6 +1438,20 @@ test('thinkers are limited to one more than the number of libraries', () => {
   assert.equal(run('state.jobs.thinker'), 3);
 });
 
+test('astronomers are limited to two plus one per Wonder with an ending', () => {
+  const { run } = game();
+  run("state.bld.observatory = 1; state.pop = 20; state.jobs.astronomer = 20; state.wonders = { emberplain: {}, greenfold: {} }; reconcileWorkers()");
+  assert.equal(run('jobCapacity("astronomer")'), 2);
+  assert.equal(run('state.jobs.astronomer'), 2);
+  run("state.wonders.emberplain.outcomes = { restore: true }; reconcileWorkers()");
+  assert.equal(run('jobCapacity("astronomer")'), 3);
+  assert.equal(run('state.jobs.astronomer'), 2);
+  run("state.wonders.greenfold.outcomes = { silence: true }; reconcileWorkers()");
+  assert.equal(run('jobCapacity("astronomer")'), 4);
+  run("state.wonders.emberplain.outcomes.silence = true");
+  assert.equal(run('jobCapacity("astronomer")'), 4);
+});
+
 test('tinkerers are limited to one plus one per five woodcutters', () => {
   const { run } = game();
   run("state.trial = { id: 'tinkering' }; state.bld.workbench = 1; state.pop = 20");
