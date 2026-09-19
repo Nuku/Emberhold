@@ -640,6 +640,12 @@ function wonderSectionIndex(record = wonderRecord()) {
   return record.sections.findIndex(done => !done);
 }
 function wonderReadyForDecision(record = wonderRecord()) { return wonderSectionIndex(record) < 0; }
+function migrationShopOpen() {
+  if (state.migrating) return true;
+  const def = wonderDef();
+  const record = state.wonders?.[state.landing];
+  return !!def && !!record?.found && wonderReadyForDecision(record);
+}
 function wonderFindCost(def = wonderDef()) {
   if (!def) return {};
   // Every distinct beacon gives the expedition a clearer set of clues. The
@@ -2682,7 +2688,7 @@ function chooseLanding(id) {
 
 function migrationBuy(id) {
   const def = UPGRADE_BY_ID.get(id);
-  if (!def || !state.migrating) return;
+  if (!def || !migrationShopOpen()) return;
   if (id === 'farHorizons' && !LINEAGES.some(l => l.id !== 'human' && lineageUnlocked(l.id))) return;
   if (id === 'fearOfTheConqueror' && !fearOfTheConquerorAvailable()) return;
   if (id === 'practicedMigrator' && !practicedMigratorAvailable()) return;
@@ -2709,7 +2715,7 @@ function buyWonderUnlock(id) {
 
 function migrationRefund(id) {
   const def = UPGRADE_BY_ID.get(id);
-  if (!def || !state.migrating) return;
+  if (!def || !migrationShopOpen()) return;
   const lvl = upg(id);
   if (lvl <= 0) return;
   state.upgrades[id] = lvl - 1;
@@ -2994,7 +3000,7 @@ function startGameClock() {
   // lose time; it only wakes the simulation to account for elapsed time.
   if (typeof Worker === 'function') {
     try {
-    gameClockWorker = new Worker('js/game-clock.worker.js?v=publish-20260919u0003');
+      gameClockWorker = new Worker('js/game-clock.worker.js?v=publish-20260919u0004');
       gameClockWorker.addEventListener('message', () => {
         updateGameClock(true);
         renderBonusTimer();
@@ -4613,6 +4619,7 @@ function renderWonder() {
       h += `<div class="card ${done ? 'done' : ''}"><div class="card-head"><span class="card-title">${name}</span><span class="card-count">${done ? 'Faced before — repeatable' : 'Ends this attempt'}</span></div><div class="card-desc">${text}</div>` +
         `<div class="card-actions"><button data-action="wonder-fate" data-id="${id}">${done ? 'Choose this fate again' : 'Choose this fate'}</button></div></div>`;
     });
+    h += renderShop();
   }
   return h;
 }
@@ -4727,8 +4734,10 @@ function renderMigration() {
 function renderShop() {
   const tab = state.shopTab || 'buy';
   let h = '<h2 class="section">Ancestral Shop — what echoes endure</h2>';
-  if (!state.migrating) {
+  if (!migrationShopOpen()) {
     h += '<div class="res-note">Points can be added and removed only while a migration is being prepared — a fresh respec before every founding, handy for swearing trials.</div>';
+  } else if (!state.migrating) {
+    h += '<div class="res-note">The Wonder is ready for its fate. You may spend or refund Echoes before choosing, but the choice still begins the forced migration.</div>';
   }
   const available = [];
   const purchased = [];
@@ -4762,8 +4771,8 @@ function renderShop() {
       `<span class="card-effect">${u.effect}</span></div>` +
       `<div class="card-cost">${maxed ? 'fully learned' : `next level: ${nextCost} Echo${nextCost === 1 ? '' : 'es'}`}</div>` +
       `<div class="card-actions">` +
-      `<button data-action="migration-buy" data-id="${u.id}" ${state.migrating && !maxed && state.echoes >= nextCost ? '' : 'disabled'}>Buy</button> ` +
-      `<button data-action="migration-refund" data-id="${u.id}" ${state.migrating && lvl > 0 ? '' : 'disabled'}>Refund</button>` +
+      `<button data-action="migration-buy" data-id="${u.id}" ${migrationShopOpen() && !maxed && state.echoes >= nextCost ? '' : 'disabled'}>Buy</button> ` +
+      `<button data-action="migration-refund" data-id="${u.id}" ${migrationShopOpen() && lvl > 0 ? '' : 'disabled'}>Refund</button>` +
       `</div></div>`;
     (maxed ? purchased : available).push(card);
   }
@@ -4909,7 +4918,7 @@ function renderSidePanel() {
 function loadLatestUpdatesTooltip() {
   const button = document.getElementById('btn-updates');
   if (!button || typeof fetch !== 'function' || typeof DOMParser !== 'function') return;
-      fetch('changelog.html?v=publish-20260919u0003')
+      fetch('changelog.html?v=publish-20260919u0004')
     .then(response => response.ok ? response.text() : Promise.reject(new Error('changelog unavailable')))
     .then(source => {
       const doc = new DOMParser().parseFromString(source, 'text/html');

@@ -4,6 +4,7 @@ All notable changes to Emberhold are recorded here, with the newest changes firs
 
 ## 2026-09-19
 
+- Added a pre-fate Ancestral Shop state after all three endings of a Wonder are discovered, allowing Echoes to be spent or refunded before choosing the next fate.
 - Increased Astronomer capacity to two, plus one for each Wonder with a discovered ending.
 - Fixed the Village panel so Astronomer assignments display their current capacity.
 - Updated the Emberhold Automation userscript to choose factory recipes automatically when production is needed, including support for splitting and consolidating Divided Attention assignments. The userscript version is now 1.25.9.

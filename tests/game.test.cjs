@@ -2448,6 +2448,18 @@ test('a Wonder can be found and completed again after all fates are known', () =
   assert.equal(run('state.wonders.emberplain.outcomes.silence'), true);
 });
 
+test('Echoes can be spent before choosing a Wonder fate', () => {
+  const { run } = game();
+  run(`state.landing = 'emberplain'; state.echoes = 3;
+    const record = wonderRecord(); record.found = true;
+    record.sections = [true, true, true, true, true];`);
+  assert.equal(run('state.migrating'), false);
+  assert.match(run('renderWonder()'), /Ancestral Shop/);
+  run("migrationBuy('wanderers');");
+  assert.equal(run('state.echoes'), 2);
+  assert.equal(run('state.wonders.emberplain.outcomes.restore'), undefined);
+});
+
 test('self-challenges add 20% per bump to migration rewards', () => {
   const { run } = game();
   run(`state.bld.monument = 1; state.pop = 30; beginMigration();
