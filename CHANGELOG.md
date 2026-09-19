@@ -4,6 +4,7 @@ All notable changes to Emberhold are recorded here, with the newest changes firs
 
 ## 2026-09-19
 
+- Formatted large Echo upgrade costs with thousands separators in the Ancestral Shop.
 - Added the Wonderous Advance Echo upgrade, which automatically moves newly reached Wonder obstacles to the front of the construction queue after a fate has been discovered.
 - Added a Temperature unit setting so weather displays can use Celsius or Fahrenheit.
 - Completed Wonder sections now show their narrative descriptions on hover.

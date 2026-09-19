@@ -2413,6 +2413,7 @@ test('Wonderous Advance is gated by a completed Wonder and costs 10000 Echoes', 
   assert.doesNotMatch(run('renderShop()'), /Wonderous Advance/);
   run("state.wonders.emberplain = { outcomes: { silence: true } };");
   assert.match(run('renderShop()'), /Wonderous Advance/);
+  assert.match(run('renderShop()'), /next level: 10,000 Echoes/);
   run("migrationBuy('wonderousAdvance');");
   assert.equal(run('state.upgrades.wonderousAdvance'), 1);
   assert.equal(run('state.echoes'), 0);

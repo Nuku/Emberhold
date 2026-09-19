@@ -3020,7 +3020,7 @@ function startGameClock() {
   // lose time; it only wakes the simulation to account for elapsed time.
   if (typeof Worker === 'function') {
     try {
-      gameClockWorker = new Worker('js/game-clock.worker.js?v=publish-20260919u0006');
+      gameClockWorker = new Worker('js/game-clock.worker.js?v=publish-20260919u0007');
       gameClockWorker.addEventListener('message', () => {
         updateGameClock(true);
         renderBonusTimer();
@@ -3881,6 +3881,9 @@ function fmtHeld(n) {
 }
 function fmtCost(n) {
   return fmt(Math.ceil(n));
+}
+function fmtEchoCost(n) {
+  return Math.ceil(n).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ',');
 }
 function fmtAvailablePower(n) {
   return fmt(Math.floor((n + 1e-9) * 10) / 10);
@@ -4793,7 +4796,7 @@ function renderShop() {
       `<span class="card-title has-tooltip" data-tooltip="${attrText(u.desc)}">${u.name}</span>` +
       `<span class="card-count">${lvl} / ${u.max}</span>` +
       `<span class="card-effect">${u.effect}</span></div>` +
-      `<div class="card-cost">${maxed ? 'fully learned' : `next level: ${nextCost} Echo${nextCost === 1 ? '' : 'es'}`}</div>` +
+      `<div class="card-cost">${maxed ? 'fully learned' : `next level: ${fmtEchoCost(nextCost)} Echo${nextCost === 1 ? '' : 'es'}`}</div>` +
       `<div class="card-actions">` +
       `<button data-action="migration-buy" data-id="${u.id}" ${migrationShopOpen() && !maxed && state.echoes >= nextCost ? '' : 'disabled'}>Buy</button> ` +
       `<button data-action="migration-refund" data-id="${u.id}" ${migrationShopOpen() && lvl > 0 ? '' : 'disabled'}>Refund</button>` +
@@ -4943,7 +4946,7 @@ function renderSidePanel() {
 function loadLatestUpdatesTooltip() {
   const button = document.getElementById('btn-updates');
   if (!button || typeof fetch !== 'function' || typeof DOMParser !== 'function') return;
-      fetch('changelog.html?v=publish-20260919u0006')
+      fetch('changelog.html?v=publish-20260919u0007')
     .then(response => response.ok ? response.text() : Promise.reject(new Error('changelog unavailable')))
     .then(source => {
       const doc = new DOMParser().parseFromString(source, 'text/html');
