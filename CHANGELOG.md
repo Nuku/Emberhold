@@ -4,6 +4,8 @@ All notable changes to Emberhold are recorded here, with the newest changes firs
 
 ## 2026-09-19
 
+- Added the Wonderous Advance Echo upgrade, which automatically moves newly reached Wonder obstacles to the front of the construction queue after a fate has been discovered.
+- Added a Temperature unit setting so weather displays can use Celsius or Fahrenheit.
 - Completed Wonder sections now show their narrative descriptions on hover.
 - Added a pre-fate Ancestral Shop state after all three endings of a Wonder are discovered, allowing Echoes to be spent or refunded before choosing the next fate.
 - Increased Astronomer capacity to two, plus one for each Wonder with a discovered ending.

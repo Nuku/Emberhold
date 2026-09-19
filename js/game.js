@@ -145,7 +145,7 @@ function defaultState() {
     commonalityLineages: {},
     commonalityGuardsReturned: {},
     tutorialDismissed: false,
-    settings: { autosave: true, reducedMotion: false, compactStores: false, strictQueueOrder: false, tooltips: true, resetControls: false, woodForCoal: {} },
+    settings: { autosave: true, reducedMotion: false, compactStores: false, strictQueueOrder: false, tooltips: true, resetControls: false, fahrenheit: false, woodForCoal: {} },
     // Each category is persisted independently. `log` remains a derived,
     // read-only compatibility view for older integrations and saves.
     logs: Object.fromEntries(LOG_CATEGORIES.map(category => [category, []])),
@@ -817,6 +817,7 @@ function updateWonder(dt) {
   const blocked = !!obstacle;
   if (blocked && !record.obstacleNotices?.[obstacle.key]) {
     record.obstacleNotices[obstacle.key] = true;
+    queueWonderObstacleAtFront(obstacle, record);
     state.paused = true;
     addLog(`The expedition reaches ${obstacle.name}. Progress stops until it is built.`, 'log-important');
     saveGame(true);
@@ -1439,6 +1440,20 @@ function attemptWonderObstacle() {
   return true;
 }
 
+function queueWonderObstacleAtFront(obstacle, record) {
+  if (!upg('wonderousAdvance') || !Object.values(record?.outcomes || {}).some(Boolean)) return false;
+  const id = wonderObstacleQueueId(obstacle);
+  const existing = state.queues.build.findIndex(entry => entry.id === id);
+  if (existing === 0) return true;
+  if (existing > 0) {
+    const [entry] = state.queues.build.splice(existing, 1);
+    state.queues.build.unshift(entry);
+  } else {
+    state.queues.build.unshift({ type: 'build', id });
+  }
+  return true;
+}
+
 function attemptResearch(id) {
   const def = TECH_BY_ID.get(id);
   if (!def) return;
@@ -1586,7 +1601,12 @@ function dailyWeather(day = state.day, landing = state.landing) {
 
 function weatherSummary() {
   const weather = dailyWeather();
-  return `${weather.name}, ${weather.warmth.toLowerCase()} (${weather.temperature}°C)`;
+  return `${weather.name}, ${weather.warmth.toLowerCase()} (${formatTemperature(weather.temperature)})`;
+}
+
+function formatTemperature(celsius) {
+  if (state.settings?.fahrenheit) return `${Math.round(celsius * 9 / 5 + 32)}°F`;
+  return `${celsius}°C`;
 }
 
 function seasonMult() {
@@ -1990,7 +2010,7 @@ function production(dt = 0.25, breakdown = null) {
   const add = (res, label, base, factors = [], source = null) => {
     const active = poweredBonusByResource[res];
     if (base > 0 && active) factors = [...factors, ['Awaken Ancients', 1 + 0.10 * active]];
-    if (base > 0 && weather.mods[res]) factors = [...factors, [`Weather (${weather.name}, ${weather.temperature}°C)`, weather.mods[res]]];
+    if (base > 0 && weather.mods[res]) factors = [...factors, [`Weather (${weather.name}, ${formatTemperature(weather.temperature)})`, weather.mods[res]]];
     if (base > 0 && res === 'food' && (weather.id === 'rain' || weather.id === 'fog')) {
       factors = [...factors, ['Floodwise', lineageSpecialValue('weatherFood')]];
     }
@@ -3000,7 +3020,7 @@ function startGameClock() {
   // lose time; it only wakes the simulation to account for elapsed time.
   if (typeof Worker === 'function') {
     try {
-      gameClockWorker = new Worker('js/game-clock.worker.js?v=publish-20260919u0005');
+      gameClockWorker = new Worker('js/game-clock.worker.js?v=publish-20260919u0006');
       gameClockWorker.addEventListener('message', () => {
         updateGameClock(true);
         renderBonusTimer();
@@ -4858,6 +4878,7 @@ function renderSettings() {
     ['resetControls', 'Show reset controls', 'Expose the soft and hard reset actions below. Keep this off during ordinary play.'],
   ];
   h += options.map(([id, name, desc]) => `<div class="setting-row"><div><div class="setting-name">${name}</div><div class="setting-desc">${desc}</div></div><button class="setting-toggle ${settings[id] ? 'enabled' : ''}" data-action="setting-toggle" data-setting="${id}" aria-pressed="${!!settings[id]}">${settings[id] ? 'On' : 'Off'}</button></div>`).join('');
+  h += `<div class="setting-row"><div><div class="setting-name">Temperature unit</div><div class="setting-desc">Show weather temperatures in Celsius or Fahrenheit.</div></div><button class="setting-toggle ${settings.fahrenheit ? 'enabled' : ''}" data-action="setting-toggle" data-setting="fahrenheit" aria-pressed="${!!settings.fahrenheit}">${settings.fahrenheit ? 'Fahrenheit' : 'Celsius'}</button></div>`;
   h += `<div class="setting-row"><div><div class="setting-name">Wood for one-time coal costs</div><div class="setting-desc">Use 5× Wood for the next building, research, expedition, or craft cost that contains Coal.</div></div>${woodFuelInlineControls('cost', 1)}</div>`;
   h += '<h2 class="section">Chronicle tools</h2><div class="settings-actions"><button data-action="save">Save now</button><button data-action="export">Export save</button><button data-action="import">Import save</button></div>';
   if (settings.resetControls) {
@@ -4922,7 +4943,7 @@ function renderSidePanel() {
 function loadLatestUpdatesTooltip() {
   const button = document.getElementById('btn-updates');
   if (!button || typeof fetch !== 'function' || typeof DOMParser !== 'function') return;
-      fetch('changelog.html?v=publish-20260919u0005')
+      fetch('changelog.html?v=publish-20260919u0006')
     .then(response => response.ok ? response.text() : Promise.reject(new Error('changelog unavailable')))
     .then(source => {
       const doc = new DOMParser().parseFromString(source, 'text/html');
@@ -5547,7 +5568,7 @@ function boot() {
   state.diplomats = state.diplomats || {};
   state.policy = state.policy || 'commons';
   state.council = Array.isArray(state.council) ? state.council : [];
-  state.settings = { autosave: true, reducedMotion: false, compactStores: false, strictQueueOrder: false, tooltips: true, resetControls: false, woodForCoal: {}, ...(state.settings || {}) };
+  state.settings = { autosave: true, reducedMotion: false, compactStores: false, strictQueueOrder: false, tooltips: true, resetControls: false, fahrenheit: false, woodForCoal: {}, ...(state.settings || {}) };
   if (saveLoadFailed) state.settings.autosave = false;
   state.achievements = state.achievements || {};
   state.shopTab = ['buy', 'purchased'].includes(state.shopTab) ? state.shopTab : 'buy';

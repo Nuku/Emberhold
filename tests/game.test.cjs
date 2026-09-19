@@ -40,6 +40,15 @@ test('available Power display truncates to one decimal place', () => {
   assert.equal(run('fmtAvailablePower(1.3)'), '1.3');
 });
 
+test('temperature display follows the Celsius/Fahrenheit setting', () => {
+  const { run } = game();
+  assert.equal(run('formatTemperature(0)'), '0°C');
+  assert.equal(run('formatTemperature(20)'), '20°C');
+  run('state.settings.fahrenheit = true');
+  assert.equal(run('formatTemperature(0)'), '32°F');
+  assert.equal(run('formatTemperature(20)'), '68°F');
+});
+
 test('paused real-time clock does not advance or bank time', () => {
   const { run } = game();
   run(`let now = 1000; Date.now = () => now;
@@ -2396,6 +2405,32 @@ test('completed Wonder sections show their narrative description on hover', () =
   assert.match(html, /class="wonder-section done has-tooltip"[^>]*data-tooltip="Water climbs the stairs ahead/);
   assert.doesNotMatch(html, /class="wonder-section active has-tooltip"/);
   assert.doesNotMatch(html, /class="wonder-section [^"]*has-tooltip[^\"]*">2<\/span>The Sluice Choir/);
+});
+
+test('Wonderous Advance is gated by a completed Wonder and costs 10000 Echoes', () => {
+  const { run } = game();
+  run('state.migrating = true; state.echoes = 10000;');
+  assert.doesNotMatch(run('renderShop()'), /Wonderous Advance/);
+  run("state.wonders.emberplain = { outcomes: { silence: true } };");
+  assert.match(run('renderShop()'), /Wonderous Advance/);
+  run("migrationBuy('wonderousAdvance');");
+  assert.equal(run('state.upgrades.wonderousAdvance'), 1);
+  assert.equal(run('state.echoes'), 0);
+});
+
+test('Wonderous Advance queues a newly reached obstacle at the front', () => {
+  const { run } = game();
+  run(`state.landing = 'emberplain'; state.upgrades.wonderousAdvance = 1;
+    const record = wonderRecord(); record.found = true; record.progress = 48;
+    state.queues.build = [{ type: 'build', id: 'hut' }];
+    state.jobs.guard = 1; state.rapture = { landing: 'emberplain', workers: 1, tabSeen: true };
+    Math.random = () => 1; updateWonder(1);`);
+  assert.deepEqual(JSON.parse(run('JSON.stringify(state.queues.build.map(entry => entry.id))')), ['hut']);
+  run(`state.wonders.emberplain.outcomes = { silence: true }; state.wonders.emberplain.obstacleNotices = {};
+    updateWonder(1);`);
+  assert.equal(run('state.queues.build.length'), 2);
+  assert.equal(run('state.queues.build[0].id'), 'wonderObstacle:emberplain:0:0');
+  assert.equal(run('state.queues.build[1].id'), 'hut');
 });
 
 test('Wonder guards can save workers, wounded-only guards face doubled death weight, and fate rewards persist through forced migration', () => {
