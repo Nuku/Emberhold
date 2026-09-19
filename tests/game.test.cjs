@@ -469,9 +469,10 @@ test('Till It Is Complete requires Known Task and advances every affordable queu
 test('physical research requires its material inputs in addition to Knowledge', () => {
   const { run } = game();
   assert.deepEqual(JSON.parse(run("JSON.stringify(researchCost(TECHS.find(t => t.id === 'metallurgy')))")),
-    { knowledge: 3000, iron: 180, coal: 120, tools: 30 });
+    { knowledge: 200, iron: 180, coal: 120, tools: 30 });
+  assert.equal(run("researchCost(TECHS.find(t => t.id === 'ironMites')).knowledge"), 13500);
   assert.equal(run("researchCost(TECHS.find(t => t.id === 'stoneWorking')).knowledge"), 15);
-  run(`state.techs.seamMining = true; state.res.knowledge = 3000;
+  run(`state.techs.seamMining = true; state.res.knowledge = 200;
     state.res.iron = 180; state.res.coal = 119; state.res.tools = 30;
     attemptResearch('metallurgy');`);
   assert.equal(run('state.techs.metallurgy'), undefined);
@@ -489,7 +490,7 @@ test('legacy queued costs are removed during save normalization', () => {
   assert.equal(run(`(() => {
     const save = defaultState();
     save.queues.research = [{ type: 'research', id: 'metallurgy', cost: {
-      knowledge: 9000, iron: 180, coal: 120, tools: 30
+      knowledge: 200, iron: 180, coal: 120, tools: 30
     } }];
     normalizeSave(save);
     return Object.hasOwn(save.queues.research[0], 'cost');

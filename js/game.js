@@ -170,7 +170,7 @@ function era() { return state.era; }
 function expDone(id) { return !!state.expeditions[id]; }
 const POST_STONE_AGE_KNOWLEDGE_COST_MULTIPLIER = 15;
 const POST_STONE_AGE_RESEARCH = new Set([
-  'metallurgy', 'ironMites', 'weaponry', 'chainmail', 'machineryTech', 'aluminum', 'airControl', 'distantStores', 'oilPower', 'reclaimining', 'lightningMetal',
+  'ironMites', 'weaponry', 'chainmail', 'machineryTech', 'aluminum', 'airControl', 'distantStores', 'oilPower', 'reclaimining', 'lightningMetal',
   'livingAlloy', 'heartwood', 'starGlass', 'basinTempering', 'understandingHome', 'awakenAncients', 'advancedScience',
   'windHarness', 'banking', 'diplomacy', 'spies', 'espionage', 'civics',
   'council', 'commonality', 'festivals', 'civicHarmony', 'workplaceEthics', 'weaponEfficiency',
