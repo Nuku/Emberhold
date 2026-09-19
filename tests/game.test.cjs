@@ -2317,6 +2317,28 @@ test('four self-challenges award gold to achievements without prerequisites', ()
   assert.equal(run("CHALLENGE_RATING_NAMES[state.achievements.firstDay]"), 'gold');
 });
 
+test('a new settlement starts at day zero and re-rates already-met achievements', () => {
+  const { run } = game();
+  run(`state.day = 12; state.migrating = true; state.achievements = { firstDay: 1, stoneAge: 1, beacon: 1 };
+    state.pendingMigrationChallenges = MIGRATION_CHALLENGES.map(challenge => challenge.id); setOut();
+    state.era = 5; updateAchievements()`);
+  assert.equal(run('state.day'), 0);
+  assert.equal(run('state.achievements.firstDay'), 1);
+  assert.equal(run('state.achievements.stoneAge'), 4);
+  assert.equal(run('state.achievements.beacon'), 4);
+});
+
+test('trial completion and conquest can upgrade existing achievements', () => {
+  const { run } = game();
+  run(`state.achievements = { trialist: 1, diplomat: 1 }; state.achievementChecksInitialized = true;
+    state.migrationChallenges = MIGRATION_CHALLENGES.map(challenge => challenge.id);
+    state.trial = { id: 'scarcity' }; endTrial(true);
+    state.migrationChallenges = MIGRATION_CHALLENGES.map(challenge => challenge.id);
+    state.diplomacy.human = { disposition: 0, conquered: true }; updateAchievements(['diplomat'])`);
+  assert.equal(run('state.achievements.trialist'), 4);
+  assert.equal(run('state.achievements.diplomat'), 4);
+});
+
 test('completed achievements do not retroactively upgrade when challenges change', () => {
   const { run } = game();
   run('state.day = 1; updateAchievements(); state.migrationChallenges = MIGRATION_CHALLENGES.map(challenge => challenge.id); updateAchievements()');

@@ -1363,6 +1363,7 @@ function advanceBeaconProject(parts = 1) {
     state.beaconsLit = state.beaconsLit || {};
     state.beaconsLit[state.landing] = true;
     addLog('The Beacon burns. Its light will outlive the village.', 'log-good');
+    updateAchievements(['beacon']);
   }
   return completed;
 }
@@ -2433,6 +2434,7 @@ function endTrial(success) {
   const def = TRIAL_BY_ID.get(state.trial.id);
   if (success) {
     state.trialDone[def.id] = trialCount(def.id) + 1;
+    updateAchievements(['trialist']);
     addLog(`${def.name} complete! ${def.reward}`, 'log-good');
   } else {
     addLog(`${def.name} failed. The oath is broken, but oaths can be sworn again.`, 'log-bad');
@@ -2512,6 +2514,8 @@ function updateDiplomacy(dt) {
     const nudged = relationsLocked ? 0 : diplomatCount(id) * 0.05 * dt;
     if (nudged) entry.disposition = Math.min(100, entry.disposition + nudged);
   }
+  if (Object.values(state.diplomacy).some(entry => entry.disposition >= 80 || entry.conquered))
+    updateAchievements(['diplomat']);
   if (state.guardInjuries > 0) state.guardInjuries = Math.max(0, state.guardInjuries - dt / guardHealingNeed());
   if (relationsLocked) return;
   state.diplomacyEventT = (state.diplomacyEventT || 0) + dt;
@@ -2528,6 +2532,7 @@ function updateDiplomacy(dt) {
   }
   const delta = Math.random() < 0.55 ? 5 + Math.floor(Math.random() * 6) : -(2 + Math.floor(Math.random() * 3));
   entry.disposition = Math.max(-100, Math.min(100, entry.disposition + delta));
+  if (entry.disposition >= 80) updateAchievements(['diplomat']);
   addLog(`${tribe.name}: ${delta > 0 ? 'a diplomatic success' : 'a diplomatic slight'} shifts relations by ${delta > 0 ? '+' : ''}${delta}.`, delta > 0 ? 'log-good' : 'log-bad');
 }
 
@@ -2792,16 +2797,17 @@ function setOut(trialId = null) {
   const newSpecies = trialId ? state.species : candidate;
   const unlockedLineages = { ...(state.lineagesUnlocked || { human: true }) };
   const newlyUnlocked = [];
+  const lineageAchievementTriggers = [];
   for (const id in (trialId ? {} : state.diplomacy) || {}) {
     if ((state.diplomacy[id].disposition >= 80 || state.diplomacy[id].conquered) && LINEAGES.some(l => l.id === id)) {
       if (!unlockedLineages[id]) newlyUnlocked.push(lineageDef(id).name);
       unlockedLineages[id] = true;
+      lineageAchievementTriggers.push(`lineage-${id}`);
     }
   }
   addLog('The village sets out. The old Emberhold is left to the wind; a new one rises where the ground is kinder.', 'log-important');
 
   const keep = {
-    day: state.day,
     echoes: state.echoes, upgrades: state.upgrades,
     trialDone: state.trialDone, expeditions: state.expeditions,
     beaconsLit: state.beaconsLit, beaconRevisited: state.beaconRevisited, wonders: state.wonders,
@@ -2822,7 +2828,6 @@ function setOut(trialId = null) {
     logs: state.logs, logSequence: state.logSequence,
   };
   state = defaultState();
-  state.day = keep.day;
   state.echoes = keep.echoes;
   state.upgrades = keep.upgrades;
   state.trialDone = keep.trialDone;
@@ -2949,6 +2954,7 @@ function setOut(trialId = null) {
   state.pendingLanding = null;
   state.pendingMigrationChallenges = [];
   state.pendingBadAncestry = null;
+  updateAchievements(lineageAchievementTriggers);
 }
 
 const MIGRATION_CHALLENGES = [
@@ -3201,6 +3207,7 @@ function doBuild(id) {
     state.won = true;
     state.beaconsLit = state.beaconsLit || {};
     state.beaconsLit[state.landing] = true;
+    updateAchievements(['beacon']);
   }
   return true;
 }
@@ -3494,6 +3501,7 @@ function supplyDiplomacyRequest(id) {
   if (!canAfford({ [entry.request.res]: entry.request.amount })) return;
   payCost({ [entry.request.res]: entry.request.amount });
   entry.disposition = Math.min(100, entry.disposition + 15);
+  if (entry.disposition >= 80) updateAchievements(['diplomat']);
   state.morale = Math.min(moraleCap(), state.morale + 2);
   const tribe = tribeDef(id);
   addLog(`The ${tribe.name} accept the requested goods. Relations improve by 15.`, 'log-good');
@@ -3522,6 +3530,7 @@ function conquerTown(id) {
   entry.siegeReady = false;
   returnCommonalityGuards(id);
   addLog(`Emberhold conquers the ${tribeDef(id).name}. The occupation train costs ${costText(CONQUEST_COST)}, and the town joins the realm while steadily weighing on morale.`, 'log-good');
+  updateAchievements(['diplomat']);
   return { ok: true, action: 'conquer', target: id, deployedGuards: 15, cost: { ...CONQUEST_COST } };
 }
 function saveGame(silent) {
@@ -3932,7 +3941,7 @@ const ACHIEVEMENTS = [
   { id: 'stoneAge', name: 'Stone Remembered', desc: 'Reach the Age of Stone.', test: () => state.era >= 2, progress: () => `Age ${Math.min(state.era, 2)} / 2` },
   { id: 'builder', name: 'A Place to Stand', desc: 'Raise three Huts.', test: () => bld('hut') >= 3, progress: () => `${fmt(Math.min(bld('hut'), 3))} / 3 Huts` },
   { id: 'scholar', name: 'A Curious People', desc: 'Complete five research projects.', test: () => Object.keys(state.techs).length >= 5, progress: () => `${Math.min(Object.keys(state.techs).length, 5)} / 5 projects` },
-  { id: 'diplomat', name: 'Good Neighbors', desc: 'Reach 80 disposition with a tribe.', test: () => Object.values(state.diplomacy || {}).some(e => e.disposition >= 80), progress: () => `${Math.max(0, ...Object.values(state.diplomacy || {}).map(e => e.disposition || 0))} / 80 disposition` },
+  { id: 'diplomat', name: 'Good Neighbors', desc: 'Reach 80 disposition with a tribe or conquer one.', test: () => Object.values(state.diplomacy || {}).some(e => e.disposition >= 80 || e.conquered), progress: () => `${Math.max(0, ...Object.values(state.diplomacy || {}).map(e => e.disposition || 0))} / 80 disposition` },
   { id: 'wayfarer', name: 'The Long Road', desc: 'Establish three expedition sites.', test: () => Object.keys(state.expeditions || {}).length >= 3, progress: () => `${Math.min(Object.keys(state.expeditions || {}).length, 3)} / 3 sites` },
   { id: 'trialist', name: 'Oathbound', desc: 'Complete a trial.', test: () => Object.values(state.trialDone || {}).some(n => n > 0), progress: () => `${Object.values(state.trialDone || {}).reduce((a, n) => a + n, 0)} completed` },
   { id: 'beacon', name: 'The Beacon Burns', desc: 'Reach the Age of Light.', test: () => state.era >= 5 || state.won, progress: () => `Age ${Math.min(state.era, 5)} / 5` },
