@@ -4,6 +4,7 @@ All notable changes to Emberhold are recorded here, with the newest changes firs
 
 ## 2026-09-19
 
+- Completed Wonder sections now show their narrative descriptions on hover.
 - Added a pre-fate Ancestral Shop state after all three endings of a Wonder are discovered, allowing Echoes to be spent or refunded before choosing the next fate.
 - Increased Astronomer capacity to two, plus one for each Wonder with a discovered ending.
 - Fixed the Village panel so Astronomer assignments display their current capacity.

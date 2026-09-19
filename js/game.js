@@ -3000,7 +3000,7 @@ function startGameClock() {
   // lose time; it only wakes the simulation to account for elapsed time.
   if (typeof Worker === 'function') {
     try {
-      gameClockWorker = new Worker('js/game-clock.worker.js?v=publish-20260919u0004');
+      gameClockWorker = new Worker('js/game-clock.worker.js?v=publish-20260919u0005');
       gameClockWorker.addEventListener('message', () => {
         updateGameClock(true);
         renderBonusTimer();
@@ -4566,8 +4566,12 @@ function renderWonder() {
   const section = currentWonderSection(record, def);
   h += `<div class="card wonder-card"><div class="card-head"><span class="card-title">${def.name}</span><span class="card-count">${section ? `Section ${section.index + 1} of 5` : 'The heart is open'}</span></div>` +
     `<div class="card-desc">${section ? section.text : def.decisionText}</div></div>`;
-  h += '<h2 class="section">Sections</h2><div class="wonder-sections">' + def.sections.map(([name], index) =>
-    `<div class="wonder-section ${record.sections[index] ? 'done' : index === section?.index ? 'active' : ''}"><span>${index + 1}</span>${name}</div>`).join('') + '</div>';
+  h += '<h2 class="section">Sections</h2><div class="wonder-sections">' + def.sections.map(([name, text], index) => {
+    const done = !!record.sections[index];
+    const tooltipClass = done ? ' has-tooltip' : '';
+    const tooltipAttrs = done ? ` tabindex="0" data-tooltip="${attrText(text)}"` : '';
+    return `<div class="wonder-section ${done ? 'done' : index === section?.index ? 'active' : ''}${tooltipClass}"${tooltipAttrs}><span>${index + 1}</span>${name}</div>`;
+  }).join('') + '</div>';
   if (section) {
     const calamity = activeWonderCalamity();
     const obstacle = currentWonderObstacle(record);
@@ -4918,7 +4922,7 @@ function renderSidePanel() {
 function loadLatestUpdatesTooltip() {
   const button = document.getElementById('btn-updates');
   if (!button || typeof fetch !== 'function' || typeof DOMParser !== 'function') return;
-      fetch('changelog.html?v=publish-20260919u0004')
+      fetch('changelog.html?v=publish-20260919u0005')
     .then(response => response.ok ? response.text() : Promise.reject(new Error('changelog unavailable')))
     .then(source => {
       const doc = new DOMParser().parseFromString(source, 'text/html');

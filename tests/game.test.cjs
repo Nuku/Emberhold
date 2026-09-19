@@ -2388,6 +2388,16 @@ test('Rapture work opens the Wonder tab, resets only an emptied active section, 
   assert.equal(run('state.wonders.emberplain.progress'), 0);
 });
 
+test('completed Wonder sections show their narrative description on hover', () => {
+  const { run } = game();
+  run(`state.landing = 'floodmeadows'; wonderRecord('floodmeadows').found = true;
+    state.wonders.floodmeadows.sections = [true, false, false, false, false];`);
+  const html = run('renderWonder()');
+  assert.match(html, /class="wonder-section done has-tooltip"[^>]*data-tooltip="Water climbs the stairs ahead/);
+  assert.doesNotMatch(html, /class="wonder-section active has-tooltip"/);
+  assert.doesNotMatch(html, /class="wonder-section [^"]*has-tooltip[^\"]*">2<\/span>The Sluice Choir/);
+});
+
 test('Wonder guards can save workers, wounded-only guards face doubled death weight, and fate rewards persist through forced migration', () => {
   const { run } = game();
   run(`state.techs.optics = true; state.beaconsLit = { emberplain: true }; state.beaconRevisited = { emberplain: true }; state.surveyPoints = 10000;
