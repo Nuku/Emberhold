@@ -2317,15 +2317,23 @@ test('four self-challenges award gold to achievements without prerequisites', ()
   assert.equal(run("CHALLENGE_RATING_NAMES[state.achievements.firstDay]"), 'gold');
 });
 
-test('a new settlement starts at day zero and re-rates already-met achievements', () => {
+test('a new settlement starts at day zero and explicitly grants Ashes to Ashes', () => {
   const { run } = game();
   run(`state.day = 12; state.migrating = true; state.achievements = { firstDay: 1, stoneAge: 1, beacon: 1 };
     state.pendingMigrationChallenges = MIGRATION_CHALLENGES.map(challenge => challenge.id); setOut();
-    state.era = 5; updateAchievements()`);
+    updateAchievements()`);
   assert.equal(run('state.day'), 0);
-  assert.equal(run('state.achievements.firstDay'), 1);
-  assert.equal(run('state.achievements.stoneAge'), 4);
-  assert.equal(run('state.achievements.beacon'), 4);
+  assert.equal(run('state.achievements.firstDay'), 4);
+  assert.equal(run('state.achievements.stoneAge'), 1);
+  assert.equal(run('state.achievements.beacon'), 1);
+});
+
+test('departing with a friendly lineage can upgrade its achievement', () => {
+  const { run } = game();
+  run(`state.migrating = true; state.pendingMigrationChallenges = MIGRATION_CHALLENGES.map(challenge => challenge.id);
+    ensureDiplomacyEntry('human'); state.diplomacy.human.disposition = 80;
+    state.achievements['lineage-human'] = 1; setOut()`);
+  assert.equal(run("state.achievements['lineage-human']"), 4);
 });
 
 test('trial completion and conquest can upgrade existing achievements', () => {

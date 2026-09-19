@@ -5,6 +5,7 @@ All notable changes to Emberhold are recorded here, with the newest changes firs
 ## 2026-09-19
 
 - New settlements now begin at day zero after migration.
+- Migration now explicitly re-rates Ashes to Ashes and era achievements at departure, while friendly lineages can upgrade their existing achievement ratings.
 - Achievement ratings now update when beacons, trials, alliances, or conquests complete, and conquered tribes count toward Good Neighbors.
 - Already-met achievements now re-rate correctly during initial save setup.
 - Formatted large Echo upgrade costs with thousands separators in the Ancestral Shop.

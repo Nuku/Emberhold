@@ -2797,12 +2797,12 @@ function setOut(trialId = null) {
   const newSpecies = trialId ? state.species : candidate;
   const unlockedLineages = { ...(state.lineagesUnlocked || { human: true }) };
   const newlyUnlocked = [];
-  const lineageAchievementTriggers = [];
+  const achievementTriggers = [];
   for (const id in (trialId ? {} : state.diplomacy) || {}) {
     if ((state.diplomacy[id].disposition >= 80 || state.diplomacy[id].conquered) && LINEAGES.some(l => l.id === id)) {
       if (!unlockedLineages[id]) newlyUnlocked.push(lineageDef(id).name);
       unlockedLineages[id] = true;
-      lineageAchievementTriggers.push(`lineage-${id}`);
+      achievementTriggers.push(`lineage-${id}`);
     }
   }
   addLog('The village sets out. The old Emberhold is left to the wind; a new one rises where the ground is kinder.', 'log-important');
@@ -2954,7 +2954,10 @@ function setOut(trialId = null) {
   state.pendingLanding = null;
   state.pendingMigrationChallenges = [];
   state.pendingBadAncestry = null;
-  updateAchievements(lineageAchievementTriggers);
+  achievementTriggers.push('firstDay');
+  if (state.era >= 2) achievementTriggers.push('stoneAge');
+  if (state.era >= 5) achievementTriggers.push('beacon');
+  updateAchievements(achievementTriggers);
 }
 
 const MIGRATION_CHALLENGES = [
@@ -3990,7 +3993,10 @@ function updateAchievements(triggeredIds = []) {
   const triggered = new Set(triggeredIds);
   for (const achievement of ACHIEVEMENTS) {
     const requirementRating = achievementRequirementRating(achievement);
-    const met = achievement.test();
+    // Explicit completion events may occur at the boundary where the raw
+    // state condition has not been updated yet (for example, a new settlement
+    // starts at day zero but Ashes to Ashes is granted immediately).
+    const met = achievement.test() || triggered.has(achievement.id);
     const newlyMet = initialized && met && !state.achievementChecks[achievement.id];
     state.achievementChecks[achievement.id] = met;
     if (met && requirementRating) {
@@ -4955,7 +4961,7 @@ function renderSidePanel() {
 function loadLatestUpdatesTooltip() {
   const button = document.getElementById('btn-updates');
   if (!button || typeof fetch !== 'function' || typeof DOMParser !== 'function') return;
-      fetch('changelog.html?v=publish-20260919u0007')
+      fetch('changelog.html?v=publish-20260919u0009')
     .then(response => response.ok ? response.text() : Promise.reject(new Error('changelog unavailable')))
     .then(source => {
       const doc = new DOMParser().parseFromString(source, 'text/html');
