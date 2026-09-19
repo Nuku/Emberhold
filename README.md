@@ -195,6 +195,23 @@ Changes refresh the UI and emit the standard action event. Enabled counts are
 saved; active counts reflect current supply. Returned snapshots are detached
 from game state and are calculated immediately, without waiting for a tick.
 
+### Queue ordering API
+
+Queue entries can be moved through the public automation API by queue type and
+zero-based index:
+
+```js
+const api = window.emberhold;
+api.actions.reorderQueue('build', 0, 2, true); // move entry 0 after entry 2
+api.action('reorderQueue', 'research', 2, 0); // move entry 2 before entry 0
+```
+
+The queue type is `build`, `research`, or `expedition`. The final `after`
+argument is optional and defaults to `false`, meaning the moved entry is placed
+before the target. The action returns `true` when an entry moves and `false`
+for invalid indices or an unknown queue. Successful moves refresh the UI and
+emit the standard action event.
+
 ### Morale telemetry API
 
 `window.emberhold.helpers.morale()` returns the live morale value, ceiling,

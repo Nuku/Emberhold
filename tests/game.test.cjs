@@ -623,6 +623,26 @@ test('queue items can be reordered before or after another item', () => {
   assert.match(run("renderQueue('build')"), /draggable="true"/);
 });
 
+test('queue reordering is available through the automation API', () => {
+  const { run } = game();
+  run(`render = () => {};
+    state.queues.research = [
+      { type: 'research', id: 'masonry' },
+      { type: 'research', id: 'optics' },
+      { type: 'research', id: 'metallurgy' }
+    ];
+    const events = [];
+    window.emberhold.subscribe(event => events.push(event));`);
+  assert.equal(run("window.emberhold.actions.reorderQueue('research', 0, 2, true)"), true);
+  assert.deepEqual(JSON.parse(run('JSON.stringify(state.queues.research.map(entry => entry.id))')),
+    ['optics', 'metallurgy', 'masonry']);
+  assert.equal(run('events.at(-1).action'), 'reorderQueue');
+  assert.equal(run("window.emberhold.action('reorderQueue', 'research', 0, 2)"), true);
+  assert.deepEqual(JSON.parse(run('JSON.stringify(state.queues.research.map(entry => entry.id))')),
+    ['metallurgy', 'optics', 'masonry']);
+  assert.equal(run("window.emberhold.actions.reorderQueue('research', 0, 99)"), false);
+});
+
 test('queue order defaults to parallel and can be switched to strict first-to-last processing', () => {
   const { run } = game();
   run(`state.techs.craftsmanship = true;

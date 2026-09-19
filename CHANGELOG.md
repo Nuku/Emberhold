@@ -4,6 +4,7 @@ All notable changes to Emberhold are recorded here, with the newest changes firs
 
 ## 2026-09-19
 
+- Exposed queue reordering through the automation API, allowing build, research, and expedition entries to be moved before or after another queued entry.
 - New settlements now begin at day zero after migration.
 - Migration now explicitly re-rates Ashes to Ashes and era achievements at departure, while friendly lineages can upgrade their existing achievement ratings.
 - Achievement ratings now update when beacons, trials, alliances, or conquests complete, and conquered tribes count toward Good Neighbors.
