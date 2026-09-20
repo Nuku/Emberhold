@@ -609,7 +609,7 @@ function practicedMigratorAvailable() { return siteExpeditionsComplete(); }
 // the Wonder is meant to be a sustained expedition, not a quick assignment.
 const WONDER_SECTION_PROGRESS = 240;
 const WONDER_PROGRESS_PER_WORKER = 0.02;
-const WONDER_BASE_DANGER = 0.0024;
+const WONDER_BASE_DANGER = 0.0048;
 const WONDER_RESEARCH_COST_MULTIPLIER = 5;
 const WONDER_OBSTACLES = [
   { name: 'Aetheric Breach Charge', text: 'A sealed passage blocks the way. The researchers outside can build one shaped explosion, but only one.', cost: { steel: 900, machinery: 240, coal: 1200 } },
@@ -3029,7 +3029,7 @@ function startGameClock() {
   // lose time; it only wakes the simulation to account for elapsed time.
   if (typeof Worker === 'function') {
     try {
-      gameClockWorker = new Worker('js/game-clock.worker.js?v=publish-20260919u0010');
+      gameClockWorker = new Worker('js/game-clock.worker.js?v=publish-20260919u0012');
       gameClockWorker.addEventListener('message', () => {
         updateGameClock(true);
         renderBonusTimer();
@@ -4961,7 +4961,7 @@ function renderSidePanel() {
 function loadLatestUpdatesTooltip() {
   const button = document.getElementById('btn-updates');
   if (!button || typeof fetch !== 'function' || typeof DOMParser !== 'function') return;
-      fetch('changelog.html?v=publish-20260919u0010')
+      fetch('changelog.html?v=publish-20260919u0012')
     .then(response => response.ok ? response.text() : Promise.reject(new Error('changelog unavailable')))
     .then(source => {
       const doc = new DOMParser().parseFromString(source, 'text/html');

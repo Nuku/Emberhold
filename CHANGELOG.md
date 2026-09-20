@@ -4,6 +4,7 @@ All notable changes to Emberhold are recorded here, with the newest changes firs
 
 ## 2026-09-19
 
+- Increased the base danger of Wonder expeditions so Rapture workers face a more meaningful sustained risk.
 - Reduced Metallurgy's Knowledge cost to 200; later post-Stone Age research keeps the increased Knowledge pricing.
 - Exposed queue reordering through the automation API, allowing build, research, and expedition entries to be moved before or after another queued entry.
 - New settlements now begin at day zero after migration.
