@@ -408,7 +408,7 @@ function setTradeBlimpOrder(index, mode, resource) {
   tradeBlimpOrders()[index] = { mode, resource };
   return true;
 }
-function guardCap() { return bld('barracks') * (tech('disciplinedBunking') ? 3 : 2); }
+function guardCap() { return bld('barracks') * (tech('disciplinedBunking') ? 3 : 2) + 2 * upg('bePrepared'); }
 function guardRecruitmentRate() {
   return lineageSpecialValue('guardRecruitment') / (120 * Math.pow(0.9, bld('trainingYard')) * lineageSpecialValue('guardRecruitmentTime')) * Math.pow(1.1, trialCount('conquest')) *
     currentPlaceTraits().reduce((rate, trait) => rate * (trait.guardRecruitment || 1), 1);
@@ -2103,10 +2103,11 @@ function chooseFactoryRecipe(id) {
 const DIG_SITE_RESOURCES = { quarry: 'stone', deepMine: 'iron', coalSeam: 'coal' };
 const DIG_SITE_WORKERS = { quarry: 'miner', deepMine: 'ironminer', coalSeam: 'digger' };
 const DIG_SITE_POWER = 0.2;
+function factoryPowerRequirement() { return FACTORY_POWER_REQUIREMENT * (1 + 0.5 * upg('runningHot')); }
 const POWER_BUILDINGS = {
   livingBlock: { power: LIVING_BLOCK_POWER_REQUIREMENT, label: 'Living Blocks' },
   ...Object.fromEntries(Object.keys(DIG_SITE_RESOURCES).map(id => [id, { power: DIG_SITE_POWER }])),
-  factory: { power: FACTORY_POWER_REQUIREMENT, label: 'Factories' },
+  factory: { get power() { return factoryPowerRequirement(); }, label: 'Factories' },
   aluminumWorks: { power: 1, label: 'Sky Metal Forges' },
   // Forges can be switched off, but do not draw from power capacity.
   forge: { power: 0, label: 'Forges' },
@@ -2324,6 +2325,7 @@ function production(dt = 0.25, breakdown = null) {
   // per-resource modifiers
   scale('food', [...globalProductionFactors('food'), [`${SEASONS[seasonIndex()].name}${trialActive('longnight') ? ' (Long Night)' : perm('everwarm') ? ' (Everwarm)' : ''}`, seasonMult()],
     ['Forager Lodges', 1 + 0.10 * bld('foragerLodge')], ['Aqueducts', 1 + 0.20 * bld('aqueduct')],
+    ['Echoes of Harvest', 1 + 0.01 * upg('echoesOfHarvest')],
     ['Scarcity completions', 1 + 0.10 * trialCount('scarcity')], ['Scarcity trial', trialActive('scarcity') ? trialDifficulty('scarcity') : 1],
     ['Restored River Crown', wonderChoice('floodmeadows', 'restore') ? 1.20 : 1]]);
   for (const j in JOBS) {
@@ -2334,11 +2336,12 @@ function production(dt = 0.25, breakdown = null) {
         ...(j === 'guard' && challenges.includes('dryGround') ? [['Dry Ground (Guards)', 0.55]] : [])], j === 'guard' ? 'guard' : null);
   }
   scale('wood', [...global, ['Lumber Yards', 1 + 0.10 * bld('lumberYard')],
+    ['Echoes of Timber', 1 + 0.01 * upg('echoesOfTimber')],
     ['Tree Husbandry', tech('treeHusbandry') ? 1.20 : 1],
     ['Old Forest', expDone('oldForest') ? 1.15 : 1],
     ['Restored Worldroot', wonderChoice('greenfold', 'restore') ? 1.25 : 1],
     ['Scarcity trial', trialActive('scarcity') ? scarcityWoodMultiplier() : 1]]);
-  scale('stone', [...global, ['Stone Works', 1 + 0.10 * bld('stoneWorks')], ['Foothills', expDone('foothills') ? 1.15 : 1]]);
+  scale('stone', [...global, ['Stone Works', 1 + 0.10 * bld('stoneWorks')], ['Echoes of Stone', 1 + 0.01 * upg('echoesOfStone')], ['Foothills', expDone('foothills') ? 1.15 : 1]]);
   scale('knowledge', [...global, ['Libraries', 1 + 0.10 * bld('library')], ['Writing', tech('writing') ? 1.25 : 1],
     ['Sunken Ruins', expDone('sunkenRuins') ? 1.15 : 1], ['Oral Tradition', perm('oralTradition') ? 1.5 : 1],
     ['Restored Mirrored Orrery', wonderChoice('windmere', 'restore') ? 1.20 : 1], ['Silence trial', trialActive('silence') ? 0 : 1]]);
@@ -2434,10 +2437,11 @@ function production(dt = 0.25, breakdown = null) {
       const factors = [...global, ...settlementProductionFactors(recipe.id)];
       const lightningMetal = recipe.id === 'steel' && tech('lightningMetal');
       const recipeFactor = lightningMetal ? 1.5 : 1;
-      const output = factors.reduce((value, [, factor]) => value * factor, assignedFactories * recipe.rate * recipeFactor);
+      const runningHot = 1 + 0.5 * upg('runningHot');
+      const output = factors.reduce((value, [, factor]) => value * factor, assignedFactories * recipe.rate * recipeFactor * runningHot);
       const inputs = inputCosts(Object.fromEntries(Object.entries(recipe.inputs).map(([resource, amount]) =>
-        [resource, amount * recipeFactor * assignedFactories])), 'factory', assignedFactories);
-      const recipeFactors = lightningMetal ? [...factors, ['Lightning Metal', recipeFactor]] : factors;
+        [resource, amount * recipeFactor * assignedFactories * runningHot])), 'factory', assignedFactories);
+      const recipeFactors = [...(lightningMetal ? [...factors, ['Lightning Metal', recipeFactor]] : factors), ['Running Hot', runningHot]];
       let fraction = output > 0 ? Math.min(1, Math.max(0, capacityOf(recipe.id) - state.res[recipe.id]) / (output * dt)) : 0;
       let limitation = fraction < 1 ? `${recipe.name} storage space` : 'Factory utilization';
       for (const r in inputs) {
@@ -2450,9 +2454,9 @@ function production(dt = 0.25, breakdown = null) {
         limitation = buildingPowerCount('factory') < bld('factory') ? 'Power disabled' : 'Power shortage';
         if (!activeFactories) fraction = 0;
       }
-      add(recipe.id, `Factories (${recipe.name}): ${assignedFactories} active × ${recipe.rate}/s`, assignedFactories * recipe.rate, [...recipeFactors, [limitation, fraction]]);
+      add(recipe.id, `Factories (${recipe.name}): ${assignedFactories} active × ${recipe.rate}/s`, assignedFactories * recipe.rate * runningHot, [...recipeFactors, [limitation, fraction]]);
       for (const r in inputs) add(r, `Factory inputs (${recipe.name}): ${assignedFactories} active × ${inputs[r] / assignedFactories}/s`, -inputs[r], [
-        ...(lightningMetal ? [['Lightning Metal', recipeFactor]] : []), [limitation, fraction]]);
+        ...(lightningMetal ? [['Lightning Metal', recipeFactor]] : []), ['Running Hot', runningHot], [limitation, fraction]]);
     }
   }
   if (state.pop) add('food', `Villager upkeep: ${state.pop} × ${FOOD_PER_POP}/s`, -state.pop * FOOD_PER_POP);
@@ -2488,7 +2492,7 @@ function resourceRateTooltip(resource, rate, entries) {
       .reduce((sum, entry) => sum + entry.amount, 0);
     const allocated = entries.filter(entry => entry.base < 0)
       .reduce((sum, entry) => sum - entry.amount, 0) +
-      powerAllocation().factory * FACTORY_POWER_REQUIREMENT;
+      powerAllocation().factory * factoryPowerRequirement();
     const remaining = Math.max(0, generated - allocated);
     return [
       `${resource.name} — ${number(remaining)} capacity remaining`,
@@ -4424,7 +4428,7 @@ function renderStores() {
     const cls = rate > 0.0001 ? 'rate-pos' : (rate < -0.0001 ? 'rate-neg' : '');
     const cap = capacityOf(r.id);
     const amount = r.id === 'power'
-      ? `${fmtAvailablePower(Math.max(0, state.res[r.id] - activePower.factory * FACTORY_POWER_REQUIREMENT))} capacity`
+      ? `${fmtAvailablePower(Math.max(0, state.res[r.id] - activePower.factory * factoryPowerRequirement()))} capacity`
       : cap === Infinity
       ? fmtHeld(state.res[r.id])
       : `${fmtHeld(state.res[r.id])} / ${fmt(cap)}${isFull(r.id) ? ' FULL' : ''}`;
@@ -4468,7 +4472,7 @@ function renderVillage() {
       const activeFactories = powerAllocation().factory;
       const inputs = Object.entries(effectiveCoalInputs(Object.fromEntries(Object.entries(recipe.inputs).map(([r, n]) => [r, n * recipeFactor * activeFactories])), 'factory', activeFactories))
         .map(([r, n]) => `${fmt(activeFactories ? n / activeFactories : n)} ${resourceName(r)}/s`).join(', ');
-      const powerText = `${FACTORY_POWER_REQUIREMENT} Power capacity per factory`;
+      const powerText = `${factoryPowerRequirement()} Power capacity per factory`;
       h += `<div class="card"><div class="card-head"><span class="card-title">${recipe.name}</span><span class="card-count">${selected ? 'Active' : 'Available'}</span></div>` +
         `<div class="card-desc">Produces ${fmt(recipe.rate * recipeFactor)}/s; requires ${powerText}${inputs ? ` and consumes ${inputs}` : ''}.</div>` +
         `<div class="card-actions"><button data-action="factory-recipe" data-id="${recipe.id}" ${(selected && factoryRecipes().length === 1) || (!selected && factoryRecipes().length >= 2) ? 'disabled' : ''}>${selected ? 'Producing ' : 'Produce '}${recipe.name}</button></div>` +
@@ -5347,7 +5351,7 @@ function powerStatus() {
   const generated = breakdown.power.reduce((sum, entry) => sum + Math.max(0, entry.amount), 0);
   const active = powerAllocation();
   const used = breakdown.power.reduce((sum, entry) => sum + Math.max(0, -entry.amount), 0) +
-    active.factory * FACTORY_POWER_REQUIREMENT;
+    active.factory * factoryPowerRequirement();
   const buildings = {};
   for (const [id, info] of Object.entries(POWER_BUILDINGS)) {
     if (!powerBuildingControllable(id) || bld(id) < 1) continue;
@@ -5360,7 +5364,7 @@ function powerStatus() {
       ...(DIG_SITE_RESOURCES[id] ? { resource: DIG_SITE_RESOURCES[id], productionBonus: active[id] * 0.10 } : {}) };
   }
   const requested = used + Object.values(buildings).reduce((sum, building) => sum + building.requested - building.used, 0);
-  return { generated, used, available: Math.max(0, rates.power - active.factory * FACTORY_POWER_REQUIREMENT), requested,
+  return { generated, used, available: Math.max(0, rates.power - active.factory * factoryPowerRequirement()), requested,
     shortfall: Math.max(0, requested - generated), buildings };
 }
 

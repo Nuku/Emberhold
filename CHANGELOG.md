@@ -4,6 +4,8 @@ All notable changes to Emberhold are recorded here, with the newest changes firs
 
 ## 2026-09-22
 
+- Added the Echoes of Harvest, Echoes of Timber, and Echoes of Stone upgrades for permanent Food, Wood, and Stone production bonuses.
+- Added Be Prepared, granting two Guard capacity from the start of a settlement, and Running Hot, increasing Factory output, inputs, and Power use by 50%.
 - Custom lineage Adaptation traits now unlock with their corresponding lineages, and the new Timid trade-off slows Guard recruitment.
 - Added the Trial of To New Lands, a 300-stage Migration Across the Great Waters unlocked after the Wonders and Trade Blimps are complete.
 - Added eight alien landing biomes beyond the great waters, each with its own climate, production profile, traits, and survey expedition.
