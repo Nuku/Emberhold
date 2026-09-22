@@ -505,6 +505,13 @@ function diplomacyRequestText(tribe, entry) {
   return `The ${tribe.name} ${diplomacyTone(entry.disposition)} ${fmt(entry.request.amount)} ${res}.`;
 }
 function diplomatCount(id) { return (state.diplomats && state.diplomats[id]) || 0; }
+function dispositionCap() { return tech('longSpeech') ? 300 : 100; }
+function improveDisposition(entry, amount) {
+  const current = Number(entry.disposition) || 0;
+  const firstBand = Math.max(0, Math.min(amount, 100 - current));
+  const effective = firstBand + Math.max(0, amount - firstBand) * 0.5;
+  entry.disposition = Math.min(dispositionCap(), current + effective);
+}
 function totalDiplomats() { return Object.values(state.diplomats || {}).reduce((sum, n) => sum + n, 0); }
 function diplomatCost(id) {
   const entry = state.diplomacy && state.diplomacy[id];
@@ -2318,6 +2325,8 @@ function production(dt = 0.25, breakdown = null) {
   const localIds = localTribeIds();
   if (tradeAvailable()) add('currency', `Trade with ${localIds.map(id => tribeDef(id).name).join(' and ')}`, 0.05 * localIds.length);
   if (bld('moneyLender') > 0) add('currency', `Money Lenders: ${bld('moneyLender')} × ${state.pop} population × 0.001/s`, bld('moneyLender') * state.pop * 0.001);
+  const culturalConquests = localIds.filter(id => state.diplomacy?.[id]?.culturalConquest && !state.unifiedRegion).length;
+  if (culturalConquests) add('currency', 'Cultural conquest pressure', -culturalConquests * 0.1);
   if (bld('tradeBlimp') > 0 && dt > 0) {
     for (const [index, order] of tradeBlimpOrders().slice(0, bld('tradeBlimp')).entries()) {
       if (!order || !TRADE_MODES.includes(order.mode) || !TRADE_GOODS.includes(order.resource)) continue;
@@ -2740,7 +2749,7 @@ function updateDiplomacy(dt) {
     const entry = state.diplomacy[id];
     if (entry.conquered) continue;
     const nudged = relationsLocked ? 0 : diplomatCount(id) * 0.05 * dt;
-    if (nudged) entry.disposition = Math.min(100, entry.disposition + nudged);
+    if (nudged) improveDisposition(entry, nudged);
   }
   if (Object.values(state.diplomacy).some(entry => entry.disposition >= 80 || entry.conquered))
     updateAchievements(['diplomat']);
@@ -2759,7 +2768,8 @@ function updateDiplomacy(dt) {
     return;
   }
   const delta = Math.random() < 0.55 ? 5 + Math.floor(Math.random() * 6) : -(2 + Math.floor(Math.random() * 3));
-  entry.disposition = Math.max(-100, Math.min(100, entry.disposition + delta));
+  if (delta > 0) improveDisposition(entry, delta);
+  else entry.disposition = Math.max(-100, entry.disposition + delta);
   if (entry.disposition >= 80) updateAchievements(['diplomat']);
   addLog(`${tribe.name}: ${delta > 0 ? 'a diplomatic success' : 'a diplomatic slight'} shifts relations by ${delta > 0 ? '+' : ''}${delta}.`, delta > 0 ? 'log-good' : 'log-bad');
 }
@@ -3295,7 +3305,7 @@ function startGameClock() {
   // lose time; it only wakes the simulation to account for elapsed time.
   if (typeof Worker === 'function') {
     try {
-      gameClockWorker = new Worker('js/game-clock.worker.js?v=publish-20260922u0017');
+      gameClockWorker = new Worker('js/game-clock.worker.js?v=publish-20260922u0019');
       gameClockWorker.addEventListener('message', () => {
         updateGameClock(true);
         renderBonusTimer();
@@ -3770,7 +3780,7 @@ function supplyDiplomacyRequest(id) {
   const entry = state.diplomacy[id];
   if (!canAfford({ [entry.request.res]: entry.request.amount })) return;
   payCost({ [entry.request.res]: entry.request.amount });
-  entry.disposition = Math.min(100, entry.disposition + 15);
+  improveDisposition(entry, 15);
   if (entry.disposition >= 80) updateAchievements(['diplomat']);
   state.morale = Math.min(moraleCap(), state.morale + 2);
   const tribe = tribeDef(id);
@@ -3790,18 +3800,25 @@ function checkSaveConflict() {
 
 function conquerTown(id) {
   const entry = state.diplomacy && state.diplomacy[id];
-  if (!entry || !localTribe(id) || !entry.siegeReady || entry.conquered) return { ok: false, reason: 'not-conquerable', target: id };
-  if (ableGuards() < 15) return { ok: false, reason: 'insufficient-healthy-guards', target: id, requiredGuards: 15 };
-  if (!canAfford(CONQUEST_COST)) return { ok: false, reason: 'unaffordable', target: id, cost: { ...CONQUEST_COST } };
-  payCost(CONQUEST_COST);
-  state.jobs.guard = Math.max(0, (state.jobs.guard || 0) - 15);
-  state.guardInjuries = Math.min(state.guardInjuries || 0, state.jobs.guard);
+  if (!entry || !localTribe(id) || entry.conquered) return { ok: false, reason: 'not-conquerable', target: id };
+  const cultural = tech('longSpeech') && entry.disposition >= 300;
+  if (!cultural && !entry.siegeReady) return { ok: false, reason: 'not-conquerable', target: id };
+  const cost = cultural ? CULTURAL_CONQUEST_COST : CONQUEST_COST;
+  if (!cultural && ableGuards() < 15) return { ok: false, reason: 'insufficient-healthy-guards', target: id, requiredGuards: 15 };
+  if (!canAfford(cost)) return { ok: false, reason: 'unaffordable', target: id, cost: { ...cost } };
+  payCost(cost);
+  if (!cultural) {
+    state.jobs.guard = Math.max(0, (state.jobs.guard || 0) - 15);
+    state.guardInjuries = Math.min(state.guardInjuries || 0, state.jobs.guard);
+  } else entry.culturalConquest = true;
   entry.conquered = true;
   entry.siegeReady = false;
   returnCommonalityGuards(id);
-  addLog(`Emberhold conquers the ${tribeDef(id).name}. The occupation train costs ${costText(CONQUEST_COST)}, and the town joins the realm while steadily weighing on morale.`, 'log-good');
+  addLog(cultural
+    ? `Emberhold culturally conquers the ${tribeDef(id).name} with a payment of ${costText(cost)}. The town joins the realm without deploying Guards, though the effort weighs on Currency until the region is united.`
+    : `Emberhold conquers the ${tribeDef(id).name}. The occupation train costs ${costText(cost)}, and the town joins the realm while steadily weighing on morale.`, 'log-good');
   updateAchievements(['diplomat']);
-  return { ok: true, action: 'conquer', target: id, deployedGuards: 15, cost: { ...CONQUEST_COST } };
+  return { ok: true, action: 'conquer', target: id, deployedGuards: cultural ? 0 : 15, cultural, cost: { ...cost } };
 }
 function uniteRegion() {
   if (!regionUnificationReady() || state.unifiedRegion) return { ok: false, reason: 'not-ready' };
@@ -4259,6 +4276,8 @@ const ACHIEVEMENTS = [
   { id: 'scholar', name: 'A Curious People', desc: 'Complete five research projects.', test: () => Object.keys(state.techs).length >= 5, progress: () => `${Math.min(Object.keys(state.techs).length, 5)} / 5 projects` },
   { id: 'diplomat', name: 'Good Neighbors', desc: 'Reach 80 disposition with a tribe or conquer one.', test: () => Object.values(state.diplomacy || {}).some(e => e.disposition >= 80 || e.conquered), progress: () => `${Math.max(0, ...Object.values(state.diplomacy || {}).map(e => e.disposition || 0))} / 80 disposition` },
   { id: 'unitedRegion', name: 'One Nation', desc: 'Unite the three conquered tribes into one nation.', test: () => !!state.unifiedRegion, progress: () => state.unifiedRegion ? 'Region united' : `${localTribeIds().filter(id => state.diplomacy?.[id]?.conquered).length} / 3 tribes conquered` },
+  { id: 'culturalConquest', name: 'Words Without Weapons', desc: 'Culturally conquer a neighboring town with Long Speech.', test: () => Object.values(state.diplomacy || {}).some(entry => entry.culturalConquest), progress: () => Object.values(state.diplomacy || {}).some(entry => entry.culturalConquest) ? 'A town joined through Long Speech' : 'No cultural conquests yet' },
+  { id: 'peacefulUnification', name: 'A United Voice', desc: 'Unite the region in a migration with no offensive combat.', test: () => !!state.unifiedRegion && (state.migrationRaids || 0) === 0, progress: () => state.unifiedRegion ? ((state.migrationRaids || 0) === 0 ? 'Region united without offensive combat' : `${state.migrationRaids} offensive actions this migration`) : `${localTribeIds().filter(id => state.diplomacy?.[id]?.conquered).length} / 3 towns united` },
   { id: 'wayfarer', name: 'The Long Road', desc: 'Establish three expedition sites.', test: () => Object.keys(state.expeditions || {}).length >= 3, progress: () => `${Math.min(Object.keys(state.expeditions || {}).length, 3)} / 3 sites` },
   { id: 'trialist', name: 'Oathbound', desc: 'Complete a trial.', test: () => Object.values(state.trialDone || {}).some(n => n > 0), progress: () => `${Object.values(state.trialDone || {}).reduce((a, n) => a + n, 0)} completed` },
   { id: 'beacon', name: 'The Beacon Burns', desc: 'Reach the Age of Light.', test: () => state.era >= 5 || state.won, progress: () => `Age ${Math.min(state.era, 5)} / 5` },
@@ -4741,7 +4760,7 @@ function renderDiplomacy() {
     h += `<div class="card ${local ? '' : 'dimmed'}${entry.conquered ? ' conquered-card' : ''}"><div class="card-head"><span class="card-title has-tooltip" data-tooltip="${attrText(tribe.text)}">${tribe.name}</span>` +
       (local ? '<span class="card-count">nearby</span>' : '<span class="card-count">departed</span>') +
       (entry.conquered ? '<span class="status-badge conquered-badge" aria-label="Conquered realm">CONQUERED</span>' : '') +
-      `<span class="card-count">disposition ${Math.round(entry.disposition)} / 100</span></div>` +
+      `<span class="card-count">likability ${Math.round(entry.disposition)} / ${dispositionCap()}%</span></div>` +
       `<div class="card-desc">${tribe.text}</div>` +
       `<div class="res-note">${habitatText(tribe)}</div>` +
       `<div class="res-note">Military strength: ${entry.militaryKnown ? Math.round(militaryStrength(entry)) : 'unknown'} · Economic strength: ${entry.economicKnown ? Math.round(economicStrength(entry)) : 'unknown'}</div>` +
@@ -4785,6 +4804,12 @@ function renderDiplomacy() {
             `<div class="card-actions"><button data-action="conquer" data-tribe="${id}" ${canConquer ? '' : 'disabled'}>Conquer the ${tribe.name} (15 healthy Guards)</button></div>`;
         }
       }
+    }
+    if (local && tech('longSpeech') && !entry.conquered && entry.disposition >= 300) {
+      const canCulturallyConquer = canAfford(CULTURAL_CONQUEST_COST);
+      h += `<div class="trial-reward">Long Speech can bring this town into the realm through cultural conquest. This costs ${costText(CULTURAL_CONQUEST_COST)}, spends no Guards, and adds −0.1 Currency/s pressure until regional unification.</div>` +
+        `<div class="card-cost">cultural conquest cost: ${costHtml(CULTURAL_CONQUEST_COST)}</div>` +
+        `<div class="card-actions"><button data-action="conquer" data-tribe="${id}" ${canCulturallyConquer ? '' : 'disabled'}>Culturally conquer the ${tribe.name} (no Guards)</button></div>`;
     }
     if (local && tech('diplomacy') && !entry.conquered && !conquestTrialRelationsLocked()) {
       const diplomatCostNow = diplomatCost(id);
@@ -5313,7 +5338,7 @@ function renderSidePanel() {
 function loadLatestUpdatesTooltip() {
   const button = document.getElementById('btn-updates');
   if (!button || typeof fetch !== 'function' || typeof DOMParser !== 'function') return;
-      fetch('changelog.html?v=publish-20260922u0017')
+      fetch('changelog.html?v=publish-20260922u0019')
     .then(response => response.ok ? response.text() : Promise.reject(new Error('changelog unavailable')))
     .then(source => {
       const doc = new DOMParser().parseFromString(source, 'text/html');

@@ -450,6 +450,9 @@ const TECHS = [
   { id: 'airControl', name: 'Air Control', cost: 2600, materials: { aluminum: 80, steel: 200, machinery: 100 },
     desc: 'The sky is wide, but not empty. With enough Sky Metal and stone, we can make a place where machines may rise and return. Unlocks the multi-stage Air Control project.',
     req: () => tech('aluminum') },
+  { id: 'longSpeech', name: 'Long Speech', cost: 3200, materials: { aluminum: 60, machinery: 80, goods: 100 },
+    desc: 'Like shouting, but done quietly. The elders insist this is how it works. Either way, we can reach others better. Raises neighboring towns’ likability beyond 100%, at half efficiency past that point. At 300%, a town can be culturally conquered for Currency without spending Guards; this creates Currency pressure until the region is united.',
+    req: () => bld('tradeBlimp') > 0 },
   { id: 'distantStores', name: 'Distant Stores', cost: 3000, materials: { steel: 220, machinery: 100, aluminum: 100 },
     desc: 'We have tried so hard to keep what we need close at hand. They did not always do this. Perhaps we should not either? Unlocks Removed Storage, which adds moderate capacity for Wood, Stone, Steel, Aluminum, and Machinery per building.',
     req: () => bld('surveyFlights') > 0 },
@@ -995,6 +998,7 @@ const RAID_STAGES = [
 // Taking and holding a town requires a substantial occupation train in
 // addition to the Guards committed to garrison it.
 const CONQUEST_COST = { food: 200, tools: 10 };
+const CULTURAL_CONQUEST_COST = { currency: 1500 };
 
 // --- neighboring tribes ---
 // Humans are the default people of Emberhold. After each migration, there is
