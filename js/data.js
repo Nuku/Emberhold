@@ -52,6 +52,7 @@ const RESOURCE_PROJECTS = [
 ];
 const BEACON_STAGE_COUNT = 100;
 const AIR_CONTROL_STAGE_COUNT = 50;
+const GREAT_MIGRATION_STAGE_COUNT = 300;
 
 // Power is capacity, not a stockpile. These baseline values are intentionally
 // separate so research and upgrades can tune generation and demand later.
@@ -216,7 +217,7 @@ const BUILDINGS = [
 
   { id: 'barracks', name: 'Barracks', max: Infinity, scale: 1.8,
     cost: { wood: 180, stone: 120, tools: 10 },
-    effect: () => `+2 Guard capacity (maximum ${bld('barracks') * 2 + 2})`,
+    effect: () => `+${tech('disciplinedBunking') ? 3 : 2} Guard capacity (maximum ${bld('barracks') * (tech('disciplinedBunking') ? 3 : 2)})`,
     req: () => tech('guards'), desc: 'a roof, a watch bell, and somewhere to hang a spear' },
 
   { id: 'trainingYard', name: 'Training Yard', max: Infinity, scale: 1.8,
@@ -377,6 +378,12 @@ const BUILDINGS = [
     effect: () => `produces ${fmt(0.04 * bld('blackGoldDrill'))} Oil/s`,
     req: () => bld('airControl') > 0 && perm('blackGoldDrills'),
     desc: 'a deep rotary rig that reaches the old world’s buried fuel' },
+
+  { id: 'greatMigration', name: 'Migration Across the Great Waters', max: 1, scale: 1,
+    cost: { food: 1200, wood: 500, tools: 80, aluminum: 40, aether: 25, oil: 20, machinery: 20, goods: 30 },
+    effect: () => `${greatMigrationProgress()} / ${GREAT_MIGRATION_STAGE_COUNT} stages; a road across the great waters`,
+    req: () => trialActive('newLands') && era() >= 5 && bld('tradeBlimp') > 0,
+    desc: 'a fleet of blimps, barges, and impossible engines prepared to carry Emberhold beyond the known shores' },
 ];
 
 // --- research ---
@@ -449,6 +456,9 @@ const TECHS = [
   { id: 'oilPower', name: 'Oil Power', cost: 3200, materials: { steel: 240, machinery: 100, oil: 50 },
     desc: 'This black sludge was once the reason for wars among the Ancients. Touching it does not encourage the need for battle in you. Best to be careful. Still, it does burn steadily and so brightly. There are uses for this.',
     req: () => tech('machineryTech') && perm('blackGoldDrills') && state.res.oil > 0 },
+  { id: 'disciplinedBunking', name: 'Disciplined Bunking', cost: 2600, materials: { steel: 180, machinery: 80, oil: 25 },
+    desc: 'The alien shore has taught the watch to sleep in shifts. Each Barracks now fits three Guards instead of two.',
+    req: () => malformedBiomeActive() && state.res.oil > 0 },
   { id: 'reclaimining', name: 'Reclaimining', cost: 2200, materials: { steel: 180, machinery: 80, copper: 120, aluminum: 60 },
     desc: 'Those in the field can be taught to look for where the Ancients abandoned sky metal. Melted down, it can be reclaimed, almost for nothing. A gift from the past, given to us. Foragers now recover small amounts of Aluminum.',
     req: () => tech('aluminum') },
@@ -806,6 +816,13 @@ const TRIALS = [
     goal: 'Conquer all three nations.',
     reward: 'Conquest: Guard recruitment speed increases by 10%, permanently.',
     req: () => conquestTrialAvailable() },
+
+  { id: 'newLands', name: 'Trial of To New Lands', repeat: 0,
+    text: 'The old world is no longer large enough. The blimps have shown you the horizon, and the Wonders have taught you what was lost. Now build a road over the great waters and take Emberhold somewhere entirely new.',
+    mod: 'The settlement must reach the Age of Light and build Trade Blimps again before the crossing can begin.',
+    goal: 'Construct Migration Across the Great Waters in 300 stages.',
+    reward: 'To New Lands: Emberhold crosses the great waters.',
+    req: () => era() >= 5 && bld('tradeBlimp') > 0 && wondersWithAnEnding() >= LANDINGS.length },
 ];
 
 // --- landings: where the migration ends up. Modifiers multiply production
@@ -817,6 +834,14 @@ const CLIMATES = {
   floodmeadows: { name: 'Misty riverlands', offset: 1, weights: [25, 20, 35, 10, 10], text: 'Rain is common; occasional fog slows trade income.' },
   ashfen: { name: 'Warm veiled marsh', offset: 5, weights: [15, 30, 20, 15, 20], text: 'Warmer, cloudier days with frequent fog that slows trade income.' },
   windmere: { name: 'Aurora waters', offset: -3, weights: [30, 20, 15, 20, 5, 10], text: 'Cool and changeable; occasional auroras lift morale and aid knowledge and aether production.' },
+  pallidExpanse: { name: 'Pallid Expanse', offset: 8, weights: [20, 25, 15, 20, 15, 5], text: 'A white plain beneath a sky that never quite reaches blue. The horizon moves when watched.' },
+  glassMire: { name: 'Glass Mire', offset: 4, weights: [10, 25, 35, 15, 15], text: 'Transparent reeds and brittle pools make every crossing feel observed.' },
+  hollowCanopy: { name: 'Hollow Canopy', offset: -2, weights: [15, 25, 35, 20, 5], text: 'The trees grow around empty spaces large enough for something to breathe.' },
+  redChasm: { name: 'Red Chasm', offset: -12, weights: [20, 20, 15, 40, 5], text: 'The cliffs are warm inside and the wind carries a patient clicking from below.' },
+  drownedMoon: { name: 'Drowned Moon', offset: -5, weights: [20, 20, 20, 20, 5, 15], text: 'Dark water fills a crater beneath a second reflection of the moon.' },
+  boneOrchard: { name: 'Bone Orchard', offset: 6, weights: [25, 25, 20, 20, 10], text: 'Pale branches bear fruit around the ribs of things that were never human.' },
+  blackTidelands: { name: 'Black Tidelands', offset: 1, weights: [15, 25, 30, 15, 15], text: 'The tide leaves ink-black foam and footprints that do not belong to anyone.' },
+  singingCrater: { name: 'Singing Crater', offset: -1, weights: [15, 25, 20, 25, 10, 5], text: 'The crater hums in several voices, and the stones vibrate before anything arrives.' },
 };
 // A landing is never just its broad climate. Each scout report is marked with
 // two local traits, drawn from this catalogue when it is discovered. Climate
@@ -857,6 +882,10 @@ const PLACE_TRAITS = [
   { id: 'auroraReeds', name: 'Aurora Reeds', climates: ['windmere'], mods: { aether: 1.18 }, morale: 0.008, desc: 'Pale lights collect in the reeds even on nights without an aurora.' },
   { id: 'tidalGardens', name: 'Tidal Gardens', climates: ['windmere', 'floodmeadows'], mods: { food: 1.13, goods: 1.06 }, growth: 0.95, desc: 'The water leaves fertile beds behind, then returns to collect its due.' },
   { id: 'stormScoured', name: 'Storm-Scoured', climates: ['grayrocks', 'windmere'], mods: { stone: 1.07, aether: 1.10 }, morale: -0.005, desc: 'Nothing loose survives the weather; what remains is strong.' },
+  { id: 'malformedCreatures', name: 'Malformed Creatures', climates: ['pallidExpanse', 'glassMire', 'hollowCanopy', 'redChasm', 'drownedMoon', 'boneOrchard', 'blackTidelands', 'singingCrater'], danger: 2, morale: -0.012, desc: 'Malformed creatures stalk this biome. Their danger begins at 2 and rises slowly toward 20.' },
+  { id: 'deadSignal', name: 'Dead Signal', climates: ['pallidExpanse', 'redChasm', 'singingCrater'], mods: { aether: 1.18 }, danger: 1, desc: 'A signal from nowhere repeats at the edge of hearing. It makes the creatures bolder.' },
+  { id: 'softGround', name: 'Soft Ground', climates: ['glassMire', 'drownedMoon', 'blackTidelands'], mods: { food: 1.12 }, danger: -1, desc: 'The yielding ground grows strange but useful things, and muffles the approach of the malformed.' },
+  { id: 'impossibleOrchards', name: 'Impossible Orchards', climates: ['hollowCanopy', 'boneOrchard'], mods: { food: 1.16, wood: 1.10 }, danger: 1, desc: 'Fruit ripens in the wrong seasons. The orchard is generous, but never empty.' },
 ];
 // Weights follow this order. Effects multiply positive production, never consumption.
 const WEATHER = [
@@ -880,6 +909,22 @@ const LANDINGS = [
     text: 'The ground smokes gently here. Coal for the digging, but little cares to grow.' },
   { id: 'windmere', name: 'The Windmere', habitats: ['water', 'wetland'], mods: { knowledge: 1.2, aether: 1.15, food: 0.9 },
     text: 'Still water under open sky. Minds are clear here; bellies less so.' },
+  { id: 'pallidExpanse', name: 'The Pallid Expanse', habitats: ['alien'], postWaters: true, mods: { aether: 1.25, food: 0.75 },
+    text: 'A pale country where distance folds strangely and the first malformed shapes move beneath the salt.' },
+  { id: 'glassMire', name: 'The Glass Mire', habitats: ['alien'], postWaters: true, mods: { food: 1.15, wood: 0.75, aether: 1.10 },
+    text: 'A wetland of clear mud and ringing pools. Every reed shows the sky below it.' },
+  { id: 'hollowCanopy', name: 'The Hollow Canopy', habitats: ['alien'], postWaters: true, mods: { wood: 1.30, knowledge: 1.15, stone: 0.75 },
+    text: 'A forest built around vast empty trunks, with nests high above and breathing below.' },
+  { id: 'redChasm', name: 'The Red Chasm', habitats: ['alien'], postWaters: true, mods: { stone: 1.40, iron: 1.30, food: 0.65 },
+    text: 'A continent split open to expose hot red seams and whatever learned to live beneath them.' },
+  { id: 'drownedMoon', name: 'The Drowned Moon', habitats: ['alien'], postWaters: true, mods: { knowledge: 1.30, aether: 1.30, food: 0.75 },
+    text: 'A black inland sea reflects a moon that is not in your sky.' },
+  { id: 'boneOrchard', name: 'The Bone Orchard', habitats: ['alien'], postWaters: true, mods: { food: 1.25, wood: 1.20 },
+    text: 'Pale trees fruit among immense bones. The harvest is abundant; the shadows are not.' },
+  { id: 'blackTidelands', name: 'The Black Tidelands', habitats: ['alien'], postWaters: true, mods: { food: 1.20, goods: 1.20, aether: 0.85 },
+    text: 'The sea retreats twice a day, leaving rich black silt and tracks that point inland.' },
+  { id: 'singingCrater', name: 'The Singing Crater', habitats: ['alien'], postWaters: true, mods: { steel: 1.20, aether: 1.25, food: 0.70 },
+    text: 'A ring of broken mountains sings in the wind, and the song changes when the creatures gather.' },
 ];
 
 // Habitat lists match any listed habitat; omitted lists allow every landing.
@@ -1239,6 +1284,30 @@ const EXPEDITIONS = [
     cost: { knowledge: 700, wood: 250, tools: 25 }, mods: { knowledge: 1.10, aether: 1.05 },
     effect: '+10% knowledge and +5% aether production forever',
     text: 'On still nights, the Windmere holds the sky twice: once above, and once below. Build a camp on its shore and write down what the water remembers.' },
+  { id: 'pallidExpanseSurvey', name: 'The White Horizon', landing: 'pallidExpanse', reqPop: 18,
+    cost: { food: 900, tools: 35, aether: 40 }, effect: 'records the first safe routes beyond the great waters',
+    text: 'The horizon is not fixed here. Mark the stones that remain in the same place twice.' },
+  { id: 'glassMireSurvey', name: 'The Clear Crossing', landing: 'glassMire', reqPop: 18,
+    cost: { food: 700, tools: 35, aluminum: 30 }, effect: 'maps the ringing pools and their hidden channels',
+    text: 'A path through the mire must be measured by sound, not distance.' },
+  { id: 'hollowCanopySurvey', name: 'The Empty Roots', landing: 'hollowCanopy', reqPop: 18,
+    cost: { wood: 700, tools: 35, aether: 35 }, effect: 'finds shelter among the hollow trees',
+    text: 'The scouts return with wood, scratches, and a second set of footsteps.' },
+  { id: 'redChasmSurvey', name: 'The Deep Red Road', landing: 'redChasm', reqPop: 18,
+    cost: { stone: 800, tools: 40, oil: 30 }, effect: 'opens a safer descent into the chasm',
+    text: 'The safest route is the one whose walls are warm enough to warn you.' },
+  { id: 'drownedMoonSurvey', name: 'The Reflected Shore', landing: 'drownedMoon', reqPop: 18,
+    cost: { knowledge: 900, tools: 40, aether: 45 }, effect: 'charts the moon beneath the water',
+    text: 'The lake has a bottom, but it does not always agree where it is.' },
+  { id: 'boneOrchardSurvey', name: 'The Pale Harvest', landing: 'boneOrchard', reqPop: 18,
+    cost: { food: 800, wood: 400, tools: 35 }, effect: 'learns which fruit can be safely gathered',
+    text: 'The orchard offers enough food to make caution feel like ingratitude.' },
+  { id: 'blackTidelandsSurvey', name: 'The Ink Tide', landing: 'blackTidelands', reqPop: 18,
+    cost: { food: 750, tools: 35, oil: 25 }, effect: 'marks the black tide and its returning tracks',
+    text: 'The tide goes out. The footprints stay.' },
+  { id: 'singingCraterSurvey', name: 'The First Verse', landing: 'singingCrater', reqPop: 18,
+    cost: { steel: 250, tools: 45, aether: 50 }, effect: 'learns the warning notes before a gathering',
+    text: 'The crater sings before it becomes dangerous. The difficulty is knowing which song means what.' },
 
   { id: 'oldForest', name: 'The Old Forest', reqPop: 12,
     cost: { wood: 400, tools: 10 },

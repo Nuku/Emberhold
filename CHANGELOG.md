@@ -2,6 +2,13 @@
 
 All notable changes to Emberhold are recorded here, with the newest changes first.
 
+## 2026-09-22
+
+- Added the Trial of To New Lands, a 300-stage Migration Across the Great Waters unlocked after the Wonders and Trade Blimps are complete.
+- Added eight alien landing biomes beyond the great waters, each with its own climate, production profile, traits, and survey expedition.
+- Added malformed creature threats to alien biomes: danger rises over time, attacks can cost villagers and resources, and healthy Guards can defend the settlement.
+- Added Disciplined Bunking research, increasing Barracks capacity from two Guards per building to three on alien shores.
+
 ## 2026-09-19
 
 - Increased the base danger of Wonder expeditions so Rapture workers face a more meaningful sustained risk.

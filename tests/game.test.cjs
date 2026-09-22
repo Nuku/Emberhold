@@ -1813,6 +1813,58 @@ test('Conquest trial unlocks after Hope, fixes three enemies at zero relations, 
   assert.ok(Math.abs(run('guardRecruitmentRate()') / (1 / 120) - 1.1) < 1e-12);
 });
 
+test('To New Lands unlocks after the Wonders and blimps, then completes its 300-stage crossing', () => {
+  const { run } = game();
+  run(`state.era = 5; state.bld.tradeBlimp = 1;
+    state.wonders = Object.fromEntries(LANDINGS.map(landing => [landing.id, { outcomes: { restore: true } }]));`);
+  assert.equal(run("TRIAL_BY_ID.get('newLands').req()"), true);
+  run(`state.trial = { id: 'newLands', daysActive: 0, buildings: 0 };
+    state.res = Object.fromEntries(RESOURCES.map(resource => [resource.id, 100000]));
+    advanceGreatMigrationProject(1)`);
+  assert.equal(run('state.greatMigrationProgress'), 1);
+  run('state.greatMigrationProgress = 299; advanceGreatMigrationProject(1)');
+  assert.equal(run('state.bld.greatMigration'), 1);
+  assert.equal(run('state.trial'), null);
+  assert.equal(run('trialCount("newLands")'), 1);
+});
+
+test('To New Lands opens eight alien biomes and malformed creatures use a separate attack clock', () => {
+  const { run } = game();
+  assert.equal(run('availableLandings().length'), 6);
+  assert.equal(run('LANDINGS.filter(landing => landing.postWaters).length'), 8);
+  run(`state.trialDone.newLands = 1; state.landing = 'pallidExpanse';
+    state.placeTraits = ['malformedCreatures']; state.malformedDanger = 2;
+    state.malformedAttackNext = 1; state.malformedAttackT = 0;
+    state.pop = 100; state.seen.goods = true; state.res.goods = 1000;
+    Math.random = () => 0.5; updateMalformedThreat(1)`);
+  assert.equal(run('availableLandings().length'), 14);
+  assert.ok(run('state.malformedDanger') > 2);
+  assert.ok(run('state.pop') < 100);
+  assert.ok(run('state.res.goods') < 1000);
+});
+
+test('well-staffed Guards only rarely record a fended malformed encounter', () => {
+  const { run } = game();
+  run(`state.landing = 'pallidExpanse'; state.malformedDanger = 2;
+    state.malformedAttackNext = 1; state.malformedAttackT = 0; state.jobs.guard = 3;
+    Math.random = () => 0; updateMalformedThreat(1)`);
+  assert.match(run('state.log[0].t'), /fended|watchfires|joints|palisade|clicking/i);
+  run(`state.malformedAttackNext = 1; state.malformedAttackT = 0; Math.random = () => 0.5; updateMalformedThreat(1)`);
+  assert.equal(run('state.log.length'), 1);
+});
+
+test('Disciplined Bunking appears with Oil in alien lands and fits three Guards per Barracks', () => {
+  const { run } = game();
+  run(`state.bld.barracks = 2; state.techs.guards = true; state.res.oil = 1;
+    state.landing = 'emberplain'`);
+  assert.equal(run("TECH_BY_ID.get('disciplinedBunking').req()"), false);
+  assert.equal(run('guardCap()'), 4);
+  run(`state.landing = 'pallidExpanse'; state.res.steel = 10000; state.res.machinery = 10000;
+    state.res.oil = 10000; state.res.knowledge = 39000; doResearch('disciplinedBunking')`);
+  assert.equal(run("tech('disciplinedBunking')"), true);
+  assert.equal(run('guardCap()'), 6);
+});
+
 test('Training Yards compound replacement Guard recruitment time without a cap', () => {
   const { run } = game();
   run(`state.techs.guards = true; state.bld.barracks = 1;

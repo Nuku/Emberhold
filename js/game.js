@@ -12,6 +12,15 @@ const MAX_LOCAL_TRIBES = 3;
 const POLICY_CHANGE_COOLDOWN = 60 * 60; // real-time seconds; base for future modifiers
 const LOG_CATEGORIES = ['progress', 'achievements', 'queue', 'building', 'research', 'combat', 'espionage', 'events'];
 const LOG_LIMIT_PER_CATEGORY = 50;
+const MALFORMED_DANGER_MAX = 20;
+const MALFORMED_DANGER_RATE = 0.001;
+const MALFORMED_ATTACK_INTERVAL = [300, 540];
+const MALFORMED_FENDED_MESSAGES = [
+  'The malformed creatures circle the watchfires, then withdraw for now.',
+  'Something with too many joints tests the palisade and finds the Guards waiting.',
+  'The night watch drives pale shapes back beyond the settlement lights.',
+  'A wet clicking rises from the dark. The Guards answer with steel, and the clicking fades.',
+];
 
 let state = null;
 let lastStoredSave = null;
@@ -87,6 +96,7 @@ function defaultState() {
     beaconRevisited: {},
     beaconProgress: 0,
     airControlProgress: 0,
+    greatMigrationProgress: 0,
     tradeBlimps: [],
     wonders: {},
     wonderUnlocks: {},
@@ -116,6 +126,9 @@ function defaultState() {
     diplomacyEventT: 0,
     randomEventT: 0,
     randomEventNext: 60,
+    malformedDanger: 0,
+    malformedAttackT: 0,
+    malformedAttackNext: MALFORMED_ATTACK_INTERVAL[0],
     surveyPoints: 0,
     pendingLandings: [],
     pendingLanding: null,
@@ -170,7 +183,7 @@ function era() { return state.era; }
 function expDone(id) { return !!state.expeditions[id]; }
 const POST_STONE_AGE_KNOWLEDGE_COST_MULTIPLIER = 15;
 const POST_STONE_AGE_RESEARCH = new Set([
-  'ironMites', 'weaponry', 'chainmail', 'machineryTech', 'aluminum', 'airControl', 'distantStores', 'oilPower', 'reclaimining', 'lightningMetal',
+  'ironMites', 'weaponry', 'chainmail', 'machineryTech', 'aluminum', 'airControl', 'distantStores', 'oilPower', 'disciplinedBunking', 'reclaimining', 'lightningMetal',
   'livingAlloy', 'heartwood', 'starGlass', 'basinTempering', 'understandingHome', 'awakenAncients', 'advancedScience',
   'windHarness', 'banking', 'diplomacy', 'spies', 'espionage', 'civics',
   'council', 'commonality', 'festivals', 'civicHarmony', 'workplaceEthics', 'weaponEfficiency',
@@ -321,7 +334,7 @@ function setTradeBlimpOrder(index, mode, resource) {
   tradeBlimpOrders()[index] = { mode, resource };
   return true;
 }
-function guardCap() { return bld('barracks') * 2; }
+function guardCap() { return bld('barracks') * (tech('disciplinedBunking') ? 3 : 2); }
 function guardRecruitmentRate() {
   return 1 / (120 * Math.pow(0.9, bld('trainingYard'))) * Math.pow(1.1, trialCount('conquest')) * lineageSpecialValue('guardRecruitment') *
     currentPlaceTraits().reduce((rate, trait) => rate * (trait.guardRecruitment || 1), 1);
@@ -600,7 +613,7 @@ function expeditionCost(def) {
   return out;
 }
 function siteExpeditionsComplete() {
-  return LANDINGS.every(l => EXPEDITIONS.some(e => e.landing === l.id && expDone(e.id)));
+  return LANDINGS.filter(l => !l.postWaters).every(l => EXPEDITIONS.some(e => e.landing === l.id && expDone(e.id)));
 }
 function practicedMigratorAvailable() { return siteExpeditionsComplete(); }
 
@@ -916,6 +929,19 @@ function beginForcedWonderMigration() {
 
 // ---------- landings ----------
 function landingDef() { return LANDING_BY_ID.get(state.landing) || LANDINGS[0]; }
+function landingAvailable(landing) { return !landing.postWaters || trialCount('newLands') > 0; }
+function availableLandings() { return LANDINGS.filter(landingAvailable); }
+function malformedBiomeActive(landing = state.landing) { return !!LANDING_BY_ID.get(landing)?.postWaters; }
+function malformedDangerForTraits(traits = state.placeTraits) {
+  return Math.max(0, Math.min(MALFORMED_DANGER_MAX, (traits || []).reduce((danger, id) =>
+    danger + (placeTraitDef(id)?.danger || 0), 0)));
+}
+function malformedDangerText() {
+  if (!malformedBiomeActive()) return '';
+  const danger = Math.min(MALFORMED_DANGER_MAX, Math.max(0, state.malformedDanger || 0));
+  const required = Math.ceil(danger);
+  return `Malformed creature danger: ${danger.toFixed(2)} / ${MALFORMED_DANGER_MAX} · ${required} healthy Guard${required === 1 ? '' : 's'} needed at the next attack`;
+}
 function landingMod(res) {
   const m = landingDef().mods[res];
   return m === undefined ? 1 : m;
@@ -930,7 +956,7 @@ function modsHtml(def) {
   return parts.length ? parts.join(', ') : 'nothing more, nothing less';
 }
 function rollLanding(excludeId) {
-  const options = LANDINGS.filter(l => l.id !== (excludeId || state.landing));
+  const options = availableLandings().filter(l => l.id !== (excludeId || state.landing));
   const pick = options[Math.floor(Math.random() * options.length)];
   state.landing = pick.id;
   state.landingsSeen[pick.id] = true;
@@ -1189,6 +1215,7 @@ function queueDef(entry) {
   if (entry.type === 'build') {
     if (entry.id === 'beaconStage') return BUILDING_BY_ID.get('beacon');
     if (entry.id === 'airControlStage') return BUILDING_BY_ID.get('airControl');
+    if (entry.id === 'greatMigrationStage') return BUILDING_BY_ID.get('greatMigration');
     if (isWonderObstacleQueueId(entry.id)) {
       const parts = entry.id.split(':');
       const obstacle = WONDER_OBSTACLES[Number(parts[3])];
@@ -1227,6 +1254,11 @@ function stagedBuildProject(entry) {
     count: AIR_CONTROL_STAGE_COUNT,
     progress: airControlProgress,
     advance: advanceAirControlProject,
+  };
+  if (entry.id === 'greatMigrationStage') return {
+    count: GREAT_MIGRATION_STAGE_COUNT,
+    progress: greatMigrationProgress,
+    advance: advanceGreatMigrationProject,
   };
   return null;
 }
@@ -1347,6 +1379,7 @@ function beaconStageCost() { return buildingCost(BUILDING_BY_ID.get('beacon')); 
 function beaconProgress() { return Math.max(0, Math.min(BEACON_STAGE_COUNT, Math.floor(state.beaconProgress || 0))); }
 function airControlStageCost() { return buildingCost(BUILDING_BY_ID.get('airControl')); }
 function airControlProgress() { return Math.max(0, Math.min(AIR_CONTROL_STAGE_COUNT, Math.floor(state.airControlProgress || 0))); }
+function greatMigrationProgress() { return Math.max(0, Math.min(GREAT_MIGRATION_STAGE_COUNT, Math.floor(state.greatMigrationProgress || 0))); }
 function advanceBeaconProject(parts = 1) {
   const def = BUILDING_BY_ID.get('beacon');
   if (!def || bld('beacon') || !Number.isFinite(parts) || parts < 1) return 0;
@@ -1383,6 +1416,23 @@ function advanceAirControlProject(parts = 1) {
   }
   return completed;
 }
+function advanceGreatMigrationProject(parts = 1) {
+  const def = BUILDING_BY_ID.get('greatMigration');
+  if (!def || bld('greatMigration') || !canBuild('greatMigration') || !Number.isFinite(parts) || parts < 1) return 0;
+  let completed = 0;
+  const cost = buildingCost(def);
+  while (completed < Math.floor(parts) && greatMigrationProgress() < GREAT_MIGRATION_STAGE_COUNT && canAfford(cost)) {
+    payCost(cost);
+    state.greatMigrationProgress = greatMigrationProgress() + 1;
+    completed++;
+  }
+  if (greatMigrationProgress() >= GREAT_MIGRATION_STAGE_COUNT) {
+    state.bld.greatMigration = 1;
+    addLog('Migration Across the Great Waters is complete. Emberhold has a road to new lands.', 'log-good');
+    if (trialActive('newLands')) endTrial(true);
+  }
+  return completed;
+}
 
 function cancelQueue(type, index) {
   if (Number.isInteger(index) && state.queues[type][index]) state.queues[type].splice(index, 1);
@@ -1416,6 +1466,14 @@ function attemptBuild(id) {
     if (canAfford(cost)) advanceAirControlProject();
     else if (!state.queues.build.some(entry => entry.id === 'airControlStage') && state.queues.build.length < queueCapacity('build'))
       state.queues.build.push({ type: 'build', id: 'airControlStage' });
+    return;
+  }
+  if (id === 'greatMigration') {
+    if (bld(id) || !canBuild(id)) return;
+    const cost = buildingCost(def);
+    if (canAfford(cost)) advanceGreatMigrationProject();
+    else if (!state.queues.build.some(entry => entry.id === 'greatMigrationStage') && state.queues.build.length < queueCapacity('build'))
+      state.queues.build.push({ type: 'build', id: 'greatMigrationStage' });
     return;
   }
   if (!canBuild(id) || (Number.isFinite(def.max) &&
@@ -1481,7 +1539,7 @@ function updateQueues() {
       const entry = state.queues[type][i];
       const def = queueDef(entry);
       if (!def) continue;
-      if (type === 'build' && !['beaconStage', 'airControlStage'].includes(entry.id) && !isWonderObstacleQueueId(entry.id) && !canBuild(entry.id)) {
+      if (type === 'build' && !['beaconStage', 'airControlStage', 'greatMigrationStage'].includes(entry.id) && !isWonderObstacleQueueId(entry.id) && !canBuild(entry.id)) {
         state.queues[type].splice(i, 1);
         continue;
       }
@@ -1532,6 +1590,7 @@ function placeTraitEffectsText(trait) {
     effects.push(`${trait.guardRecruitment > 1 ? '+' : '−'}${pct}% Guard recruitment rate`);
   }
   if (trait.vanishChance) effects.push(`${fmt(trait.vanishChance * 100)}% chance per second for a villager to disappear`);
+  if (trait.danger) effects.push(`${trait.danger > 0 ? '+' : '−'}${Math.abs(trait.danger)} malformed creature danger at founding`);
   if (trait.rage) effects.push(`Current morale: ${airOfRageMorale() >= 0 ? '+' : '−'}${fmt(Math.abs(airOfRageMorale()))}/s; attacks set it to +0.05/s, then it fades to −0.04/s`);
   if (trait.atavistic) effects.push('Lineage traits become level 2: positive and negative effects are ×1.5 in magnitude; lineage happenings are ×1.5 as likely');
   return effects;
@@ -1872,6 +1931,50 @@ function updateRandomEvents(dt) {
   const impact = actualChanges.some(n => n < 0) ? 'log-bad' : actualChanges.length ? 'log-good' : '';
   const prefix = local ? `${lineageDef(state.species).name}: ` : '';
   addLog(`${prefix}${eventText}${changes.length ? ` ${changes.join('; ')}.` : ''}`, impact);
+}
+
+function malformedCreatureLootPool() {
+  return ['food', 'wood', 'stone', 'tools', 'copper', 'iron', 'coal', 'steel', 'machinery', 'aluminum', 'goods', 'aether', 'oil', 'currency']
+    .filter(resource => state.seen[resource] && (state.res[resource] || 0) > 0);
+}
+
+function resolveMalformedCreatureAttack() {
+  const danger = Math.min(MALFORMED_DANGER_MAX, Math.max(0, state.malformedDanger || 0));
+  const required = Math.ceil(danger);
+  if (!required || ableGuards() >= required) {
+    if (required && Math.random() < 0.12) {
+      const message = MALFORMED_FENDED_MESSAGES[Math.floor(Math.random() * MALFORMED_FENDED_MESSAGES.length)];
+      addLog(`${message} (${ableGuards()} healthy Guard${ableGuards() === 1 ? '' : 's'} against danger ${danger.toFixed(2)}.)`, 'log-good');
+    }
+    return false;
+  }
+
+  const loot = [];
+  const pool = malformedCreatureLootPool();
+  const count = Math.min(3, pool.length);
+  for (let i = 0; i < count; i++) {
+    const resource = pool.splice(Math.floor(Math.random() * pool.length), 1)[0];
+    const amount = Math.min(state.res[resource], Math.max(1, Math.round(state.res[resource] * (0.08 + Math.random() * 0.14))));
+    state.res[resource] = Math.max(0, state.res[resource] - amount);
+    loot.push(`${fmt(amount)} ${resourceName(resource)}`);
+  }
+
+  const lossFraction = 0.02 + Math.random() * 0.08;
+  const populationLoss = state.pop > 1 ? Math.min(state.pop - 1, Math.max(1, Math.round(state.pop * lossFraction))) : 0;
+  state.pop = Math.max(1, state.pop - populationLoss);
+  reconcileWorkers();
+  addLog(`Malformed creatures breach the settlement! They take ${loot.join(', ') || 'nothing'} and ${populationLoss} villager${populationLoss === 1 ? '' : 's'} vanish into the dark.`, 'log-bad');
+  return true;
+}
+
+function updateMalformedThreat(dt) {
+  if (!malformedBiomeActive()) return;
+  state.malformedDanger = Math.min(MALFORMED_DANGER_MAX, (state.malformedDanger || 0) + MALFORMED_DANGER_RATE * dt);
+  state.malformedAttackT = (state.malformedAttackT || 0) + dt;
+  if (state.malformedAttackT < (state.malformedAttackNext || MALFORMED_ATTACK_INTERVAL[0])) return;
+  state.malformedAttackT = 0;
+  state.malformedAttackNext = MALFORMED_ATTACK_INTERVAL[0] + Math.random() * (MALFORMED_ATTACK_INTERVAL[1] - MALFORMED_ATTACK_INTERVAL[0]);
+  resolveMalformedCreatureAttack();
 }
 
 function baseLineageMod(res) {
@@ -2439,6 +2542,10 @@ function endTrial(success) {
   } else {
     addLog(`${def.name} failed. The oath is broken, but oaths can be sworn again.`, 'log-bad');
   }
+  if (def.id === 'newLands' && !success) {
+    state.queues.build = state.queues.build.filter(entry => entry.id !== 'greatMigrationStage');
+    state.greatMigrationProgress = 0;
+  }
   state.trial = null;
   state.migrationChallenges = [];
   state.badAncestry = null;
@@ -2500,6 +2607,9 @@ function updateTrial(dt) {
       break;
     case 'conquest':
       if ((tr.targets || []).length && tr.targets.every(id => state.diplomacy?.[id]?.conquered)) { endTrial(true); return; }
+      break;
+    case 'newLands':
+      if (bld('greatMigration') > 0) { endTrial(true); return; }
       break;
   }
 }
@@ -2607,6 +2717,7 @@ function trialProgressText() {
     case 'whiteout': return `${Math.floor(tr.daysActive)} / ${WHITEOUT_DURATION} days endured — food must never run out`;
     case 'haste': return `${Math.floor(tr.daysActive)} / 20000 days to reach the Age of Light`;
     case 'conquest': return `${(tr.targets || []).filter(id => state.diplomacy?.[id]?.conquered).length} / ${(tr.targets || []).length} nations conquered`;
+    case 'newLands': return `${greatMigrationProgress()} / ${GREAT_MIGRATION_STAGE_COUNT} stages completed — reach the Age of Light and build Trade Blimps again`;
   }
   return '';
 }
@@ -2689,7 +2800,7 @@ function beginSoftReset() {
 }
 
 function landingChoicesForMigration() {
-  const available = LANDINGS.filter(l => l.id !== state.landing);
+  const available = availableLandings().filter(l => l.id !== state.landing);
   const draw = () => {
     const landing = available.splice(Math.floor(Math.random() * available.length), 1)[0];
     return { ...landing, traits: traitsForLanding(landing.id) };
@@ -2863,6 +2974,9 @@ function setOut(trialId = null) {
   state.landing = landing.id;
   if (!trialId && state.beaconsLit?.[landing.id]) state.beaconRevisited[landing.id] = true;
   state.placeTraits = trialId ? [...(keep.placeTraits || [])] : [...(selectedLanding?.traits || traitsForLanding(landing.id))];
+  state.malformedDanger = malformedBiomeActive(landing.id) ? malformedDangerForTraits(state.placeTraits) : 0;
+  state.malformedAttackT = 0;
+  state.malformedAttackNext = MALFORMED_ATTACK_INTERVAL[0] + Math.random() * (MALFORMED_ATTACK_INTERVAL[1] - MALFORMED_ATTACK_INTERVAL[0]);
   if (settings) Object.assign(state, settings);
   if (trialId) state.trial = { id: trialId, startDay: state.day, daysActive: 0, buildings: 0 };
   if (trialId === 'conquest') {
@@ -3143,6 +3257,7 @@ function tickStep(dt) {
   updateSpies(dt);
   updateDiplomacy(dt);
   updateRandomEvents(dt);
+  updateMalformedThreat(dt);
   updateExploration(dt);
   if (raptureActiveHere() && raptureWorkers() === 0) resetWonderSection('No one remains in the active section. The foothold is lost.');
   updateWonder(dt);
@@ -3590,6 +3705,13 @@ function normalizeSave(s) {
   s.beaconProgress = Math.min(BEACON_STAGE_COUNT, Math.floor(s.beaconProgress));
   if (!Number.isFinite(s.airControlProgress) || s.airControlProgress < 0) throw new Error('Invalid Air Control progress');
   s.airControlProgress = Math.min(AIR_CONTROL_STAGE_COUNT, Math.floor(s.airControlProgress));
+  if (!Number.isFinite(s.malformedDanger) || s.malformedDanger < 0) throw new Error('Invalid malformed creature danger');
+  s.malformedDanger = Math.min(MALFORMED_DANGER_MAX, s.malformedDanger);
+  if (!Number.isFinite(s.malformedAttackT) || s.malformedAttackT < 0 ||
+      !Number.isFinite(s.malformedAttackNext) || s.malformedAttackNext < 0)
+    throw new Error('Invalid malformed creature attack timer');
+  if (!Number.isFinite(s.greatMigrationProgress) || s.greatMigrationProgress < 0) throw new Error('Invalid Great Waters progress');
+  s.greatMigrationProgress = Math.min(GREAT_MIGRATION_STAGE_COUNT, Math.floor(s.greatMigrationProgress));
   s.migrationChallenges = [...new Set((s.migrationChallenges || []).filter(id => MIGRATION_CHALLENGES.some(challenge => challenge.id === id)))];
   s.pendingMigrationChallenges = [...new Set((s.pendingMigrationChallenges || []).filter(id => MIGRATION_CHALLENGES.some(challenge => challenge.id === id)))];
   if (!s.achievements || typeof s.achievements !== 'object' || Array.isArray(s.achievements)) throw new Error('Invalid achievements');
@@ -4202,6 +4324,7 @@ function renderVillage() {
     `<div class="res-note">Population growth: <span class="has-tooltip" tabindex="0" data-tooltip="${attrText(populationGrowthTooltip())}">${fmt(populationGrowthTime())} seconds</span> per new villager while food and housing are available. Guard healing: ${fmt(guardHealingNeed())} seconds per injury.</div>` +
     `<div class="res-note" style="margin:2px 0 6px">The land gives: ${modsHtml(L)}</div>` +
     `<div class="res-note" style="margin:2px 0 6px">Guard armor: level ${fmt(armorLevel())} — each level reduces death odds by 8% (minimum 15%).</div>`;
+  if (malformedBiomeActive()) h += `<div class="res-note trial-mod">${malformedDangerText()}</div>`;
 
   if (bld('factory') > 0 || tinkererFactoryAvailable()) {
     h += '<h2 class="section">Factory production</h2><div class="res-note">' +
@@ -4348,8 +4471,9 @@ function renderBuild() {
     const cost = buildingCost(b);
     const beaconProject = b.id === 'beacon' && !count;
     const airControlProject = b.id === 'airControl' && !count;
-    const stagedProject = beaconProject || airControlProject;
-    const stageId = beaconProject ? 'beaconStage' : 'airControlStage';
+    const greatMigrationProject = b.id === 'greatMigration' && !count;
+    const stagedProject = beaconProject || airControlProject || greatMigrationProject;
+    const stageId = beaconProject ? 'beaconStage' : airControlProject ? 'airControlStage' : 'greatMigrationStage';
     const queued = state.queues.build.some(entry => entry.id === (stagedProject ? stageId : b.id));
     const forbidden = trialActive('overflow') && Object.values(STORAGE).some(s => s.bld === b.id || s.bonus?.bld === b.id);
     const ok = !maxed && !forbidden &&
@@ -4357,11 +4481,11 @@ function renderBuild() {
     h += `<div class="card"><div class="card-head">` +
       `<span class="card-title has-tooltip" data-tooltip="${attrText(b.desc)}">${b.name}</span>` +
       (b.max === Infinity ? `<span class="card-count">${count} built</span>` : b.max > 1 ? `<span class="card-count">${count} / ${b.max}</span>` : (count ? `<span class="card-count">built</span>` : '')) +
-      `<span class="card-effect">${beaconProject ? `${beaconProgress()} / ${BEACON_STAGE_COUNT} stages` : airControlProject ? `${airControlProgress()} / ${AIR_CONTROL_STAGE_COUNT} stages` : b.effect()}</span></div>` +
+      `<span class="card-effect">${beaconProject ? `${beaconProgress()} / ${BEACON_STAGE_COUNT} stages` : airControlProject ? `${airControlProgress()} / ${AIR_CONTROL_STAGE_COUNT} stages` : greatMigrationProject ? `${greatMigrationProgress()} / ${GREAT_MIGRATION_STAGE_COUNT} stages` : b.effect()}</span></div>` +
       `<div class="card-cost">cost: ${costHtml(cost)}</div>` +
       renderBuildingPower(b.id) +
       (b.id === 'steamPlant' ? woodFuelControls('steamPlant', count) : '') +
-      `<div class="card-actions"><button data-action="build" data-id="${b.id}"${stagedProject ? ' data-repeat' : ''} ${ok ? '' : 'disabled'}>${maxed ? 'Complete' : queued ? 'Queued' : beaconProject ? `Commit stage ${beaconProgress() + 1}` : airControlProject ? `Commit stage ${airControlProgress() + 1}` : canAfford(cost) ? 'Build' : 'Queue'}</button></div>` +
+      `<div class="card-actions"><button data-action="build" data-id="${b.id}"${stagedProject ? ' data-repeat' : ''} ${ok ? '' : 'disabled'}>${maxed ? 'Complete' : queued ? 'Queued' : beaconProject ? `Commit stage ${beaconProgress() + 1}` : airControlProject ? `Commit stage ${airControlProgress() + 1}` : greatMigrationProject ? `Commit stage ${greatMigrationProgress() + 1}` : canAfford(cost) ? 'Build' : 'Queue'}</button></div>` +
       `</div>`;
   }
   if (!any) h += `<div class="res-note">${buildFilter === 'complete' ? 'No completed buildings yet.' : 'Nothing remains to build yet. Learn from the world first.'}</div>`;
@@ -4670,8 +4794,9 @@ function renderExpeditions() {
   let h = '<h2 class="section">Expeditions — widen the world</h2>';
   h += '<div class="res-note">Each expedition is sent once. What it finds stays with Emberhold forever.</div>';
   if (beaconsLitCount() > 0) h += '<h2 class="section">Beacon hints</h2>' + renderWonderDiscovery();
-  const sitesDone = EXPEDITIONS.filter(e => e.landing && expDone(e.id)).length;
-  h += `<div class="res-note">Site expeditions: ${sitesDone}/${LANDINGS.length} established. Develop a settlement at each landing to send its unique expedition. Rewards endure at every landing. Complete all six for +5% to all production${siteExpeditionsComplete() ? ' — earned!' : ' forever.'}</div>`;
+  const sitesDone = EXPEDITIONS.filter(e => e.landing && !LANDING_BY_ID.get(e.landing)?.postWaters && expDone(e.id)).length;
+  const expeditionLandings = LANDINGS.filter(landing => !landing.postWaters).length;
+  h += `<div class="res-note">Site expeditions: ${sitesDone}/${expeditionLandings} established. Develop a settlement at each established landing to send its unique expedition. Rewards endure at every landing. Complete all six for +5% to all production${siteExpeditionsComplete() ? ' — earned!' : ' forever.'}</div>`;
   const rates = production();
   let any = false;
   for (const e of EXPEDITIONS) {
@@ -4755,6 +4880,7 @@ function renderMigration() {
     h += `<div class="card ${selected ? 'lineage-selected' : ''} ${allowed ? '' : 'dimmed'}"><div class="card-head"><span class="card-title has-tooltip" data-tooltip="${attrText(landing.text)}">${landing.name}</span>${selected ? '<span class="card-count">chosen</span>' : ''}</div>` +
       `<div class="card-effect">${modsHtml(landing)}</div>` +
       `<div class="res-note">Climate: ${climateDef(landing.id).name} — ${climateDef(landing.id).text}</div>` +
+      (landing.postWaters ? '<div class="res-note trial-mod">Malformed creatures dwell here. Their danger starts with the biome traits and rises slowly toward 20; healthy Guards are the defense.</div>' : '') +
       `<div class="res-note">Place traits: ${traitsHtml(landing.traits)}</div>` +
       (expedition ? `<div class="res-note">${expedition.name}: ${expDone(expedition.id) ? 'established' : 'unexplored'} — ${expedition.effect}</div>` : '') +
       `<div class="card-actions"><button data-action="landing" data-id="${landing.id}" ${selected || !allowed ? 'disabled' : ''}>${!allowed ? 'Unsuitable for chosen lineage' : selected ? 'Chosen' : 'Choose this landing'}</button></div></div>`;
@@ -4961,7 +5087,7 @@ function renderSidePanel() {
 function loadLatestUpdatesTooltip() {
   const button = document.getElementById('btn-updates');
   if (!button || typeof fetch !== 'function' || typeof DOMParser !== 'function') return;
-      fetch('changelog.html?v=publish-20260919u0012')
+      fetch('changelog.html?v=publish-20260922u0013')
     .then(response => response.ok ? response.text() : Promise.reject(new Error('changelog unavailable')))
     .then(source => {
       const doc = new DOMParser().parseFromString(source, 'text/html');
