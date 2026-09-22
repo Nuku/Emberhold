@@ -4,6 +4,7 @@ All notable changes to Emberhold are recorded here, with the newest changes firs
 
 ## 2026-09-22
 
+- Added One Nation: after conquering all three neighboring towns, unite the region to return 45 Guards, gain 15% production and double storage, unlock their lineages, and inherit their non-trade-off, non-habitat traits at half strength.
 - Added the Echoes of Harvest, Echoes of Timber, and Echoes of Stone upgrades for permanent Food, Wood, and Stone production bonuses.
 - Added Be Prepared, granting two Guard capacity from the start of a settlement, and Running Hot, increasing Factory output, inputs, and Power use by 50%.
 - Custom lineage Adaptation traits now unlock with their corresponding lineages, and the new Timid trade-off slows Guard recruitment.

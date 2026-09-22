@@ -116,12 +116,14 @@ function defaultState() {
     ancestralBlessing: false,
     species: 'human',
     lineagesUnlocked: { human: true },
+    conqueredLineageTraits: [],
     customLineage: null,
     customLineageDraft: null,
     tradePartner: 'human',
     tradePartners: ['human'],
     tribesSeen: { human: true },
     diplomacy: {},
+    unifiedRegion: false,
     diplomats: {},
     spies: {},
     spyTraining: null,
@@ -312,17 +314,25 @@ function customLineageDef() {
 }
 function lineageDef(id) { return id === 'custom' ? customLineageDef() || LINEAGES[0] : LINEAGE_BY_ID.get(id) || LINEAGES[0]; }
 function lineageTraitDef(id) { return LINEAGE_TRAIT_BY_ID.get(id); }
-function lineageTraits(def) { return (def?.traits || []).map(lineageTraitDef).filter(Boolean); }
+function lineageTraits(def) {
+  const ids = [...(def?.traits || [])];
+  if (def?.id === state.species) ids.push(...acquiredLineageTraitIds());
+  return [...new Set(ids)].map(lineageTraitDef).filter(Boolean);
+}
+function acquiredLineageTraitIds(source = state) {
+  return Array.isArray(source?.conqueredLineageTraits) ? source.conqueredLineageTraits : [];
+}
 function lineageTraitLevelBonus(id, def = lineageDef(state.species)) {
   if (!def?.traits?.includes(id) || def.id !== state.species) return 0;
   return currentPlaceTraits().reduce((bonus, trait) => bonus + (trait.lineageLevelBonus || 0), 0);
 }
 function lineageTraitLevel(id, def = lineageDef(state.species)) {
-  if (!def?.traits?.includes(id)) return 0;
+  if (!def?.traits?.includes(id)) return def?.id === state.species && acquiredLineageTraitIds().includes(id) ? 0.5 : 0;
   const level = (def.traitLevels?.[id] ?? 1) + lineageTraitLevelBonus(id, def);
   return level === 0 ? -1 : level;
 }
 function lineageTraitScale(level = 1) {
+  if (level > 0 && level < 1) return level;
   return Math.pow(1.5, level >= 1 ? level - 1 : -level - 1);
 }
 function lineageTraitModifier(modifier, level = 1) {
@@ -331,11 +341,18 @@ function lineageTraitModifier(modifier, level = 1) {
   return level > 0 ? 1 + magnitude : 1 - magnitude;
 }
 function lineageSpecialValue(key, def = lineageDef(state.species)) {
-  const special = Object.values(def?.specials || {}).find(entry => entry.key === key);
-  if (!special) return 1;
-  if (def.custom) return special.value;
-  const traitId = Object.keys(def.specials).find(id => def.specials[id] === special);
-  return lineageTraitModifier(special.value, lineageTraitLevel(traitId, def));
+  let value = 1;
+  for (const [traitId, special] of Object.entries(def?.specials || {})) {
+    if (special.key === key) value *= lineageTraitModifier(special.value, def.custom ? 1 : lineageTraitLevel(traitId, def));
+  }
+  if (def?.id === state.species) for (const lineage of LINEAGES) {
+    if (lineage.id === def.id) continue;
+    for (const [traitId, special] of Object.entries(lineage.specials || {})) {
+      if (special.key === key && acquiredLineageTraitIds().includes(traitId))
+        value *= lineageTraitModifier(special.value, 0.5);
+    }
+  }
+  return value;
 }
 function activeLineageTraitScale() {
   const rawLevel = 1 + currentPlaceTraits().reduce((bonus, trait) => bonus + (trait.lineageLevelBonus || 0), 0);
@@ -373,6 +390,7 @@ function selectableLineages() {
   return [...LINEAGES, ...(customLineageDef() ? [customLineageDef()] : [])];
 }
 function localTribeIds() {
+  if (state.unifiedRegion) return [];
   const ids = Array.isArray(state.tradePartners)
     ? (state.tradePartner && state.tradePartners[0] !== state.tradePartner
       ? [state.tradePartner]
@@ -590,12 +608,17 @@ function conqueredRealm() {
   return Object.values(state.diplomacy || {}).some(entry => entry?.conquered);
 }
 function conqueredNationCount(source = state) {
-  if (!source) return 0;
+  if (!source || source.unifiedRegion) return 0;
   const held = Array.isArray(source.tradePartners) ? source.tradePartners : [source.tradePartner];
   return [...new Set(held)].filter(id => source.diplomacy?.[id]?.conquered).length;
 }
 function conqueredStorageMod(source = state) {
-  return source?.trial?.id === 'overflow' ? 1 : 1 + 0.10 * conqueredNationCount(source);
+  if (source?.trial?.id === 'overflow') return 1;
+  return (source?.unifiedRegion ? 2 : 1) + 0.10 * conqueredNationCount(source);
+}
+function regionUnificationReady() {
+  const ids = localTribeIds();
+  return ids.length === 3 && ids.every(id => state.diplomacy?.[id]?.conquered);
 }
 function commonalityLineageCount() {
   return Object.keys(state.commonalityLineages || {})
@@ -1780,6 +1803,7 @@ function globalProductionFactors(resource = null) {
       const entry = state.diplomacy?.[id];
       return bonus + (entry && (entry.disposition >= 80 || entry.conquered) ? alliedTribeIncomeBonus(id) : 0);
     }, 0)],
+    ['United Region', state.unifiedRegion ? 1.15 : 1],
     ['Stored machinery', 1 + 0.002 * state.res.machinery],
     ['Glacial Peaks', expDone('glacialPeaks') ? 1.10 : 1],
     ['All six sites explored', siteExpeditionsComplete() ? 1.05 : 1],
@@ -2063,7 +2087,15 @@ function baseLineageMod(res) {
   const lineage = lineageDef(state.species);
   const modifier = (lineage.mods[res] === undefined ? 1 : lineage.mods[res]) * (lineage.all || 1);
   const traitId = lineage.traitEffects?.[res];
-  return lineageTraitModifier(modifier, traitId ? lineageTraitLevel(traitId, lineage) : 1);
+  let result = lineageTraitModifier(modifier, traitId ? lineageTraitLevel(traitId, lineage) : 1);
+  const nativeTraits = new Set(lineage.traits || []);
+  if (!lineage.custom) for (const source of LINEAGES) {
+    const acquiredTrait = source.traitEffects?.[res];
+    const sourceModifier = source.mods?.[res] ?? 1;
+    if (acquiredTrait && !nativeTraits.has(acquiredTrait) && acquiredLineageTraitIds().includes(acquiredTrait) && sourceModifier > 1)
+      result *= lineageTraitModifier(sourceModifier, 0.5);
+  }
+  return result;
 }
 function lineageMod(res) {
   return baseLineageMod(res) * conqueredLineageMod(res);
@@ -3263,7 +3295,7 @@ function startGameClock() {
   // lose time; it only wakes the simulation to account for elapsed time.
   if (typeof Worker === 'function') {
     try {
-      gameClockWorker = new Worker('js/game-clock.worker.js?v=publish-20260922u0014');
+      gameClockWorker = new Worker('js/game-clock.worker.js?v=publish-20260922u0017');
       gameClockWorker.addEventListener('message', () => {
         updateGameClock(true);
         renderBonusTimer();
@@ -3771,6 +3803,31 @@ function conquerTown(id) {
   updateAchievements(['diplomat']);
   return { ok: true, action: 'conquer', target: id, deployedGuards: 15, cost: { ...CONQUEST_COST } };
 }
+function uniteRegion() {
+  if (!regionUnificationReady() || state.unifiedRegion) return { ok: false, reason: 'not-ready' };
+  const ids = localTribeIds();
+  state.lineagesUnlocked = state.lineagesUnlocked || { human: true };
+  state.conqueredLineageTraits = acquiredLineageTraitIds();
+  const nativeTraits = new Set(lineageDef(state.species).traits || []);
+  const acquiredTraits = new Set(state.conqueredLineageTraits);
+  const achievementTriggers = ['unitedRegion'];
+  for (const id of ids) {
+    if (!LINEAGES.some(lineage => lineage.id === id)) continue;
+    state.lineagesUnlocked[id] = true;
+    achievementTriggers.push(`lineage-${id}`);
+    for (const trait of lineageTraits(lineageDef(id))) {
+      if (trait.group === 'Trade-off' || trait.group === 'Habitat' || nativeTraits.has(trait.id) || acquiredTraits.has(trait.id)) continue;
+      acquiredTraits.add(trait.id);
+      state.conqueredLineageTraits.push(trait.id);
+    }
+  }
+  state.jobs.guard = (state.jobs.guard || 0) + 15 * ids.length;
+  state.guardInjuries = Math.min(state.guardInjuries || 0, state.jobs.guard);
+  state.unifiedRegion = true;
+  addLog(`The conquered towns unite as one nation. The occupation Guards return to the ranks; production rises by 15%, storage doubles, and the nation adopts ${state.conqueredLineageTraits.length} new lineage traits at half strength.`, 'log-good');
+  updateAchievements(achievementTriggers);
+  return { ok: true, action: 'unite-region', returnedGuards: 15 * ids.length };
+}
 function saveGame(silent) {
   try {
     if (saveLoadFailed) return false;
@@ -4201,6 +4258,7 @@ const ACHIEVEMENTS = [
   { id: 'builder', name: 'A Place to Stand', desc: 'Raise three Huts.', test: () => bld('hut') >= 3, progress: () => `${fmt(Math.min(bld('hut'), 3))} / 3 Huts` },
   { id: 'scholar', name: 'A Curious People', desc: 'Complete five research projects.', test: () => Object.keys(state.techs).length >= 5, progress: () => `${Math.min(Object.keys(state.techs).length, 5)} / 5 projects` },
   { id: 'diplomat', name: 'Good Neighbors', desc: 'Reach 80 disposition with a tribe or conquer one.', test: () => Object.values(state.diplomacy || {}).some(e => e.disposition >= 80 || e.conquered), progress: () => `${Math.max(0, ...Object.values(state.diplomacy || {}).map(e => e.disposition || 0))} / 80 disposition` },
+  { id: 'unitedRegion', name: 'One Nation', desc: 'Unite the three conquered tribes into one nation.', test: () => !!state.unifiedRegion, progress: () => state.unifiedRegion ? 'Region united' : `${localTribeIds().filter(id => state.diplomacy?.[id]?.conquered).length} / 3 tribes conquered` },
   { id: 'wayfarer', name: 'The Long Road', desc: 'Establish three expedition sites.', test: () => Object.keys(state.expeditions || {}).length >= 3, progress: () => `${Math.min(Object.keys(state.expeditions || {}).length, 3)} / 3 sites` },
   { id: 'trialist', name: 'Oathbound', desc: 'Complete a trial.', test: () => Object.values(state.trialDone || {}).some(n => n > 0), progress: () => `${Object.values(state.trialDone || {}).reduce((a, n) => a + n, 0)} completed` },
   { id: 'beacon', name: 'The Beacon Burns', desc: 'Reach the Age of Light.', test: () => state.era >= 5 || state.won, progress: () => `Age ${Math.min(state.era, 5)} / 5` },
@@ -4651,6 +4709,11 @@ function renderResearch() {
 function renderDiplomacy() {
   let h = '<h2 class="section">Diplomacy — neighbors and foreign courts</h2>';
   h += '<div class="res-note">Local contacts can trade, receive diplomats, or be raided at the same time. Departed tribes remain in the chronicle, and their alliances still unlock lineages for future migrations.</div>';
+  if (state.unifiedRegion) {
+    h += '<div class="card"><div class="card-title">One Nation</div><div class="card-desc">The region is united. Production is +15%, storage capacity is doubled, and the occupation Guards have returned.</div></div>';
+  } else if (regionUnificationReady()) {
+    h += '<div class="card"><div class="card-title">Unite the Region</div><div class="card-desc">Join the three conquered towns as one nation, return 45 Guards from occupation duty, unlock their lineages, gain +15% production, and double storage.</div><div class="card-actions"><button data-action="unite-region">Unite the Region</button></div></div>';
+  }
   if (conquestTrialRelationsLocked()) h += '<div class="trial-mod">The three nations hate Emberhold for reasons known only to the Ancients. Relations are fixed at 0 until they are conquered.</div>';
   const knownEntries = Object.entries(state.diplomacy || {});
   const nearbyCount = knownEntries.filter(([id]) => localTribe(id)).length;
@@ -4670,6 +4733,7 @@ function renderDiplomacy() {
   for (const [id, entry] of knownEntries) {
     const tribe = tribeDef(id);
     const local = localTribe(id);
+    if (state.unifiedRegion && (state.tradePartners || []).includes(id)) continue;
     if ((tab === 'nearby') !== local) continue;
     visible++;
     const requestCost = { [entry.request.res]: entry.request.amount };
@@ -5249,7 +5313,7 @@ function renderSidePanel() {
 function loadLatestUpdatesTooltip() {
   const button = document.getElementById('btn-updates');
   if (!button || typeof fetch !== 'function' || typeof DOMParser !== 'function') return;
-      fetch('changelog.html?v=publish-20260922u0014')
+      fetch('changelog.html?v=publish-20260922u0017')
     .then(response => response.ok ? response.text() : Promise.reject(new Error('changelog unavailable')))
     .then(source => {
       const doc = new DOMParser().parseFromString(source, 'text/html');
@@ -5536,6 +5600,7 @@ function runAction(btn) {
     case 'espionage': beginEspionage(btn.dataset.tribe); render(); break;
     case 'raid': doRaid(btn.dataset.tribe, btn.dataset.stage); render(); break;
     case 'conquer': conquerTown(btn.dataset.tribe); render(); break;
+    case 'unite-region': uniteRegion(); render(); break;
     case 'diplomat-inc': doAssignDiplomat(btn.dataset.tribe, +1); render(); break;
     case 'diplomat-dec': doAssignDiplomat(btn.dataset.tribe, -1); render(); break;
     case 'performer-inc': doAssignPerformer(+1); render(); break;
