@@ -3305,7 +3305,7 @@ function startGameClock() {
   // lose time; it only wakes the simulation to account for elapsed time.
   if (typeof Worker === 'function') {
     try {
-      gameClockWorker = new Worker('js/game-clock.worker.js?v=publish-20260922u0019');
+      gameClockWorker = new Worker('js/game-clock.worker.js?v=publish-20260922u0020');
       gameClockWorker.addEventListener('message', () => {
         updateGameClock(true);
         renderBonusTimer();
@@ -3819,6 +3819,18 @@ function conquerTown(id) {
     : `Emberhold conquers the ${tribeDef(id).name}. The occupation train costs ${costText(cost)}, and the town joins the realm while steadily weighing on morale.`, 'log-good');
   updateAchievements(['diplomat']);
   return { ok: true, action: 'conquer', target: id, deployedGuards: cultural ? 0 : 15, cultural, cost: { ...cost } };
+}
+function releaseTown(id) {
+  const entry = state.diplomacy && state.diplomacy[id];
+  if (!entry || !localTribe(id) || !entry.conquered || state.unifiedRegion) return { ok: false, reason: 'not-releasable', target: id };
+  entry.conquered = false;
+  const returnedGuards = entry.culturalConquest ? 0 : 15;
+  if (returnedGuards) {
+    state.jobs.guard = Math.min(guardCap(), (state.jobs.guard || 0) + returnedGuards);
+    state.guardInjuries = Math.min(state.guardInjuries || 0, state.jobs.guard);
+  }
+  addLog(`Emberhold releases the ${tribeDef(id).name}. The town is no longer conquered${returnedGuards ? `, and ${returnedGuards} occupation Guards return to the ranks` : ''}.`, 'log-good');
+  return { ok: true, action: 'release', target: id, returnedGuards };
 }
 function uniteRegion() {
   if (!regionUnificationReady() || state.unifiedRegion) return { ok: false, reason: 'not-ready' };
@@ -4770,6 +4782,9 @@ function renderDiplomacy() {
       (local && !entry.conquered ? `<div class="trial-goal">${diplomacyRequestText(tribe, entry)}</div>` : local ? '<div class="res-note">This realm is under Emberhold rule; it no longer sends diplomatic requests.</div>' : '<div class="res-note">Only a few nice letters can reach them for now.</div>') +
       (local && !entry.conquered ? `<div class="card-cost">offer: ${costHtml(requestCost)} — +15 relations</div>` : '') +
       (local && !entry.conquered ? `<div class="card-actions"><button data-action="diplomacy-supply" data-tribe="${id}" ${canSupply ? '' : 'disabled'}>Supply the request</button></div>` : '');
+    if (local && entry.conquered && !state.unifiedRegion) {
+      h += `<div class="card-actions"><button data-action="release-town" data-tribe="${id}">Release the ${tribe.name}</button></div>`;
+    }
     if (local && tech('spies') && !entry.conquered) {
       const spyTraining = state.spyTraining?.target === id;
       const spyCost = spyTrainingCost(id);
@@ -5338,7 +5353,7 @@ function renderSidePanel() {
 function loadLatestUpdatesTooltip() {
   const button = document.getElementById('btn-updates');
   if (!button || typeof fetch !== 'function' || typeof DOMParser !== 'function') return;
-      fetch('changelog.html?v=publish-20260922u0019')
+      fetch('changelog.html?v=publish-20260922u0020')
     .then(response => response.ok ? response.text() : Promise.reject(new Error('changelog unavailable')))
     .then(source => {
       const doc = new DOMParser().parseFromString(source, 'text/html');
@@ -5498,6 +5513,7 @@ const automationActionFns = {
   attack: doRaid,
   siege: (id, guardCount = ableGuards()) => doRaid(id, 'siege', guardCount),
   conquer: conquerTown,
+  release: releaseTown,
   research: attemptResearch,
   reorderQueue,
   trialAbandon: () => endTrial(false),
@@ -5625,6 +5641,7 @@ function runAction(btn) {
     case 'espionage': beginEspionage(btn.dataset.tribe); render(); break;
     case 'raid': doRaid(btn.dataset.tribe, btn.dataset.stage); render(); break;
     case 'conquer': conquerTown(btn.dataset.tribe); render(); break;
+    case 'release-town': releaseTown(btn.dataset.tribe); render(); break;
     case 'unite-region': uniteRegion(); render(); break;
     case 'diplomat-inc': doAssignDiplomat(btn.dataset.tribe, +1); render(); break;
     case 'diplomat-dec': doAssignDiplomat(btn.dataset.tribe, -1); render(); break;

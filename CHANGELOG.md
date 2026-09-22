@@ -13,6 +13,7 @@ All notable changes to Emberhold are recorded here, with the newest changes firs
 - Added eight alien landing biomes beyond the great waters, each with its own climate, production profile, traits, and survey expedition.
 - Added malformed creature threats to alien biomes: danger rises over time, attacks can cost villagers and resources, and healthy Guards can defend the settlement.
 - Added Disciplined Bunking research, increasing Barracks capacity from two Guards per building to three on alien shores.
+- Added the ability to release conquered neighboring towns before uniting the region; released towns return their occupation Guards.
 
 ## 2026-09-19
 
