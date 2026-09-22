@@ -4,6 +4,7 @@ All notable changes to Emberhold are recorded here, with the newest changes firs
 
 ## 2026-09-22
 
+- Custom lineage Adaptation traits now unlock with their corresponding lineages, and the new Timid trade-off slows Guard recruitment.
 - Added the Trial of To New Lands, a 300-stage Migration Across the Great Waters unlocked after the Wonders and Trade Blimps are complete.
 - Added eight alien landing biomes beyond the great waters, each with its own climate, production profile, traits, and survey expedition.
 - Added malformed creature threats to alien biomes: danger rises over time, attacks can cost villagers and resources, and healthy Guards can defend the settlement.

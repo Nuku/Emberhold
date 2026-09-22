@@ -247,11 +247,12 @@ const CUSTOM_LINEAGE_RESOURCES = ['food', 'wood', 'stone', 'tools', 'knowledge',
 const CUSTOM_LINEAGE_TRAITS = [
   ...CUSTOM_LINEAGE_RESOURCES.map(resource => ({ id: `gift-${resource}`, name: `Gifted ${resourceName(resource)}`, effect: `+15% ${resourceName(resource)}`, cost: 1, resource, mod: 1.15, group: 'Production' })),
   ...CUSTOM_LINEAGE_RESOURCES.map(resource => ({ id: `frailty-${resource}`, name: `Frailty: ${resourceName(resource)}`, effect: `−15% ${resourceName(resource)}`, cost: -1, resource, mod: 0.85, group: 'Trade-off' })),
-  { id: 'sulfurWards', name: 'Sulfur Wards', effect: '+35% raid defense', cost: 3, special: { key: 'raidDefense', value: 1.35 }, group: 'Adaptation' },
-  { id: 'quickLitters', name: 'Quick Litters', effect: '50% less population-growth time', cost: 3, growthTime: 0.5, group: 'Adaptation' },
-  { id: 'farSight', name: 'Far Sight', effect: '+25% Survey gain', cost: 2, special: { key: 'survey', value: 1.25 }, group: 'Adaptation' },
-  { id: 'stoneSentinels', name: 'Stone Sentinels', effect: '+20% Guard recruitment rate', cost: 2, special: { key: 'guardRecruitment', value: 1.20 }, group: 'Adaptation' },
-  { id: 'practicalImprovisation', name: 'Practical Improvisation', effect: 'Queued work completes 10% faster', cost: 2, special: { key: 'queueTime', value: 0.90 }, group: 'Adaptation' },
+  { id: 'sulfurWards', name: 'Sulfur Wards', effect: '+35% raid defense', cost: 3, special: { key: 'raidDefense', value: 1.35 }, lineage: 'mephit', group: 'Adaptation' },
+  { id: 'quickLitters', name: 'Quick Litters', effect: '50% less population-growth time', cost: 3, growthTime: 0.5, lineage: 'rabbitfolk', group: 'Adaptation' },
+  { id: 'farSight', name: 'Far Sight', effect: '+25% Survey gain', cost: 2, special: { key: 'survey', value: 1.25 }, lineage: 'skyborn', group: 'Adaptation' },
+  { id: 'stoneSentinels', name: 'Stone Sentinels', effect: '+20% Guard recruitment rate', cost: 2, special: { key: 'guardRecruitment', value: 1.20 }, lineage: 'stonekin', group: 'Adaptation' },
+  { id: 'practicalImprovisation', name: 'Practical Improvisation', effect: 'Queued work completes 10% faster', cost: 2, special: { key: 'queueTime', value: 0.90 }, lineage: 'human', group: 'Adaptation' },
+  { id: 'timid', name: 'Timid', effect: '+10% time to recruit Guards', cost: -2, special: { key: 'guardRecruitmentTime', value: 1.10 }, group: 'Trade-off' },
 ];
 const CUSTOM_LINEAGE_TRAIT_BY_ID = indexById(CUSTOM_LINEAGE_TRAITS);
 function customLineagePoints() { return achievementRating('wonder-glassMire-restore') * 3; }
@@ -289,9 +290,12 @@ function customLineageTraitIds(ids) {
     return false;
   });
 }
+function customLineageTraitAvailable(trait) {
+  return !trait?.lineage || lineageUnlocked(trait.lineage);
+}
 function normalizeCustomLineage(custom) {
   if (!custom || typeof custom !== 'object' || Array.isArray(custom)) return null;
-  const traits = customLineageTraitIds(custom.traits);
+  const traits = customLineageTraitIds(custom.traits).filter(id => customLineageTraitAvailable(CUSTOM_LINEAGE_TRAIT_BY_ID.get(id)));
   const name = typeof custom.name === 'string' ? custom.name.trim().slice(0, 40) : '';
   if (!traits.length || customLineageTraitCost(traits) > customLineagePoints() || !name) return null;
   return { name, desc: typeof custom.desc === 'string' ? custom.desc.trim().slice(0, 240) : '', traits };
@@ -406,7 +410,7 @@ function setTradeBlimpOrder(index, mode, resource) {
 }
 function guardCap() { return bld('barracks') * (tech('disciplinedBunking') ? 3 : 2); }
 function guardRecruitmentRate() {
-  return 1 / (120 * Math.pow(0.9, bld('trainingYard'))) * Math.pow(1.1, trialCount('conquest')) * lineageSpecialValue('guardRecruitment') *
+  return lineageSpecialValue('guardRecruitment') / (120 * Math.pow(0.9, bld('trainingYard')) * lineageSpecialValue('guardRecruitmentTime')) * Math.pow(1.1, trialCount('conquest')) *
     currentPlaceTraits().reduce((rate, trait) => rate * (trait.guardRecruitment || 1), 1);
 }
 function updateGuardRecruitment(dt) {
@@ -3199,7 +3203,7 @@ function beginCustomLineageDraft() {
 function chooseCustomLineageTrait(id) {
   const draft = state.customLineageDraft;
   const trait = CUSTOM_LINEAGE_TRAIT_BY_ID.get(id);
-  if (!draft || !trait) return;
+  if (!draft || !trait || !customLineageTraitAvailable(trait)) return;
   const index = draft.traits.indexOf(id);
   if (index >= 0) draft.traits.splice(index, 1);
   else {
@@ -4968,8 +4972,10 @@ function renderCustomLineageLab() {
       const selected = draft.traits.includes(trait.id);
       const sameResource = trait.resource && draft.traits.some(id => CUSTOM_LINEAGE_TRAIT_BY_ID.get(id)?.resource === trait.resource && id !== trait.id);
       const cost = customLineageNextTraitCost(draft.traits, trait);
-      const blocked = !selected && (sameResource || !Number.isFinite(cost) || customLineageTraitCost([...draft.traits, trait.id]) > points);
-      return `<button data-action="custom-lineage-trait" data-id="${trait.id}" ${blocked ? 'disabled' : ''}>${selected ? 'Selected: ' : ''}${esc(trait.name)} (${cost > 0 ? '+' : ''}${cost})</button>`;
+      const hasLineage = customLineageTraitAvailable(trait);
+      const blocked = !selected && (!hasLineage || sameResource || !Number.isFinite(cost) || customLineageTraitCost([...draft.traits, trait.id]) > points);
+      const requirement = trait.lineage ? ` — requires ${lineageDef(trait.lineage).name}` : '';
+      return `<button data-action="custom-lineage-trait" data-id="${trait.id}" ${blocked ? 'disabled' : ''}>${selected ? 'Selected: ' : ''}${esc(trait.name)} (${cost > 0 ? '+' : ''}${cost})${!hasLineage ? esc(requirement) : ''}</button>`;
     }).join('') + '</div><div class="res-note">' + traits.map(trait => `${esc(trait.name)}: ${esc(trait.effect)}`).join(' · ') + '</div>';
   }
   if (customLineageDef()) h += `<div class="res-note">Creating this lineage replaces the existing Custom lineage, ${esc(customLineageDef().name)}.</div>`;
