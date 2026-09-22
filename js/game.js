@@ -116,6 +116,8 @@ function defaultState() {
     ancestralBlessing: false,
     species: 'human',
     lineagesUnlocked: { human: true },
+    customLineage: null,
+    customLineageDraft: null,
     tradePartner: 'human',
     tradePartners: ['human'],
     tribesSeen: { human: true },
@@ -241,7 +243,70 @@ function governanceDefenseMod() {
   return m;
 }
 function tribeDef(id) { return TRIBE_BY_ID.get(id) || TRIBES[0]; }
-function lineageDef(id) { return LINEAGE_BY_ID.get(id) || LINEAGES[0]; }
+const CUSTOM_LINEAGE_RESOURCES = ['food', 'wood', 'stone', 'tools', 'knowledge', 'currency', 'iron', 'coal', 'steel', 'machinery', 'aether', 'goods'];
+const CUSTOM_LINEAGE_TRAITS = [
+  ...CUSTOM_LINEAGE_RESOURCES.map(resource => ({ id: `gift-${resource}`, name: `Gifted ${resourceName(resource)}`, effect: `+15% ${resourceName(resource)}`, cost: 1, resource, mod: 1.15, group: 'Production' })),
+  ...CUSTOM_LINEAGE_RESOURCES.map(resource => ({ id: `frailty-${resource}`, name: `Frailty: ${resourceName(resource)}`, effect: `−15% ${resourceName(resource)}`, cost: -1, resource, mod: 0.85, group: 'Trade-off' })),
+  { id: 'sulfurWards', name: 'Sulfur Wards', effect: '+35% raid defense', cost: 3, special: { key: 'raidDefense', value: 1.35 }, group: 'Adaptation' },
+  { id: 'quickLitters', name: 'Quick Litters', effect: '50% less population-growth time', cost: 3, growthTime: 0.5, group: 'Adaptation' },
+  { id: 'farSight', name: 'Far Sight', effect: '+25% Survey gain', cost: 2, special: { key: 'survey', value: 1.25 }, group: 'Adaptation' },
+  { id: 'stoneSentinels', name: 'Stone Sentinels', effect: '+20% Guard recruitment rate', cost: 2, special: { key: 'guardRecruitment', value: 1.20 }, group: 'Adaptation' },
+  { id: 'practicalImprovisation', name: 'Practical Improvisation', effect: 'Queued work completes 10% faster', cost: 2, special: { key: 'queueTime', value: 0.90 }, group: 'Adaptation' },
+];
+const CUSTOM_LINEAGE_TRAIT_BY_ID = indexById(CUSTOM_LINEAGE_TRAITS);
+function customLineagePoints() { return achievementRating('wonder-glassMire-restore') * 3; }
+function customLineageTraitCost(ids = []) {
+  let positives = 0;
+  let negatives = 0;
+  let total = 0;
+  for (const id of ids) {
+    const trait = CUSTOM_LINEAGE_TRAIT_BY_ID.get(id);
+    if (!trait) continue;
+    if (trait.cost > 0) {
+      total += trait.cost + positives;
+      positives++;
+    } else {
+      const cost = trait.cost + negatives;
+      if (cost > 0) return Infinity;
+      total += cost;
+      negatives++;
+    }
+  }
+  return total;
+}
+function customLineageNextTraitCost(ids = [], trait) {
+  if (!trait) return Infinity;
+  const selected = ids.map(id => CUSTOM_LINEAGE_TRAIT_BY_ID.get(id)).filter(Boolean);
+  if (trait.cost > 0) return trait.cost + selected.filter(other => other.cost > 0).length;
+  return trait.cost + selected.filter(other => other.cost <= 0).length;
+}
+function customLineageTraitIds(ids) {
+  const traits = [...new Set(Array.isArray(ids) ? ids.filter(id => CUSTOM_LINEAGE_TRAIT_BY_ID.has(id)) : [])];
+  const resources = new Set();
+  return traits.filter(id => {
+    const resource = CUSTOM_LINEAGE_TRAIT_BY_ID.get(id).resource;
+    if (!resource || !resources.has(resource)) { if (resource) resources.add(resource); return true; }
+    return false;
+  });
+}
+function normalizeCustomLineage(custom) {
+  if (!custom || typeof custom !== 'object' || Array.isArray(custom)) return null;
+  const traits = customLineageTraitIds(custom.traits);
+  const name = typeof custom.name === 'string' ? custom.name.trim().slice(0, 40) : '';
+  if (!traits.length || customLineageTraitCost(traits) > customLineagePoints() || !name) return null;
+  return { name, desc: typeof custom.desc === 'string' ? custom.desc.trim().slice(0, 240) : '', traits };
+}
+function customLineageDef() {
+  const custom = normalizeCustomLineage(state.customLineage);
+  if (!custom) return null;
+  const traits = custom.traits.map(id => CUSTOM_LINEAGE_TRAIT_BY_ID.get(id));
+  const mods = {};
+  for (const trait of traits) if (trait.resource) mods[trait.resource] = trait.mod;
+  const specials = Object.fromEntries(traits.filter(trait => trait.special).map(trait => [trait.id, trait.special]));
+  const growthTime = traits.find(trait => trait.growthTime)?.growthTime;
+  return { id: 'custom', name: custom.name, desc: custom.desc || 'A lineage cultivated in the Prism Womb.', effect: traits.map(trait => trait.effect).join(', '), mods, traits: [], traitEffects: {}, specials, growthTime, custom: true };
+}
+function lineageDef(id) { return id === 'custom' ? customLineageDef() || LINEAGES[0] : LINEAGE_BY_ID.get(id) || LINEAGES[0]; }
 function lineageTraitDef(id) { return LINEAGE_TRAIT_BY_ID.get(id); }
 function lineageTraits(def) { return (def?.traits || []).map(lineageTraitDef).filter(Boolean); }
 function lineageTraitLevelBonus(id, def = lineageDef(state.species)) {
@@ -264,6 +329,7 @@ function lineageTraitModifier(modifier, level = 1) {
 function lineageSpecialValue(key, def = lineageDef(state.species)) {
   const special = Object.values(def?.specials || {}).find(entry => entry.key === key);
   if (!special) return 1;
+  if (def.custom) return special.value;
   const traitId = Object.keys(def.specials).find(id => def.specials[id] === special);
   return lineageTraitModifier(special.value, lineageTraitLevel(traitId, def));
 }
@@ -291,13 +357,16 @@ function lineageTraitsHtml(def) {
   }
   return [...groups.entries()].map(([group, traits]) => `${esc(group)}: ${traits.join(' · ')}`).join(' — ');
 }
-function lineageUnlocked(id) { return !!(state.lineagesUnlocked && state.lineagesUnlocked[id]); }
+function lineageUnlocked(id) { return id === 'custom' ? !!customLineageDef() : !!(state.lineagesUnlocked && state.lineagesUnlocked[id]); }
 function habitatAllows(def, landingId) {
   const landing = LANDING_BY_ID.get(landingId);
   return !!def && (!def.habitats || !!landing && def.habitats.some(h => (landing.habitats || []).includes(h)));
 }
 function lineageSelectable(id, landingId = state.pendingLanding) {
-  return lineageUnlocked(id) && (upg('farHorizons') > 0 || habitatAllows(LINEAGE_BY_ID.get(id), landingId));
+  return lineageUnlocked(id) && (upg('farHorizons') > 0 || habitatAllows(lineageDef(id), landingId));
+}
+function selectableLineages() {
+  return [...LINEAGES, ...(customLineageDef() ? [customLineageDef()] : [])];
 }
 function localTribeIds() {
   const ids = Array.isArray(state.tradePartners)
@@ -316,6 +385,7 @@ function mephitTraitScale(id) { return isMephit() ? lineageTraitScale(lineageTra
 function mephitDefenseMod() { return 1 + 0.35 * mephitTraitScale('sulfurWalls'); }
 function mephitRaidDelay() { return 120 * mephitTraitScale('slowProvocation'); }
 function mephitInjuryMod() { return 1 + 0.75 * mephitTraitScale('cruelReprisals'); }
+function lineageRaidDefenseMod() { return isMephit() ? mephitDefenseMod() : lineageSpecialValue('raidDefense'); }
 function armorLevel() { return Math.max(0, Number(state.armor) || 0); }
 function tradeAvailable() { return tech('currency') && localTribeIds().length > 0; }
 const TRADE_GOODS = ['food', 'wood', 'stone', 'tools', 'copper', 'iron', 'coal', 'steel', 'machinery', 'goods', 'aluminum'];
@@ -714,7 +784,8 @@ function wonderProgressMultiplier(record = wonderRecord(), def = wonderDef()) {
   return multiplier;
 }
 function wonderDangerMultiplier(record = wonderRecord(), def = wonderDef()) {
-  let multiplier = Math.pow(1.25, Math.max(0, wonderSectionIndex(record)));
+  const postWaters = LANDINGS.find(landing => landing.id === def.id)?.postWaters;
+  let multiplier = (postWaters ? 2 : 1) * Math.pow(1.25, Math.max(0, wonderSectionIndex(record)));
   def.researches.forEach((research, index) => { if (record.researches?.[index]) multiplier *= research.danger || 1; });
   def.expeditions.forEach((expedition, index) => { if (record.expeditions?.[index]) multiplier *= expedition.danger || 1; });
   return multiplier;
@@ -901,10 +972,12 @@ function chooseWonderFate(choice) {
   state.rapture.workers = 0;
   state.rapture.landing = null;
   updateAchievements([`wonder-${def.id}-${choice}`]);
-  beginForcedWonderMigration();
+  const cultivateLineage = def.id === 'glassMire' && choice === 'restore';
+  if (cultivateLineage) beginCustomLineageDraft();
+  beginForcedWonderMigration(cultivateLineage);
   return true;
 }
-function beginForcedWonderMigration() {
+function beginForcedWonderMigration(waitForCustomLineage = false) {
   const compatible = LANDINGS.filter(landing => lineageSelectable(state.species, landing.id));
   const choices = compatible.filter(landing => landing.id !== state.landing);
   const challenges = [...(state.migrationChallenges || [])];
@@ -916,6 +989,7 @@ function beginForcedWonderMigration() {
   state.pendingLandings = [{ ...landing, traits: traitsForLanding(landing.id) }];
   state.pendingLanding = landing.id;
   state.migrating = true;
+  state.migrationPreparation = false;
   state.pendingMigrationChallenges = challenges;
   state.pendingEchoMultiplier = 2;
   state.pendingEchoes = state.pendingEchoMultiplier * echoesEarned(challenges);
@@ -924,6 +998,10 @@ function beginForcedWonderMigration() {
   state.echoes += state.pendingEchoMultiplier * baseEchoesEarned();
   addLog(`The Wonder's deeds will echo: ${state.pendingEchoes} Echo${state.pendingEchoes === 1 ? '' : 's'} gained.`, 'log-important');
   addLog(`The Wonder has been decided. There is no vote on the road ahead; it carries Emberhold toward ${landing.name}.`, 'log-important');
+  if (waitForCustomLineage) {
+    addLog('The Prism Womb holds the road open. Decide what kind of people will walk it.', 'log-important');
+    return;
+  }
   setOut();
 }
 
@@ -2655,7 +2733,7 @@ function resolveTribeRaid(id) {
   const armed = tech('weaponry') ? able : 0;
   // Armor keeps a bad fight from becoming fatal; it does not make the
   // settlement more likely to win the engagement.
-  const defense = (able + wounded * 0.5 + armed * 0.9) * governanceDefenseMod() * (isMephit() ? mephitDefenseMod() : 1);
+  const defense = (able + wounded * 0.5 + armed * 0.9) * governanceDefenseMod() * lineageRaidDefenseMod();
   // Incoming raids should create pressure without deleting a settlement's
   // entire military investment.  Hostility still matters, but the old power
   // curve made a merely adequate garrison pay an outsized price on a loss.
@@ -2927,6 +3005,7 @@ function setOut(trialId = null) {
     hopeEver: state.hopeEver, ancientEver: state.ancientEver,
     landingsSeen: state.landingsSeen,
     species: state.species, tribesSeen: state.tribesSeen,
+    customLineage: state.customLineage,
     diplomacy: state.diplomacy,
     achievements: state.achievements,
     migrationChallenges: state.migrationChallenges,
@@ -2954,6 +3033,7 @@ function setOut(trialId = null) {
   state.landingsSeen = keep.landingsSeen;
   state.species = keep.species;
   state.species = newSpecies;
+  state.customLineage = keep.customLineage;
   state.lineagesUnlocked = unlockedLineages;
   state.tribesSeen = keep.tribesSeen;
   state.diplomacy = keep.diplomacy;
@@ -3113,6 +3193,38 @@ function chooseLineage(id) {
   state.pendingSpecies = id;
 }
 
+function beginCustomLineageDraft() {
+  state.customLineageDraft = { traits: [] };
+}
+function chooseCustomLineageTrait(id) {
+  const draft = state.customLineageDraft;
+  const trait = CUSTOM_LINEAGE_TRAIT_BY_ID.get(id);
+  if (!draft || !trait) return;
+  const index = draft.traits.indexOf(id);
+  if (index >= 0) draft.traits.splice(index, 1);
+  else {
+    if (trait.resource && draft.traits.some(other => CUSTOM_LINEAGE_TRAIT_BY_ID.get(other)?.resource === trait.resource)) return;
+    const next = [...draft.traits, id];
+    if (customLineageTraitCost(next) > customLineagePoints()) return;
+    draft.traits.push(id);
+  }
+}
+function createCustomLineage(name, desc) {
+  const draft = state.customLineageDraft;
+  if (!draft || !draft.traits.length || customLineageTraitCost(draft.traits) > customLineagePoints()) return false;
+  if (name === undefined) name = window.prompt('Name this cultivated lineage:', 'Custom');
+  if (name === null) return false;
+  name = String(name).trim().slice(0, 40);
+  if (!name) return false;
+  if (desc === undefined) desc = window.prompt('Describe this lineage:', 'Life shaped in the Prism Womb.');
+  if (desc === null) return false;
+  state.customLineage = { name, desc: String(desc).trim().slice(0, 240), traits: [...draft.traits] };
+  state.customLineageDraft = null;
+  state.pendingSpecies = 'custom';
+  addLog(`${name} are cultivated in the Prism Womb and will found the next Emberhold.`, 'log-good');
+  return true;
+}
+
 // ---------- core tick ----------
 function advanceRealTime(elapsed, allowBackgroundCatchUp = false) {
   if (saveConflict || state.paused || elapsed <= 0) return;
@@ -3143,7 +3255,7 @@ function startGameClock() {
   // lose time; it only wakes the simulation to account for elapsed time.
   if (typeof Worker === 'function') {
     try {
-      gameClockWorker = new Worker('js/game-clock.worker.js?v=publish-20260919u0012');
+      gameClockWorker = new Worker('js/game-clock.worker.js?v=publish-20260922u0014');
       gameClockWorker.addEventListener('message', () => {
         updateGameClock(true);
         renderBonusTimer();
@@ -3696,6 +3808,12 @@ function normalizeSave(s) {
       (Array.isArray(d[key]) ? !Array.isArray(s[key]) : object(d[key]) && !object(s[key]))))
       throw new Error(`Invalid ${key}`);
   }
+  s.customLineage = normalizeCustomLineage(s.customLineage);
+  if (s.species === 'custom' && !s.customLineage) s.species = 'human';
+  if (s.pendingSpecies === 'custom' && !s.customLineage) s.pendingSpecies = s.species;
+  if (!object(s.customLineageDraft)) s.customLineageDraft = null;
+  else s.customLineageDraft = { traits: customLineageTraitIds(s.customLineageDraft.traits)
+    .filter((id, index, traits) => customLineageTraitCost(traits.slice(0, index + 1)) <= customLineagePoints()) };
   s.projects = Object.fromEntries(RESOURCE_PROJECTS.map(project => {
     const value = s.projects[project.id];
     if (value !== undefined && (!Number.isFinite(value) || value < 0)) throw new Error('Invalid project progress');
@@ -4049,6 +4167,14 @@ const WONDER_ACHIEVEMENT_REWARDS = {
   floodmeadows: { restore: 'River Crown power increases Food production by 20%.', silence: 'Foragers become Farmers and gain a Farming bonus.', become: 'Gain 1 Ancient point.' },
   ashfen: { restore: 'Renewal Basin power increases Coal production by 15% and Tools by 25%.', silence: 'Recover 10% of factory-material construction costs.', become: 'Gain 1 Ancient point.' },
   windmere: { restore: 'Mirrored Orrery power increases Knowledge and Aether production by 20%, and unlocks Star Glass research.', silence: 'Explorers generate additional Knowledge and document discoveries.', become: 'Gain 1 Ancient point.' },
+  pallidExpanse: { restore: 'The White Engine stabilizes distance across future settlements.', silence: 'The White Engine is locked and no longer alters the roads.', become: 'Gain 1 Ancient point.' },
+  glassMire: { restore: 'The Prism Womb makes carefully bounded new life possible.', silence: 'The Prism Womb is sealed before it can reproduce.', become: 'Gain 1 Ancient point.' },
+  hollowCanopy: { restore: 'The Breath Archive preserves extinct voices in the living forest.', silence: 'The Breath Archive releases no more dead things into the world.', become: 'Gain 1 Ancient point.' },
+  redChasm: { restore: 'The Red Equation resumes its ancient alloy calculations.', silence: 'The Red Equation’s furnace is cooled and contained.', become: 'Gain 1 Ancient point.' },
+  drownedMoon: { restore: 'The Lunar Ossuary gives the Drowned Moon a dependable calendar.', silence: 'The Lunar Ossuary’s memory-drinking bell is silenced.', become: 'Gain 1 Ancient point.' },
+  boneOrchard: { restore: 'The Pale Genealogy cultivates new animals and useful symbioses.', silence: 'The Pale Genealogy is left to ordinary hunger and death.', become: 'Gain 1 Ancient point.' },
+  blackTidelands: { restore: 'The Inkwell Leviathan carries its archive along the alien coast.', silence: 'The Inkwell Leviathan sinks and its dangerous pages dissolve.', become: 'Gain 1 Ancient point.' },
+  singingCrater: { restore: 'The Resonant Maw becomes a warning beacon for the new lands.', silence: 'The Resonant Maw’s answer is never sung.', become: 'Gain 1 Ancient point.' },
 };
 function wonderAchievements() {
   const fates = [['restore', 'Restoration', 'Restore its old purpose'], ['silence', 'Silence', 'Silence it'], ['become', 'Transformation', 'Become one with it']];
@@ -4827,6 +4953,30 @@ function renderExpeditions() {
   return h;
 }
 
+function renderCustomLineageLab() {
+  const draft = state.customLineageDraft;
+  if (!draft) return '';
+  const points = customLineagePoints();
+  const spent = customLineageTraitCost(draft.traits);
+  const ready = draft.traits.length > 0 && spent <= points;
+  let h = '<h2 class="section">The Prism Womb — Custom Lineage</h2>' +
+    `<div class="card trial-active"><div class="card-head"><span class="card-title">Cultivate a new people</span><span class="card-count">${spent} / ${points} genetic point${points === 1 ? '' : 's'}</span></div>` +
+    '<div class="card-desc">Your point budget is three times the star rating for The Prism Womb: Restoration (3–12 points). Only improving that achievement adds points. Each positive trait costs 1 more than the positive trait before it. The first frailty refunds 1 point, the second is free, and further frailties are unavailable. The lineage may settle anywhere.</div>';
+  for (const group of ['Production', 'Adaptation', 'Trade-off']) {
+    const traits = CUSTOM_LINEAGE_TRAITS.filter(trait => trait.group === group);
+    h += `<div class="res-note">${group}</div><div class="card-actions">` + traits.map(trait => {
+      const selected = draft.traits.includes(trait.id);
+      const sameResource = trait.resource && draft.traits.some(id => CUSTOM_LINEAGE_TRAIT_BY_ID.get(id)?.resource === trait.resource && id !== trait.id);
+      const cost = customLineageNextTraitCost(draft.traits, trait);
+      const blocked = !selected && (sameResource || !Number.isFinite(cost) || customLineageTraitCost([...draft.traits, trait.id]) > points);
+      return `<button data-action="custom-lineage-trait" data-id="${trait.id}" ${blocked ? 'disabled' : ''}>${selected ? 'Selected: ' : ''}${esc(trait.name)} (${cost > 0 ? '+' : ''}${cost})</button>`;
+    }).join('') + '</div><div class="res-note">' + traits.map(trait => `${esc(trait.name)}: ${esc(trait.effect)}`).join(' · ') + '</div>';
+  }
+  if (customLineageDef()) h += `<div class="res-note">Creating this lineage replaces the existing Custom lineage, ${esc(customLineageDef().name)}.</div>`;
+  h += `<div class="card-actions"><button data-action="custom-lineage-create" ${ready ? '' : 'disabled'}>Name and cultivate Custom</button></div></div>`;
+  return h;
+}
+
 function renderMigration() {
   if (!state.migrating && bld('monument') < 1) {
     return '<h2 class="section">The Great Migration</h2>' +
@@ -4848,6 +4998,8 @@ function renderMigration() {
       return `<div class="card ${selected ? 'lineage-selected' : ''}"><div class="card-head"><span class="card-title">${challenge.name}</span><span class="card-count">${selected ? 'on' : 'off'}</span></div><div class="card-desc">${challenge.desc}</div><div class="card-actions"><button data-action="migration-challenge" data-id="${challenge.id}">${selected ? 'Turn off' : 'Turn on'}</button></div></div>`;
     }).join('');
   }
+
+  h += renderCustomLineageLab();
 
   if (!state.migrating) {
     const earned = echoesEarned();
@@ -4887,7 +5039,7 @@ function renderMigration() {
   }
   h += '<h2 class="section">Choose a lineage</h2>' +
     '<div class="res-note">Emberborn are always available. Ally with a tribe at disposition 80+ when departing to unlock its lineage for future migrations. Habitat specialists only appear as new neighbors in suitable places. Incompatible lineages and landings are greyed out. To choose a different habitat, first choose a lineage that can live there, such as Emberborn.</div>';
-  for (const l of LINEAGES.filter(l => lineageUnlocked(l.id))) {
+  for (const l of selectableLineages().filter(l => lineageUnlocked(l.id))) {
     const selected = (state.pendingSpecies || state.species) === l.id;
     const allowed = lineageSelectable(l.id);
     h += `<div class="card ${selected ? 'lineage-selected' : ''} ${allowed ? '' : 'dimmed'}"><div class="card-head">` +
@@ -4989,7 +5141,7 @@ function renderStats() {
       ['Ancestral upgrades', `${totalUpgrades()} levels`, `${Object.keys(state.upgrades || {}).length} upgrade paths awakened.`],
       ['Trials completed', fmt(totalTrialsCompleted()), 'Oaths that left a mark on the lineage.'],
       ['Expeditions established', `${Object.keys(state.expeditions || {}).length} / ${LANDINGS.length}`, 'Roads and sites remembered across migrations.'],
-      ['Lineages unlocked', `${Object.keys(state.lineagesUnlocked || {}).length} / ${LINEAGES.length}`, 'The peoples who may yet call Emberhold home.'],
+      ['Lineages unlocked', `${selectableLineages().filter(lineage => lineageUnlocked(lineage.id)).length} / ${selectableLineages().length}`, 'The peoples who may yet call Emberhold home.'],
       ['Tribes encountered', `${Object.keys(state.tribesSeen || {}).length}`, 'Contacts recorded in the chronicle.'],
     ];
     h += perks.map(([name, value, desc]) => `<div class="perk-card card"><div class="card-head"><span class="card-title">${name}</span><span class="card-effect">${value}</span></div><div class="card-desc">${desc}</div></div>`).join('');
@@ -5087,7 +5239,7 @@ function renderSidePanel() {
 function loadLatestUpdatesTooltip() {
   const button = document.getElementById('btn-updates');
   if (!button || typeof fetch !== 'function' || typeof DOMParser !== 'function') return;
-      fetch('changelog.html?v=publish-20260922u0013')
+      fetch('changelog.html?v=publish-20260922u0014')
     .then(response => response.ok ? response.text() : Promise.reject(new Error('changelog unavailable')))
     .then(source => {
       const doc = new DOMParser().parseFromString(source, 'text/html');
@@ -5397,6 +5549,8 @@ function runAction(btn) {
     case 'migration-out': setOut(); render(); break;
     case 'migration-prepare': prepareMigration(btn.dataset.id); render(); break;
     case 'lineage': chooseLineage(btn.dataset.id); render(); break;
+    case 'custom-lineage-trait': chooseCustomLineageTrait(btn.dataset.id); render(); break;
+    case 'custom-lineage-create': createCustomLineage(); render(); break;
     case 'landing': chooseLanding(btn.dataset.id); render(); break;
     case 'migration-buy': migrationBuy(btn.dataset.id); render(); break;
     case 'wonder-unlock': buyWonderUnlock(btn.dataset.id); render(); break;

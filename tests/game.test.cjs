@@ -2465,10 +2465,10 @@ test('Lightning Metal boosts factory Steel output and input costs', () => {
   assert.equal(run("TECHS.find(t => t.id === 'lightningMetal').req()"), true);
 });
 
-test('Wonders require beacon hints, scale their search by distinct beacons, and expose six landing-specific definitions', () => {
+test('Wonders require beacon hints, scale their search by distinct beacons, and expose every landing-specific definition', () => {
   const { run } = game();
-  assert.equal(run('WONDERS.length'), 6);
-  assert.equal(run('new Set(WONDERS.map(w => w.id)).size'), 6);
+  assert.equal(run('WONDERS.length'), 14);
+  assert.equal(run('new Set(WONDERS.map(w => w.id)).size'), 14);
   assert.equal(run('findWonder()'), false);
   run('state.beaconsLit = { emberplain: true };');
   assert.equal(run('findWonder()'), false);
@@ -2483,6 +2483,61 @@ test('Wonders require beacon hints, scale their search by distinct beacons, and 
   assert.ok(sixBeacons < oneBeacon);
   assert.equal(run('findWonder()'), true);
   assert.equal(run('state.wonders.emberplain.found'), true);
+});
+
+test('post-waters Wonders have twice the incident danger of original Wonders', () => {
+  const { run } = game();
+  run(`wonderRecord('emberplain').sections = [false, false, false, false, false];
+    wonderRecord('pallidExpanse').sections = [false, false, false, false, false];`);
+  assert.equal(run("wonderDangerMultiplier(wonderRecord('emberplain'), WONDER_BY_ID.get('emberplain'))"), 1);
+  assert.equal(run("wonderDangerMultiplier(wonderRecord('pallidExpanse'), WONDER_BY_ID.get('pallidExpanse'))"), 2);
+});
+
+test('restoring the Prism Womb opens a Custom lineage lab before its forced migration', () => {
+  const { run } = game();
+  run(`state.landing = 'glassMire'; state.pop = 30;
+    const record = wonderRecord('glassMire'); record.found = true;
+    record.sections = [true, true, true, true, true];
+    chooseWonderFate('restore');`);
+  assert.equal(run('state.migrating'), true);
+  assert.equal(run('state.customLineageDraft !== null'), true);
+  assert.equal(run('state.species'), 'human');
+  assert.equal(run('customLineagePoints()'), 3);
+  run(`chooseCustomLineageTrait('gift-food'); chooseCustomLineageTrait('gift-knowledge');
+    chooseCustomLineageTrait('frailty-steel'); createCustomLineage('Mireborn', 'Wetland minds grown in glass.');`);
+  assert.equal(run('state.pendingSpecies'), 'custom');
+  assert.equal(run("lineageDef('custom').mods.food"), 1.15);
+  assert.equal(run("lineageDef('custom').mods.knowledge"), 1.15);
+  assert.equal(run("lineageDef('custom').mods.steel"), 0.85);
+  assert.equal(run("lineageSelectable('custom', state.pendingLanding)"), true);
+  run('setOut(); saveGame(true); state = loadGame();');
+  assert.equal(run('state.species'), 'custom');
+  assert.equal(run("lineageDef('custom').name"), 'Mireborn');
+});
+
+test('Custom lineage points are three times the Prism Womb achievement rating and buy signature traits', () => {
+  const { run } = game();
+  run(`state.achievements['wonder-glassMire-restore'] = 4; beginCustomLineageDraft();
+    chooseCustomLineageTrait('sulfurWards'); chooseCustomLineageTrait('quickLitters');
+    chooseCustomLineageTrait('farSight'); createCustomLineage('Brinekin', 'Made to endure the alien coast.');`);
+  assert.equal(run('customLineagePoints()'), 12);
+  assert.equal(run("lineageDef('custom').specials.sulfurWards.value"), 1.35);
+  assert.equal(run("lineageDef('custom').growthTime"), 0.5);
+  assert.equal(run("lineageDef('custom').specials.farSight.value"), 1.25);
+});
+
+test('Custom lineage trait complexity raises positive costs and caps frailties before they become positive costs', () => {
+  const { run } = game();
+  run(`state.achievements['wonder-glassMire-restore'] = 4; beginCustomLineageDraft();
+    chooseCustomLineageTrait('gift-food'); chooseCustomLineageTrait('gift-knowledge');
+    chooseCustomLineageTrait('frailty-steel'); chooseCustomLineageTrait('frailty-iron');
+    chooseCustomLineageTrait('frailty-coal');`);
+  assert.equal(run("customLineageTraitCost(['gift-food'])"), 1);
+  assert.equal(run("customLineageTraitCost(['gift-food', 'gift-knowledge'])"), 3);
+  assert.equal(run("customLineageTraitCost(['frailty-steel'])"), -1);
+  assert.equal(run("customLineageTraitCost(['frailty-steel', 'frailty-iron'])"), -1);
+  assert.equal(run('state.customLineageDraft.traits.includes(\'frailty-coal\')'), false);
+  assert.equal(run('customLineageTraitCost(state.customLineageDraft.traits)'), 2);
 });
 
 test('Rapture work opens the Wonder tab, resets only an emptied active section, and retains completed sections', () => {
