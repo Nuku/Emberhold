@@ -92,6 +92,7 @@ function defaultState() {
     trialDone: {},
     trial: null,
     expeditions: {},
+    expeditionRatings: {},
     beaconsLit: {},
     beaconRevisited: {},
     beaconProgress: 0,
@@ -123,6 +124,8 @@ function defaultState() {
     tradePartners: ['human'],
     tribesSeen: { human: true },
     diplomacy: {},
+    culturalConquestRatings: {},
+    lineageQualificationRatings: {},
     unifiedRegion: false,
     diplomats: {},
     spies: {},
@@ -185,6 +188,9 @@ function tech(id) {
 function bld(id) { return state.bld[id] || 0; }
 function era() { return state.era; }
 function expDone(id) { return !!state.expeditions[id]; }
+function expeditionRating(id) {
+  return Math.max(0, Math.min(4, Number(state.expeditionRatings?.[id]) || (expDone(id) ? 1 : 0)));
+}
 const POST_STONE_AGE_KNOWLEDGE_COST_MULTIPLIER = 15;
 const POST_STONE_AGE_RESEARCH = new Set([
   'ironMites', 'weaponry', 'chainmail', 'machineryTech', 'aluminum', 'airControl', 'distantStores', 'oilPower', 'disciplinedBunking', 'reclaimining', 'lightningMetal',
@@ -1479,7 +1485,7 @@ function queueEntry(type, id) {
     if (tech(id) || state.queues.research.some(entry => entry.id === id) ||
         (def.req && !def.req())) return false;
   } else {
-    if (expDone(id) || (def.landing && def.landing !== state.landing) || state.pop < def.reqPop) return false;
+    if ((expDone(id) && migrationChallengeCount() <= expeditionRating(id)) || (def.landing && def.landing !== state.landing) || state.pop < def.reqPop) return false;
   }
   const cost = queueCost({ type, id });
   if (canAfford(cost)) return false;
@@ -2325,7 +2331,7 @@ function production(dt = 0.25, breakdown = null) {
   const localIds = localTribeIds();
   if (tradeAvailable()) add('currency', `Trade with ${localIds.map(id => tribeDef(id).name).join(' and ')}`, 0.05 * localIds.length);
   if (bld('moneyLender') > 0) add('currency', `Money Lenders: ${bld('moneyLender')} × ${state.pop} population × 0.001/s`, bld('moneyLender') * state.pop * 0.001);
-  const culturalConquests = localIds.filter(id => state.diplomacy?.[id]?.culturalConquest && !state.unifiedRegion).length;
+  const culturalConquests = localIds.filter(id => state.diplomacy?.[id]?.conquered && state.diplomacy?.[id]?.culturalConquest && !state.unifiedRegion).length;
   if (culturalConquests) add('currency', 'Cultural conquest pressure', -culturalConquests * 0.1);
   if (bld('tradeBlimp') > 0 && dt > 0) {
     for (const [index, order] of tradeBlimpOrders().slice(0, bld('tradeBlimp')).entries()) {
@@ -3036,19 +3042,28 @@ function setOut(trialId = null) {
   const newSpecies = trialId ? state.species : candidate;
   const unlockedLineages = { ...(state.lineagesUnlocked || { human: true }) };
   const newlyUnlocked = [];
+  const newlyUnlockedIds = [];
   const achievementTriggers = [];
   for (const id in (trialId ? {} : state.diplomacy) || {}) {
     if ((state.diplomacy[id].disposition >= 80 || state.diplomacy[id].conquered) && LINEAGES.some(l => l.id === id)) {
-      if (!unlockedLineages[id]) newlyUnlocked.push(lineageDef(id).name);
+      if (!unlockedLineages[id]) { newlyUnlocked.push(lineageDef(id).name); newlyUnlockedIds.push(id); }
       unlockedLineages[id] = true;
       achievementTriggers.push(`lineage-${id}`);
     }
+  }
+  const lineageQualificationRatings = { ...(state.lineageQualificationRatings || {}) };
+  const qualifyingLineages = new Set(newlyUnlockedIds);
+  if (LINEAGES.some(lineage => lineage.id === newSpecies)) qualifyingLineages.add(newSpecies);
+  const setOutRating = Math.max(1, chosenChallenges.length);
+  for (const id of qualifyingLineages) {
+    lineageQualificationRatings[id] = Math.max(Number(lineageQualificationRatings[id]) || 0, setOutRating);
+    achievementTriggers.push(`lineage-${id}`, 'lineage-half', 'lineage-all');
   }
   addLog('The village sets out. The old Emberhold is left to the wind; a new one rises where the ground is kinder.', 'log-important');
 
   const keep = {
     echoes: state.echoes, upgrades: state.upgrades,
-    trialDone: state.trialDone, expeditions: state.expeditions,
+    trialDone: state.trialDone, expeditions: state.expeditions, expeditionRatings: state.expeditionRatings,
     beaconsLit: state.beaconsLit, beaconRevisited: state.beaconRevisited, wonders: state.wonders,
     wonderUnlocks: state.wonderUnlocks,
     hope: state.hope, ancient: state.ancient,
@@ -3057,6 +3072,8 @@ function setOut(trialId = null) {
     species: state.species, tribesSeen: state.tribesSeen,
     customLineage: state.customLineage,
     diplomacy: state.diplomacy,
+    culturalConquestRatings: state.culturalConquestRatings,
+    lineageQualificationRatings,
     achievements: state.achievements,
     migrationChallenges: state.migrationChallenges,
     badAncestry: state.badAncestry,
@@ -3072,6 +3089,7 @@ function setOut(trialId = null) {
   state.upgrades = keep.upgrades;
   state.trialDone = keep.trialDone;
   state.expeditions = keep.expeditions;
+  state.expeditionRatings = keep.expeditionRatings;
   state.beaconsLit = keep.beaconsLit;
   state.beaconRevisited = keep.beaconRevisited;
   state.wonders = keep.wonders;
@@ -3087,6 +3105,8 @@ function setOut(trialId = null) {
   state.lineagesUnlocked = unlockedLineages;
   state.tribesSeen = keep.tribesSeen;
   state.diplomacy = keep.diplomacy;
+  state.culturalConquestRatings = keep.culturalConquestRatings;
+  state.lineageQualificationRatings = keep.lineageQualificationRatings;
   state.achievements = keep.achievements;
   state.migrationChallenges = chosenChallenges;
   state.badAncestry = !trialId && chosenChallenges.includes('badAncestry')
@@ -3305,7 +3325,7 @@ function startGameClock() {
   // lose time; it only wakes the simulation to account for elapsed time.
   if (typeof Worker === 'function') {
     try {
-      gameClockWorker = new Worker('js/game-clock.worker.js?v=publish-20260922u0020');
+      gameClockWorker = new Worker('js/game-clock.worker.js?v=publish-20260923u0001');
       gameClockWorker.addEventListener('message', () => {
         updateGameClock(true);
         renderBonusTimer();
@@ -3570,15 +3590,18 @@ function toggleCouncilor(id) {
 
 function doExpedition(id) {
   const def = EXPEDITION_BY_ID.get(id);
-  if (!def || expDone(id)) return false;
+  if (!def || (expDone(id) && migrationChallengeCount() <= expeditionRating(id))) return false;
   if (def.landing && def.landing !== state.landing) return false;
   if (state.pop < def.reqPop) return false;
   const cost = expeditionCost(def);
   if (!canAfford(cost)) return false;
   payCost(cost);
   state.expeditions[id] = true;
+  state.expeditionRatings = state.expeditionRatings || {};
+  state.expeditionRatings[id] = Math.max(expeditionRating(id), Math.max(1, migrationChallengeCount()));
   addLog(`Expedition returned: ${def.name} is now part of Emberhold's world. ${def.effect}`, 'log-good');
   if (def.landing && siteExpeditionsComplete()) addLog('All six sites explored! Emberhold gains +5% to all production forever.', 'log-good');
+  updateAchievements(['wayfarer']);
   return true;
 }
 
@@ -3810,14 +3833,18 @@ function conquerTown(id) {
   if (!cultural) {
     state.jobs.guard = Math.max(0, (state.jobs.guard || 0) - 15);
     state.guardInjuries = Math.min(state.guardInjuries || 0, state.jobs.guard);
-  } else entry.culturalConquest = true;
+  } else {
+    entry.culturalConquest = true;
+    state.culturalConquestRatings = state.culturalConquestRatings || {};
+    state.culturalConquestRatings[id] = Math.max(Number(state.culturalConquestRatings[id]) || 0, Math.max(1, migrationChallengeCount()));
+  }
   entry.conquered = true;
   entry.siegeReady = false;
   returnCommonalityGuards(id);
   addLog(cultural
     ? `Emberhold culturally conquers the ${tribeDef(id).name} with a payment of ${costText(cost)}. The town joins the realm without deploying Guards, though the effort weighs on Currency until the region is united.`
     : `Emberhold conquers the ${tribeDef(id).name}. The occupation train costs ${costText(cost)}, and the town joins the realm while steadily weighing on morale.`, 'log-good');
-  updateAchievements(['diplomat']);
+  updateAchievements(cultural ? ['diplomat', 'culturalConquest'] : ['diplomat']);
   return { ok: true, action: 'conquer', target: id, deployedGuards: cultural ? 0 : 15, cultural, cost: { ...cost } };
 }
 function releaseTown(id) {
@@ -3840,10 +3867,13 @@ function uniteRegion() {
   const nativeTraits = new Set(lineageDef(state.species).traits || []);
   const acquiredTraits = new Set(state.conqueredLineageTraits);
   const achievementTriggers = ['unitedRegion'];
+  state.lineageQualificationRatings = state.lineageQualificationRatings || {};
+  const lineageRunRating = Math.max(1, migrationChallengeCount());
   for (const id of ids) {
     if (!LINEAGES.some(lineage => lineage.id === id)) continue;
     state.lineagesUnlocked[id] = true;
-    achievementTriggers.push(`lineage-${id}`);
+    state.lineageQualificationRatings[id] = Math.max(Number(state.lineageQualificationRatings[id]) || 0, lineageRunRating);
+    achievementTriggers.push(`lineage-${id}`, 'lineage-half', 'lineage-all');
     for (const trait of lineageTraits(lineageDef(id))) {
       if (trait.group === 'Trade-off' || trait.group === 'Habitat' || nativeTraits.has(trait.id) || acquiredTraits.has(trait.id)) continue;
       acquiredTraits.add(trait.id);
@@ -3926,6 +3956,22 @@ function normalizeSave(s) {
   s.greatMigrationProgress = Math.min(GREAT_MIGRATION_STAGE_COUNT, Math.floor(s.greatMigrationProgress));
   s.migrationChallenges = [...new Set((s.migrationChallenges || []).filter(id => MIGRATION_CHALLENGES.some(challenge => challenge.id === id)))];
   s.pendingMigrationChallenges = [...new Set((s.pendingMigrationChallenges || []).filter(id => MIGRATION_CHALLENGES.some(challenge => challenge.id === id)))];
+  s.expeditions = object(s.expeditions) ? Object.fromEntries(Object.entries(s.expeditions).filter(([id, done]) => EXPEDITION_BY_ID.has(id) && done === true)) : {};
+  s.expeditionRatings = object(s.expeditionRatings)
+    ? Object.fromEntries(Object.entries(s.expeditionRatings).filter(([id, rating]) => EXPEDITION_BY_ID.has(id) && Number.isInteger(rating) && rating >= 1 && rating <= 4))
+    : {};
+  for (const id of Object.keys(s.expeditions)) if (!s.expeditionRatings[id]) s.expeditionRatings[id] = 1;
+  const lineageIds = new Set(LINEAGES.map(lineage => lineage.id));
+  s.lineageQualificationRatings = object(s.lineageQualificationRatings)
+    ? Object.fromEntries(Object.entries(s.lineageQualificationRatings).filter(([id, rating]) => lineageIds.has(id) && Number.isInteger(rating) && rating >= 1 && rating <= 4))
+    : {};
+  for (const id of lineageIds) if (s.lineagesUnlocked?.[id] && !s.lineageQualificationRatings[id]) s.lineageQualificationRatings[id] = 1;
+  const tribeIds = new Set(TRIBES.map(tribe => tribe.id));
+  s.culturalConquestRatings = object(s.culturalConquestRatings)
+    ? Object.fromEntries(Object.entries(s.culturalConquestRatings).filter(([id, rating]) => tribeIds.has(id) && Number.isInteger(rating) && rating >= 1 && rating <= 4))
+    : {};
+  for (const [id, entry] of Object.entries(s.diplomacy || {}))
+    if (tribeIds.has(id) && entry?.culturalConquest && !s.culturalConquestRatings[id]) s.culturalConquestRatings[id] = 1;
   if (!s.achievements || typeof s.achievements !== 'object' || Array.isArray(s.achievements)) throw new Error('Invalid achievements');
   for (const [id, value] of Object.entries(s.achievements)) {
     if (!ACHIEVEMENTS.some(achievement => achievement.id === id) ||
@@ -4290,7 +4336,7 @@ const ACHIEVEMENTS = [
   { id: 'unitedRegion', name: 'One Nation', desc: 'Unite the three conquered tribes into one nation.', test: () => !!state.unifiedRegion, progress: () => state.unifiedRegion ? 'Region united' : `${localTribeIds().filter(id => state.diplomacy?.[id]?.conquered).length} / 3 tribes conquered` },
   { id: 'culturalConquest', name: 'Words Without Weapons', desc: 'Culturally conquer a neighboring town with Long Speech.', test: () => Object.values(state.diplomacy || {}).some(entry => entry.culturalConquest), progress: () => Object.values(state.diplomacy || {}).some(entry => entry.culturalConquest) ? 'A town joined through Long Speech' : 'No cultural conquests yet' },
   { id: 'peacefulUnification', name: 'A United Voice', desc: 'Unite the region in a migration with no offensive combat.', test: () => !!state.unifiedRegion && (state.migrationRaids || 0) === 0, progress: () => state.unifiedRegion ? ((state.migrationRaids || 0) === 0 ? 'Region united without offensive combat' : `${state.migrationRaids} offensive actions this migration`) : `${localTribeIds().filter(id => state.diplomacy?.[id]?.conquered).length} / 3 towns united` },
-  { id: 'wayfarer', name: 'The Long Road', desc: 'Establish three expedition sites.', test: () => Object.keys(state.expeditions || {}).length >= 3, progress: () => `${Math.min(Object.keys(state.expeditions || {}).length, 3)} / 3 sites` },
+  { id: 'wayfarer', name: 'The Long Road', desc: 'Establish three expedition sites.', test: () => Object.keys(state.expeditions || {}).filter(id => expeditionRating(id) > 0).length >= 3, progress: () => `${Math.min(Object.keys(state.expeditions || {}).filter(id => expeditionRating(id) > 0).length, 3)} / 3 sites` },
   { id: 'trialist', name: 'Oathbound', desc: 'Complete a trial.', test: () => Object.values(state.trialDone || {}).some(n => n > 0), progress: () => `${Object.values(state.trialDone || {}).reduce((a, n) => a + n, 0)} completed` },
   { id: 'beacon', name: 'The Beacon Burns', desc: 'Reach the Age of Light.', test: () => state.era >= 5 || state.won, progress: () => `Age ${Math.min(state.era, 5)} / 5` },
   { id: 'firstFlight', name: 'Up, Up and Away', desc: 'Construct your first Trade Blimp.', test: () => bld('tradeBlimp') >= 1, progress: () => `${Math.min(bld('tradeBlimp'), 1)} / 1 Trade Blimp` },
@@ -4319,6 +4365,25 @@ function achievementRatingTotal() {
   return Object.keys(state.achievements || {}).reduce((sum, id) => sum + achievementRating(id), 0);
 }
 function achievementRequirementRating(achievement) {
+  if (achievement.id === 'wayfarer') {
+    const ratings = EXPEDITIONS.filter(e => e.landing && !LANDING_BY_ID.get(e.landing)?.postWaters)
+      .map(e => expeditionRating(e.id)).filter(Boolean).sort((a, b) => b - a);
+    return ratings.length >= 3 ? ratings[2] : 0;
+  }
+  if (achievement.id === 'culturalConquest') {
+    const ratings = Object.values(state.culturalConquestRatings || {}).sort((a, b) => b - a);
+    return ratings[0] || (achievement.test() ? 1 : 0);
+  }
+  if (achievement.id === 'lineage-half' || achievement.id === 'lineage-all') {
+    const needed = achievement.id === 'lineage-half' ? Math.ceil(LINEAGES.length / 2) : LINEAGES.length;
+    const ratings = LINEAGES.map(lineage => Number(state.lineageQualificationRatings?.[lineage.id]) || (lineageUnlocked(lineage.id) ? 1 : 0))
+      .filter(Boolean).sort((a, b) => b - a);
+    return ratings.length >= needed ? ratings[needed - 1] : 0;
+  }
+  if (achievement.id.startsWith('lineage-')) {
+    const lineageId = achievement.id.slice('lineage-'.length);
+    return Number(state.lineageQualificationRatings?.[lineageId]) || (lineageUnlocked(lineageId) ? 1 : 0);
+  }
   const required = achievement.requires || [];
   // Achievements without prerequisites are eligible for the full challenge
   // rating. Returning 1 here would silently cap every standalone achievement
@@ -4346,7 +4411,9 @@ function updateAchievements(triggeredIds = []) {
     state.achievementChecks[achievement.id] = met;
     if (met && requirementRating) {
       const oldRating = achievementRating(achievement.id);
-      const newRating = Math.min(Math.max(1, migrationChallengeCount()), requirementRating);
+      const newRating = ['wayfarer', 'culturalConquest', 'lineage-half', 'lineage-all'].includes(achievement.id) || achievement.id.startsWith('lineage-')
+        ? requirementRating
+        : Math.min(Math.max(1, migrationChallengeCount()), requirementRating);
       // A rating is a record of the conditions when the achievement was
       // earned. Do not retrospectively promote it just because its persistent
       // condition remains true during a later, harder migration. It can be
@@ -5030,7 +5097,7 @@ function renderWonder() {
 
 function renderExpeditions() {
   let h = '<h2 class="section">Expeditions — widen the world</h2>';
-  h += '<div class="res-note">Each expedition is sent once. What it finds stays with Emberhold forever.</div>';
+  h += '<div class="res-note">Expedition discoveries endure. Site expeditions can be repeated on a harder challenge run to improve their recorded rating.</div>';
   if (beaconsLitCount() > 0) h += '<h2 class="section">Beacon hints</h2>' + renderWonderDiscovery();
   const sitesDone = EXPEDITIONS.filter(e => e.landing && !LANDING_BY_ID.get(e.landing)?.postWaters && expDone(e.id)).length;
   const expeditionLandings = LANDINGS.filter(landing => !landing.postWaters).length;
@@ -5039,10 +5106,12 @@ function renderExpeditions() {
   let any = false;
   for (const e of EXPEDITIONS) {
     if (e.landing && e.landing !== state.landing) continue;
-    if (expDone(e.id)) {
+    const done = expDone(e.id);
+    const canImprove = done && migrationChallengeCount() > expeditionRating(e.id);
+    if (done && !canImprove) {
       any = true;
       h += `<div class="card done"><div class="card-head"><span class="card-title">${e.name}</span>` +
-        `<span class="card-effect">Established — ${e.effect}</span></div>` +
+        `<span class="card-effect">Established (${CHALLENGE_RATING_NAMES[expeditionRating(e.id)]}) — ${e.effect}</span></div>` +
         `<div class="card-desc">${e.text}</div></div>`;
       continue;
     }
@@ -5053,12 +5122,12 @@ function renderExpeditions() {
     const site = LANDING_BY_ID.get(e.landing);
     const queued = state.queues.expedition.some(entry => entry.id === e.id);
     const ok = popOk && (canAfford(cost) || state.queues.expedition.length < queueCapacity('expedition'));
-    h += `<div class="card"><div class="card-head"><span class="card-title has-tooltip" data-tooltip="${attrText(e.text)}">${e.name}</span></div>` +
+    h += `<div class="card ${done ? 'done' : ''}"><div class="card-head"><span class="card-title has-tooltip" data-tooltip="${attrText(e.text)}">${e.name}</span></div>` +
       `<div class="card-desc">${e.text}</div>` +
-      `<div class="card-effect">Grants: ${e.effect}</div>` +
+      `<div class="card-effect">${done ? `Established (${CHALLENGE_RATING_NAMES[expeditionRating(e.id)]}); improve to ${CHALLENGE_RATING_NAMES[Math.min(4, migrationChallengeCount())]}` : `Grants: ${e.effect}`}</div>` +
       (site ? `<div class="res-note">Requires settlement at ${site.name} — you are here.</div>` : '') +
       `<div class="card-cost">cost: ${costHtml(cost)} — needs ${e.reqPop} villagers</div>` +
-      `<div class="card-actions"><button data-action="exp" data-id="${e.id}" ${ok ? '' : 'disabled'}>${queued ? 'Queued' : canAfford(cost) ? 'Send the expedition' : 'Queue the expedition'}</button></div>` +
+      `<div class="card-actions"><button data-action="exp" data-id="${e.id}" ${ok ? '' : 'disabled'}>${queued ? 'Queued' : done ? canAfford(cost) ? 'Repeat at higher difficulty' : 'Queue higher-difficulty repeat' : canAfford(cost) ? 'Send the expedition' : 'Queue the expedition'}</button></div>` +
       `</div>`;
   }
   if (!any) h += '<div class="res-note">No expeditions within reach yet. Increase storage and maintain positive income for their supplies.</div>';
@@ -5353,7 +5422,7 @@ function renderSidePanel() {
 function loadLatestUpdatesTooltip() {
   const button = document.getElementById('btn-updates');
   if (!button || typeof fetch !== 'function' || typeof DOMParser !== 'function') return;
-      fetch('changelog.html?v=publish-20260922u0020')
+      fetch('changelog.html?v=publish-20260923u0001')
     .then(response => response.ok ? response.text() : Promise.reject(new Error('changelog unavailable')))
     .then(source => {
       const doc = new DOMParser().parseFromString(source, 'text/html');

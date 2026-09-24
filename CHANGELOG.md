@@ -2,6 +2,12 @@
 
 All notable changes to Emberhold are recorded here, with the newest changes first.
 
+## 2026-09-23
+
+- Expedition sites can be repeated on harder migration challenge runs to improve their recorded achievement rating; completed site ratings persist across migrations.
+- Cultural conquest and lineage achievement ratings now reflect the challenge level when each qualification was earned, including peaceful unification and migration departure.
+- Fixed cultural-conquest Currency pressure so it applies only while a culturally conquered town remains unconsolidated.
+
 ## 2026-09-22
 
 - Added Long Speech: raise neighboring towns' likability to 300%, then culturally conquer them for Currency without Guards; each unconsolidated town adds Currency pressure until the region is united.
