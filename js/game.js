@@ -1641,7 +1641,7 @@ function attemptResearch(id) {
 
 function attemptExpedition(id) {
   const def = EXPEDITION_BY_ID.get(id);
-  if (!def) return;
+  if (!def || ((def.landing || def.location) && (def.landing || def.location) !== state.landing)) return;
   const cost = expeditionCost(def);
   if (canAfford(cost)) doExpedition(id);
   else if (state.queues.expedition.length < queueCapacity('expedition')) queueEntry('expedition', id);
@@ -3591,7 +3591,7 @@ function toggleCouncilor(id) {
 function doExpedition(id) {
   const def = EXPEDITION_BY_ID.get(id);
   if (!def || (expDone(id) && migrationChallengeCount() <= expeditionRating(id))) return false;
-  if (def.landing && def.landing !== state.landing) return false;
+  if ((def.landing || def.location) && (def.landing || def.location) !== state.landing) return false;
   if (state.pop < def.reqPop) return false;
   const cost = expeditionCost(def);
   if (!canAfford(cost)) return false;
@@ -5106,7 +5106,8 @@ function renderExpeditions() {
   const rates = production();
   let any = false;
   for (const e of EXPEDITIONS) {
-    if (e.landing && e.landing !== state.landing) continue;
+    const expeditionLocation = e.landing || e.location;
+    if (expeditionLocation && expeditionLocation !== state.landing) continue;
     const done = expDone(e.id);
     const canImprove = done && migrationChallengeCount() > expeditionRating(e.id);
     if (done && !canImprove) {
@@ -5120,7 +5121,7 @@ function renderExpeditions() {
     if (!e.landing && !Object.entries(cost).every(([res, amount]) => capacityOf(res) >= amount && rates[res] > 0)) continue;
     any = true;
     const popOk = state.pop >= e.reqPop;
-    const site = LANDING_BY_ID.get(e.landing);
+    const site = LANDING_BY_ID.get(expeditionLocation);
     const queued = state.queues.expedition.some(entry => entry.id === e.id);
     const ok = popOk && (canAfford(cost) || state.queues.expedition.length < queueCapacity('expedition'));
     h += `<div class="card ${done ? 'done' : ''}"><div class="card-head"><span class="card-title has-tooltip" data-tooltip="${attrText(e.text)}">${e.name}</span></div>` +
@@ -5423,7 +5424,7 @@ function renderSidePanel() {
 function loadLatestUpdatesTooltip() {
   const button = document.getElementById('btn-updates');
   if (!button || typeof fetch !== 'function' || typeof DOMParser !== 'function') return;
-      fetch('changelog.html?v=publish-20260923u0002')
+      fetch('changelog.html?v=publish-20260924u0002')
     .then(response => response.ok ? response.text() : Promise.reject(new Error('changelog unavailable')))
     .then(source => {
       const doc = new DOMParser().parseFromString(source, 'text/html');

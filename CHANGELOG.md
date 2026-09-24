@@ -2,6 +2,10 @@
 
 All notable changes to Emberhold are recorded here, with the newest changes first.
 
+## 2026-09-24
+
+- Expeditions now appear and can be launched only from their matching landing; local expeditions are assigned to the biome they describe.
+
 ## 2026-09-23
 
 - The Long Road achievement now rises to match the ratings of its three strongest established expeditions, including local expeditions.

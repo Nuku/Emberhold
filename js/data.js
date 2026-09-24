@@ -1330,22 +1330,22 @@ const EXPEDITIONS = [
     cost: { steel: 250, tools: 45, aether: 50 }, effect: 'learns the warning notes before a gathering',
     text: 'The crater sings before it becomes dangerous. The difficulty is knowing which song means what.' },
 
-  { id: 'oldForest', name: 'The Old Forest', reqPop: 12,
+  { id: 'oldForest', name: 'The Old Forest', location: 'greenfold', reqPop: 12,
     cost: { wood: 400, tools: 10 },
     effect: '+1.5 wood/s gathered passively, +15% wood production',
     text: 'Beyond the fields stands a forest no axe has named. The scouts return with timber like ironwood, scratches on their packs, and stories of wolves that watch from the trees.' },
 
-  { id: 'foothills', name: 'The Foothills', reqPop: 15,
+  { id: 'foothills', name: 'The Foothills', location: 'grayrocks', reqPop: 15,
     cost: { wood: 350, stone: 550 },
     effect: '+1 stone/s quarried passively, +15% stone production',
     text: 'Where the land lifts, stone lies close to the surface. The first climbers find old cairns beside the trail—some marking safe ground, some marking the last safe ground.' },
 
-  { id: 'sunkenRuins', name: 'The Sunken Ruins', reqPop: 20,
+  { id: 'sunkenRuins', name: 'The Sunken Ruins', location: 'floodmeadows', reqPop: 20,
     cost: { knowledge: 1200, tools: 80 },
     effect: '+0.3 knowledge/s, +15% knowledge production, and the lens needed for the Observatory',
     text: 'Half-drowned towers rise from a basin that was once a city. The shelves are full of mud, but the pages that survive still have questions worth asking.' },
 
-  { id: 'emberVein', name: 'The Ember Vein', reqPop: 25,
+  { id: 'emberVein', name: 'The Ember Vein', location: 'ashfen', reqPop: 25,
     cost: { steel: 160, coal: 320 },
     effect: '+0.5 coal/s gathered passively, +10% iron production',
     text: 'The mountain is warm to the touch. Somewhere beneath it, a seam of coal burns without fuel or flame, waiting for hands brave enough to make use of it.' },
