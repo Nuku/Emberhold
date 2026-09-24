@@ -2331,7 +2331,7 @@ function production(dt = 0.25, breakdown = null) {
   const localIds = localTribeIds();
   if (tradeAvailable()) add('currency', `Trade with ${localIds.map(id => tribeDef(id).name).join(' and ')}`, 0.05 * localIds.length);
   if (bld('moneyLender') > 0) add('currency', `Money Lenders: ${bld('moneyLender')} × ${state.pop} population × 0.001/s`, bld('moneyLender') * state.pop * 0.001);
-  const culturalConquests = localIds.filter(id => state.diplomacy?.[id]?.conquered && state.diplomacy?.[id]?.culturalConquest && !state.unifiedRegion).length;
+  const culturalConquests = localIds.filter(id => state.diplomacy?.[id]?.conquered && state.diplomacy?.[id]?.culturalOccupation && !state.unifiedRegion).length;
   if (culturalConquests) add('currency', 'Cultural conquest pressure', -culturalConquests * 0.1);
   if (bld('tradeBlimp') > 0 && dt > 0) {
     for (const [index, order] of tradeBlimpOrders().slice(0, bld('tradeBlimp')).entries()) {
@@ -3325,7 +3325,7 @@ function startGameClock() {
   // lose time; it only wakes the simulation to account for elapsed time.
   if (typeof Worker === 'function') {
     try {
-      gameClockWorker = new Worker('js/game-clock.worker.js?v=publish-20260923u0002');
+      gameClockWorker = new Worker('js/game-clock.worker.js?v=publish-20260924u0003');
       gameClockWorker.addEventListener('message', () => {
         updateGameClock(true);
         renderBonusTimer();
@@ -3833,8 +3833,10 @@ function conquerTown(id) {
   if (!cultural) {
     state.jobs.guard = Math.max(0, (state.jobs.guard || 0) - 15);
     state.guardInjuries = Math.min(state.guardInjuries || 0, state.jobs.guard);
+    entry.culturalOccupation = false;
   } else {
     entry.culturalConquest = true;
+    entry.culturalOccupation = true;
     state.culturalConquestRatings = state.culturalConquestRatings || {};
     state.culturalConquestRatings[id] = Math.max(Number(state.culturalConquestRatings[id]) || 0, Math.max(1, migrationChallengeCount()));
   }
@@ -3851,7 +3853,8 @@ function releaseTown(id) {
   const entry = state.diplomacy && state.diplomacy[id];
   if (!entry || !localTribe(id) || !entry.conquered || state.unifiedRegion) return { ok: false, reason: 'not-releasable', target: id };
   entry.conquered = false;
-  const returnedGuards = entry.culturalConquest ? 0 : 15;
+  const returnedGuards = entry.culturalOccupation ? 0 : 15;
+  entry.culturalOccupation = false;
   if (returnedGuards) {
     state.jobs.guard = Math.min(guardCap(), (state.jobs.guard || 0) + returnedGuards);
     state.guardInjuries = Math.min(state.guardInjuries || 0, state.jobs.guard);
@@ -3972,6 +3975,10 @@ function normalizeSave(s) {
     : {};
   for (const [id, entry] of Object.entries(s.diplomacy || {}))
     if (tribeIds.has(id) && entry?.culturalConquest && !s.culturalConquestRatings[id]) s.culturalConquestRatings[id] = 1;
+  for (const [id, entry] of Object.entries(s.diplomacy || {})) {
+    if (!tribeIds.has(id) || !entry) continue;
+    if (typeof entry.culturalOccupation !== 'boolean') entry.culturalOccupation = !!(entry.conquered && entry.culturalConquest);
+  }
   if (!s.achievements || typeof s.achievements !== 'object' || Array.isArray(s.achievements)) throw new Error('Invalid achievements');
   for (const [id, value] of Object.entries(s.achievements)) {
     if (!ACHIEVEMENTS.some(achievement => achievement.id === id) ||
@@ -5424,7 +5431,7 @@ function renderSidePanel() {
 function loadLatestUpdatesTooltip() {
   const button = document.getElementById('btn-updates');
   if (!button || typeof fetch !== 'function' || typeof DOMParser !== 'function') return;
-      fetch('changelog.html?v=publish-20260924u0002')
+      fetch('changelog.html?v=publish-20260924u0003')
     .then(response => response.ok ? response.text() : Promise.reject(new Error('changelog unavailable')))
     .then(source => {
       const doc = new DOMParser().parseFromString(source, 'text/html');

@@ -4,6 +4,7 @@ All notable changes to Emberhold are recorded here, with the newest changes firs
 
 ## 2026-09-24
 
+- Cultural-conquest Currency pressure now follows the current occupation, so a violent reconquest no longer retains pressure from an earlier cultural conquest.
 - Expeditions now appear and can be launched only from their matching landing; local expeditions are assigned to the biome they describe.
 
 ## 2026-09-23
