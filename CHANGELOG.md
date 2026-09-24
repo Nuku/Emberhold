@@ -4,7 +4,7 @@ All notable changes to Emberhold are recorded here, with the newest changes firs
 
 ## 2026-09-23
 
-- The Long Road achievement now rises to match the rating of its three strongest established expedition sites.
+- The Long Road achievement now rises to match the ratings of its three strongest established expeditions, including local expeditions.
 - Expedition sites can be repeated on harder migration challenge runs to improve their recorded achievement rating; completed site ratings persist across migrations.
 - Cultural conquest and lineage achievement ratings now reflect the challenge level when each qualification was earned, including peaceful unification and migration departure.
 - Fixed cultural-conquest Currency pressure so it applies only while a culturally conquered town remains unconsolidated.

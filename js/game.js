@@ -4366,7 +4366,7 @@ function achievementRatingTotal() {
 }
 function achievementRequirementRating(achievement) {
   if (achievement.id === 'wayfarer') {
-    const ratings = EXPEDITIONS.filter(e => e.landing && !LANDING_BY_ID.get(e.landing)?.postWaters)
+    const ratings = EXPEDITIONS
       .map(e => expeditionRating(e.id)).filter(Boolean).sort((a, b) => b - a);
     return ratings.length >= 3 ? ratings[2] : 0;
   }
