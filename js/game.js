@@ -3325,7 +3325,7 @@ function startGameClock() {
   // lose time; it only wakes the simulation to account for elapsed time.
   if (typeof Worker === 'function') {
     try {
-      gameClockWorker = new Worker('js/game-clock.worker.js?v=publish-20260923u0001');
+      gameClockWorker = new Worker('js/game-clock.worker.js?v=publish-20260923u0002');
       gameClockWorker.addEventListener('message', () => {
         updateGameClock(true);
         renderBonusTimer();
@@ -4418,7 +4418,8 @@ function updateAchievements(triggeredIds = []) {
       // earned. Do not retrospectively promote it just because its persistent
       // condition remains true during a later, harder migration. It can be
       // raised only by meeting the condition again or completing its action.
-      if (newRating > oldRating && (!oldRating || newlyMet || triggered.has(achievement.id))) {
+      const ratingCanImproveInPlace = achievement.id === 'wayfarer';
+      if (newRating > oldRating && (!oldRating || newlyMet || triggered.has(achievement.id) || ratingCanImproveInPlace)) {
         state.achievements[achievement.id] = newRating;
         const ratingName = CHALLENGE_RATING_NAMES[newRating];
         addLog(`Achievement completed: ${achievement.name} (${ratingName}). Completion bonus +${(newRating * 0.25).toFixed(2)}% to all production.`, 'log-good');
@@ -5422,7 +5423,7 @@ function renderSidePanel() {
 function loadLatestUpdatesTooltip() {
   const button = document.getElementById('btn-updates');
   if (!button || typeof fetch !== 'function' || typeof DOMParser !== 'function') return;
-      fetch('changelog.html?v=publish-20260923u0001')
+      fetch('changelog.html?v=publish-20260923u0002')
     .then(response => response.ok ? response.text() : Promise.reject(new Error('changelog unavailable')))
     .then(source => {
       const doc = new DOMParser().parseFromString(source, 'text/html');
