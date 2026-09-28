@@ -4,6 +4,7 @@ All notable changes to Emberhold are recorded here, with the newest changes firs
 
 ## 2026-09-28
 
+- Forced Wonder migrations now choose only settled-world landings, keeping post-waters biomes for the Great Waters migration.
 - When the Worldroot is silenced, the Forager job tooltip now describes tending fields and harvesting crops.
 - Previously chosen Wonder fates are now highlighted and labeled as repeatable.
 - Fixed periodic panel updates so long pages such as Settings keep their scroll position.

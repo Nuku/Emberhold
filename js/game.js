@@ -1034,13 +1034,17 @@ function chooseWonderFate(choice) {
   return true;
 }
 function beginForcedWonderMigration(waitForCustomLineage = false) {
-  const compatible = LANDINGS.filter(landing => lineageSelectable(state.species, landing.id));
+  // Forced Wonder migrations stay on the settled side of the great waters.
+  // Post-waters biomes are a later progression tier and must be reached by
+  // the player, not selected as a random destination.
+  const compatible = LANDINGS.filter(landing => !landing.postWaters && lineageSelectable(state.species, landing.id));
   const choices = compatible.filter(landing => landing.id !== state.landing);
   const challenges = [...(state.migrationChallenges || [])];
   // A habitat specialist can occasionally have only one viable homeland. The
   // Wonder still forces the reset in that case; it simply carries them back
   // to the same country rather than producing an impossible landing choice.
-  const landing = choices[Math.floor(Math.random() * choices.length)] || compatible[0] || LANDINGS[0];
+  const landing = choices[Math.floor(Math.random() * choices.length)] ||
+    compatible.find(candidate => candidate.id === state.landing) || compatible[0] || LANDINGS[0];
   state.pendingSpecies = state.species;
   state.pendingLandings = [{ ...landing, traits: traitsForLanding(landing.id) }];
   state.pendingLanding = landing.id;
