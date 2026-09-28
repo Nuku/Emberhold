@@ -20,7 +20,7 @@ const RESOURCES = [
   { id: 'stone',     name: 'Stone',     note: 'quarried once stone-working is learned' },
   { id: 'copper',    name: 'Copper',    note: 'trace veins become useful once prospectors and metallurgists take notice' },
   { id: 'tools',     name: 'Tools',     note: 'crafted at the Workbench; sharpen every trade' },
-  { id: 'knowledge', name: 'Knowledge', note: 'the one store with no ceiling; spent on research' },
+  { id: 'knowledge', name: 'Knowledge', note: 'storage holds up to five minutes of current production; spent on research' },
   { id: 'currency',  name: 'Currency',  note: 'funds arriving from trade with neighboring tribes' },
   { id: 'iron',      name: 'Iron',      note: 'pried from the deep seams' },
   { id: 'coal',      name: 'Coal',      note: 'burns hotter than wood' },

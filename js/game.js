@@ -1136,8 +1136,9 @@ function currencyCapacity(jobs = state?.jobs, source = state) {
 
 function capacityOf(id) {
   if (id === 'currency') return currencyCapacity();
+  if (id === 'knowledge') return Math.max(0, production(0).knowledge * 300);
   const s = STORAGE[id];
-  if (!s) return Infinity; // knowledge
+  if (!s) return Infinity;
   const overflowActive = trialActive('overflow');
   const permanentStorage = 1 + 0.2 * trialCount('overflow');
   const runStorage = overflowActive ? 1 : 1 + 0.15 * upg('deepCellars');
@@ -3369,6 +3370,7 @@ function tickStep(dt) {
   updateAchievements();
 
   const rates = production(dt);
+  state.res.knowledge = Math.min(capacityOf('knowledge'), state.res.knowledge);
   const steelBefore = state.res.steel;
   for (const r in rates) {
     if (r === 'power') {
@@ -4811,7 +4813,7 @@ function renderResearch() {
       `</div>`;
   }
   if (!any) h += '<div class="res-note">The wise have nothing left to learn here.</div>';
-  h += `<div class="res-note" style="margin-top:6px">Knowledge is produced by Thinkers (build a Library first) and never returns once spent.</div>`;
+  h += `<div class="res-note" style="margin-top:6px">Knowledge is produced by Thinkers (build a Library first), stores up to five minutes of current production, and is spent on research.</div>`;
   return h;
 }
 
@@ -5535,8 +5537,11 @@ function powerStatus() {
   const rates = production(0, breakdown);
   const generated = breakdown.power.reduce((sum, entry) => sum + Math.max(0, entry.amount), 0);
   const active = powerAllocation();
+  // Factories and Aluminum Works reserve capacity in powerAllocation(), but
+  // only Factory consumption is represented separately from production().
+  const aluminumWorksUsed = active.aluminumWorks * POWER_BUILDINGS.aluminumWorks.power;
   const used = breakdown.power.reduce((sum, entry) => sum + Math.max(0, -entry.amount), 0) +
-    active.factory * factoryPowerRequirement();
+    active.factory * factoryPowerRequirement() + aluminumWorksUsed;
   const buildings = {};
   for (const [id, info] of Object.entries(POWER_BUILDINGS)) {
     if (!powerBuildingControllable(id) || bld(id) < 1) continue;
@@ -5549,7 +5554,8 @@ function powerStatus() {
       ...(DIG_SITE_RESOURCES[id] ? { resource: DIG_SITE_RESOURCES[id], productionBonus: active[id] * 0.10 } : {}) };
   }
   const requested = used + Object.values(buildings).reduce((sum, building) => sum + building.requested - building.used, 0);
-  return { generated, used, available: Math.max(0, rates.power - active.factory * factoryPowerRequirement()), requested,
+  return { generated, used,
+    available: Math.max(0, rates.power - active.factory * factoryPowerRequirement() - aluminumWorksUsed), requested,
     shortfall: Math.max(0, requested - generated), buildings };
 }
 

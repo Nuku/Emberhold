@@ -4,6 +4,8 @@ All notable changes to Emberhold are recorded here, with the newest changes firs
 
 ## 2026-09-28
 
+- Knowledge storage is capped at five minutes of current production, and excess Knowledge is discarded.
+- Aluminum Works power consumption is now included in the settlement's Power use and available-capacity displays.
 - Migration now clears neighboring towns' siege readiness, so each settlement must complete its own siege before conquering them.
 - Rounded expedition raid loot to whole resource units in the combat log.
 
