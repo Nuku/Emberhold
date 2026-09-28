@@ -432,7 +432,19 @@ function setTradeBlimpOrder(index, mode, resource) {
   tradeBlimpOrders()[index] = { mode, resource };
   return true;
 }
-function guardCap() { return bld('barracks') * (tech('disciplinedBunking') ? 3 : 2) + 2 * upg('bePrepared'); }
+function guardOccupationReserve() {
+  if (state.unifiedRegion) return 0;
+  return localTribeIds().reduce((total, id) => {
+    const entry = state.diplomacy?.[id];
+    if (!entry?.conquered || entry.culturalOccupation) return total;
+    const commonalityReturn = state.commonalityGuardsReturned?.[id] ? 5 : 0;
+    return total + Math.max(0, 15 - commonalityReturn);
+  }, 0);
+}
+function guardCap() {
+  const barracksCapacity = bld('barracks') * (tech('disciplinedBunking') ? 3 : 2) + 2 * upg('bePrepared');
+  return Math.max(0, barracksCapacity - guardOccupationReserve());
+}
 function guardRecruitmentRate() {
   return lineageSpecialValue('guardRecruitment') / (120 * Math.pow(0.9, bld('trainingYard')) * lineageSpecialValue('guardRecruitmentTime')) * Math.pow(1.1, trialCount('conquest')) *
     currentPlaceTraits().reduce((rate, trait) => rate * (trait.guardRecruitment || 1), 1);
@@ -662,8 +674,8 @@ function returnCommonalityGuards(id) {
   if (!commonalityActive() || !id) return;
   state.commonalityGuardsReturned = state.commonalityGuardsReturned || {};
   if (state.commonalityGuardsReturned[id]) return;
-  state.jobs.guard = Math.min(guardCap(), (state.jobs.guard || 0) + 5);
   state.commonalityGuardsReturned[id] = true;
+  state.jobs.guard = Math.min(guardCap(), (state.jobs.guard || 0) + 5);
 }
 function ableGuards() { return Math.floor(Math.max(0, (state.jobs.guard || 0) - (state.guardInjuries || 0))); }
 function guardAttackPower(guardCount = ableGuards()) {
@@ -3867,12 +3879,13 @@ function releaseTown(id) {
   const entry = state.diplomacy && state.diplomacy[id];
   if (!entry || !localTribe(id) || !entry.conquered || state.unifiedRegion) return { ok: false, reason: 'not-releasable', target: id };
   entry.conquered = false;
-  const returnedGuards = entry.culturalOccupation ? 0 : 15;
+  const returnedGuards = entry.culturalOccupation ? 0 : Math.max(0, 15 - (state.commonalityGuardsReturned?.[id] ? 5 : 0));
   entry.culturalOccupation = false;
   if (returnedGuards) {
     state.jobs.guard = Math.min(guardCap(), (state.jobs.guard || 0) + returnedGuards);
     state.guardInjuries = Math.min(state.guardInjuries || 0, state.jobs.guard);
   }
+  if (state.commonalityGuardsReturned) delete state.commonalityGuardsReturned[id];
   addLog(`Emberhold releases the ${tribeDef(id).name}. The town is no longer conquered${returnedGuards ? `, and ${returnedGuards} occupation Guards return to the ranks` : ''}.`, 'log-good');
   return { ok: true, action: 'release', target: id, returnedGuards };
 }
@@ -3897,12 +3910,14 @@ function uniteRegion() {
       state.conqueredLineageTraits.push(trait.id);
     }
   }
-  state.jobs.guard = (state.jobs.guard || 0) + 15 * ids.length;
+  const returnedGuards = ids.reduce((total, id) => total + (state.diplomacy[id].culturalOccupation
+    ? 0 : Math.max(0, 15 - (state.commonalityGuardsReturned?.[id] ? 5 : 0))), 0);
+  state.jobs.guard = (state.jobs.guard || 0) + returnedGuards;
   state.guardInjuries = Math.min(state.guardInjuries || 0, state.jobs.guard);
   state.unifiedRegion = true;
   addLog(`The conquered towns unite as one nation. The occupation Guards return to the ranks; production rises by 15%, storage doubles, and the nation adopts ${state.conqueredLineageTraits.length} new lineage traits at half strength.`, 'log-good');
   updateAchievements(achievementTriggers);
-  return { ok: true, action: 'unite-region', returnedGuards: 15 * ids.length };
+  return { ok: true, action: 'unite-region', returnedGuards };
 }
 function saveGame(silent) {
   try {
@@ -4731,7 +4746,7 @@ function renderVillage() {
       : 'At capacity';
     h += '<h2 class="section">Guards — independent watch</h2>' +
       `<div class="res-row"><span class="res-name">Guards</span><span class="res-amount">${guards} / ${guardCap()} (${Math.floor(ableGuards())} able)</span><span class="res-rate">${recruitment}</span></div>` +
-      `<div class="res-note">Guards recruit automatically, one every ${fmt(1 / guardRecruitmentRate())} seconds, and replace losses up to barracks capacity. They use no villager assignments or population housing. Build Barracks to raise their capacity.</div>`;
+      `<div class="res-note">Guards recruit automatically, one every ${fmt(1 / guardRecruitmentRate())} seconds, and replace battle losses up to available capacity. Each conquered town occupies 15 Guard capacity (10 under Commonality) until released or the region is united. They use no villager assignments or population housing. Build Barracks to raise their capacity.</div>`;
   }
   h += `<div class="res-note" style="margin-top:6px">Every villager eats ${fmt(FOOD_PER_POP)} food/s, working or not. Each Guard requires ${fmt(JOBS.guard.upkeep)} food/s, but their hunting is not reduced by winter. Weaponry, Leather Armor, and Chainmail research strengthen the watch; injuries heal over time. Every store has a ceiling — what flows in past a full store is wasted. Storehouses raise most material ceilings.</div>`;
 
@@ -4864,7 +4879,7 @@ function renderDiplomacy() {
       `<span class="card-count">likability ${Math.round(entry.disposition)} / ${dispositionCap()}%</span></div>` +
       `<div class="card-desc">${tribe.text}</div>` +
       `<div class="res-note">${habitatText(tribe)}</div>` +
-      `<div class="res-note">Military strength: ${entry.militaryKnown ? Math.round(militaryStrength(entry)) : 'unknown'} · Economic strength: ${entry.economicKnown ? Math.round(economicStrength(entry)) : 'unknown'}</div>` +
+      `<div class="res-note">Their Military strength: ${entry.militaryKnown ? Math.round(militaryStrength(entry)) : 'unknown'} · Economic strength: ${entry.economicKnown ? Math.round(economicStrength(entry)) : 'unknown'}. Military strength sets attack difficulty; Economic strength scales loot. Spies reveal these values.</div>` +
       `<div class="trial-reward">${lineageDef(id).name} lineage traits: ${lineageTraitsHtml(lineageDef(id))}. ${lineageUnlocked(id) ? 'Unlocked for future migrations.' : 'Migrate with disposition 80+ to unlock for future migrations.'}</div>` +
       (local && (entry.disposition >= 80 || entry.conquered) ? `<div class="trial-reward">Active ally: +${Math.round(alliedTribeIncomeBonus(id) * 1000) / 10}% to all village incomes.</div>` : '') +
       (local && !entry.conquered && entry.disposition < 0 ? `<div class="trial-mod">Relations are strained: the ${tribe.name} may raid the village.</div>` : '') +
@@ -4892,7 +4907,9 @@ function renderDiplomacy() {
       } else {
         h += '<div class="trial-mod">Attack stages cost more and become harder, but grant more loot rolls. The final three stages also roll for uncommon loot.</div>';
         const selectedStage = raidStage(raidSelections[id]);
+        const attackPlan = predictRaid(id, selectedStage.id, ableGuards());
         const canRaid = ableGuards() > 0 && canAfford(selectedStage.cost);
+        h += `<div class="res-note">Your current force: ${attackPlan.force} (${ableGuards()} healthy Guards) · estimated success chance for ${selectedStage.name}: ${Math.round(attackPlan.chance * 100)}%. This is a forecast, not a guarantee. Guards lost in battle are replaced over time up to Barracks capacity.</div>`;
         h += `<div class="card-actions raid-actions">` +
           `<label for="raid-stage-${id}">Attack type</label>` +
           `<select id="raid-stage-${id}" data-raid-select="${id}" aria-label="Attack type against the ${tribe.name}">` +

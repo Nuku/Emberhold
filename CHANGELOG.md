@@ -4,6 +4,8 @@ All notable changes to Emberhold are recorded here, with the newest changes firs
 
 ## 2026-09-28
 
+- Conquered towns now reserve their occupation Guards against Barracks capacity until release or regional unification; Commonality's returned Guards are accounted for correctly.
+- Diplomacy now explains how enemy military and economic strength affect attacks and loot, and shows a success-chance forecast for the selected raid stage.
 - Solar Array capacity now powers buildings correctly, and Power displays account for Factory and Aluminum Works consumption.
 - Knowledge storage is capped at five minutes of current production, and excess Knowledge is discarded.
 - Aluminum Works power consumption is now included in the settlement's Power use and available-capacity displays.
