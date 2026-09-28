@@ -441,9 +441,11 @@ function guardOccupationReserve() {
     return total + Math.max(0, 15 - commonalityReturn);
   }, 0);
 }
+function guardBarracksCapacity() {
+  return bld('barracks') * (tech('disciplinedBunking') ? 3 : 2) + 2 * upg('bePrepared');
+}
 function guardCap() {
-  const barracksCapacity = bld('barracks') * (tech('disciplinedBunking') ? 3 : 2) + 2 * upg('bePrepared');
-  return Math.max(0, barracksCapacity - guardOccupationReserve());
+  return Math.max(0, guardBarracksCapacity() - guardOccupationReserve());
 }
 function guardRecruitmentRate() {
   return lineageSpecialValue('guardRecruitment') / (120 * Math.pow(0.9, bld('trainingYard')) * lineageSpecialValue('guardRecruitmentTime')) * Math.pow(1.1, trialCount('conquest')) *
@@ -4742,14 +4744,16 @@ function renderVillage() {
       `<span class="job-btns"><button data-action="explorer-dec" data-repeat title="Hold to repeat" ${n > 0 ? '' : 'disabled'}>−</button>` +
       `<button data-action="explorer-inc" data-repeat title="Hold to repeat" ${unassigned() > 0 ? '' : 'disabled'}>+</button></span></div>`;
   }
-  if (JOBS.guard.unlock() && guardCap() > 0) {
+  if (JOBS.guard.unlock()) {
     const guards = state.jobs.guard || 0;
-    const recruitment = guards < guardCap()
+    const availableCapacity = guardCap();
+    const occupationReserve = guardOccupationReserve();
+    const recruitment = guards < availableCapacity
       ? `Next Guard in ${Math.ceil((1 - state.guardRecruitment) / guardRecruitmentRate())}s`
-      : 'At capacity';
+      : availableCapacity > 0 ? 'At capacity' : 'No capacity available';
     h += '<h2 class="section">Guards — independent watch</h2>' +
-      `<div class="res-row"><span class="res-name">Guards</span><span class="res-amount">${guards} / ${guardCap()} (${Math.floor(ableGuards())} able)</span><span class="res-rate">${recruitment}</span></div>` +
-      `<div class="res-note">Guards recruit automatically, one every ${fmt(1 / guardRecruitmentRate())} seconds, and replace battle losses up to available capacity. Each conquered town occupies 15 Guard capacity (10 under Commonality) until released or the region is united. They use no villager assignments or population housing. Build Barracks to raise their capacity.</div>`;
+      `<div class="res-row"><span class="res-name">Guards</span><span class="res-amount">${guards} (${Math.floor(ableGuards())} able)</span><span class="res-rate">${recruitment}</span></div>` +
+      `<div class="res-note">Barracks capacity: ${guardBarracksCapacity()} total; ${occupationReserve} reserved by conquered towns; ${availableCapacity} available for Guards. Each town reserves 15 capacity (10 under Commonality) until released or the region is united. Guards recruit automatically, one every ${fmt(1 / guardRecruitmentRate())} seconds when capacity is available, and replace battle losses up to available capacity. They use no villager assignments or population housing. Build Barracks to raise total capacity.</div>`;
   }
   h += `<div class="res-note" style="margin-top:6px">Every villager eats ${fmt(FOOD_PER_POP)} food/s, working or not. Each Guard requires ${fmt(JOBS.guard.upkeep)} food/s, but their hunting is not reduced by winter. Weaponry, Leather Armor, and Chainmail research strengthen the watch; injuries heal over time. Every store has a ceiling — what flows in past a full store is wasted. Storehouses raise most material ceilings.</div>`;
 
