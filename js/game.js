@@ -1152,7 +1152,7 @@ function currencyCapacity(jobs = state?.jobs, source = state) {
 
 function capacityOf(id) {
   if (id === 'currency') return currencyCapacity();
-  if (id === 'knowledge') return Math.max(0, production(0).knowledge * 300);
+  if (id === 'knowledge') return Math.max(0, production(0).knowledge * 3000);
   const s = STORAGE[id];
   if (!s) return Infinity;
   const overflowActive = trialActive('overflow');
@@ -5474,7 +5474,7 @@ function renderSidePanel() {
 function loadLatestUpdatesTooltip() {
   const button = document.getElementById('btn-updates');
   if (!button || typeof fetch !== 'function' || typeof DOMParser !== 'function') return;
-      fetch('changelog.html?v=publish-20260928u0005')
+      fetch('changelog.html?v=publish-20260928u0006')
     .then(response => response.ok ? response.text() : Promise.reject(new Error('changelog unavailable')))
     .then(source => {
       const doc = new DOMParser().parseFromString(source, 'text/html');
