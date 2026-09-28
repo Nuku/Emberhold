@@ -71,6 +71,8 @@ body.tooltips-off .has-tooltip { cursor: inherit; } body.tooltips-off .has-toolt
 .job-row { display: grid; grid-template-columns: minmax(110px,180px) 70px minmax(160px,1fr) auto; align-items: center; gap: 12px; min-height: 36px; padding: 4px 12px; border-bottom: 1px solid var(--border-soft); } .job-name { color: var(--text); } .job-assign { color: var(--amber); font-variant-numeric: tabular-nums; text-align: right; } .job-rate { color: var(--dim); font-size: 12px; } .job-btns { display: flex; gap: 5px; } .job-btns button { width: 29px; padding: 3px 0; }
 .trial-mod { color: var(--red); font-size: 12px; } .trial-goal,.trial-reward,.trial-progress { margin-top: 5px; font-size: 12px; } .trial-reward { color: var(--green); } .trial-progress { color: var(--blue); } .trial-active { border-color: var(--amber); } .trial-count { color: var(--dim); font-size: 12px; }
 .wonder-card { border-color: #80613b; background: linear-gradient(135deg,rgba(101,71,35,.22),var(--panel)); }
+.wonder-fate-known { border-color: #6b9950; background: linear-gradient(135deg,rgba(105,153,80,.16),var(--panel)); }
+.wonder-fate-known .card-count { color: var(--green); font-weight: 700; }
 .wonder-calamity { border-color: #87433e; background: linear-gradient(135deg,rgba(111,40,36,.20),var(--panel)); }
 .wonder-sections { display: grid; grid-template-columns: repeat(5,minmax(0,1fr)); gap: 6px; margin: -4px 0 16px; }
 .wonder-section { min-height: 58px; padding: 7px; border: 1px solid var(--border); border-radius: 6px; color: var(--muted); font-size: 11px; }

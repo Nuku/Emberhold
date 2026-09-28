@@ -5133,7 +5133,7 @@ function renderWonder() {
     ];
     fates.forEach(([id, name, text]) => {
       const done = !!record.outcomes?.[id];
-      h += `<div class="card ${done ? 'done' : ''}"><div class="card-head"><span class="card-title">${name}</span><span class="card-count">${done ? 'Faced before — repeatable' : 'Ends this attempt'}</span></div><div class="card-desc">${text}</div>` +
+      h += `<div class="card wonder-fate-known ${done ? 'done' : ''}"><div class="card-head"><span class="card-title">${name}</span><span class="card-count">${done ? '✓ Previously chosen · repeatable' : 'Ends this attempt'}</span></div><div class="card-desc">${text}</div>` +
         `<div class="card-actions"><button data-action="wonder-fate" data-id="${id}">${done ? 'Choose this fate again' : 'Choose this fate'}</button></div></div>`;
     });
     h += renderShop();
