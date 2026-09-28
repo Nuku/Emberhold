@@ -5508,7 +5508,14 @@ function render() {
     stats: renderStats,
     settings: renderSettings,
   };
+  const main = document.getElementById('main');
+  const mainScrollTop = main.scrollTop;
+  const pageScrollY = window.scrollY;
   updateContent(document.getElementById('panel-' + activeTab), panels[activeTab]());
+  // The periodic render can mutate nodes above the viewport. Keep the user
+  // anchored to the same place while patching a long panel such as Settings.
+  if (main.scrollTop !== mainScrollTop) main.scrollTop = mainScrollTop;
+  if (window.scrollY !== pageScrollY) window.scrollTo(window.scrollX, pageScrollY);
   renderSidePanel();
   renderLog();
   const tip = document.querySelector('.has-tooltip:hover, .has-tooltip:focus');

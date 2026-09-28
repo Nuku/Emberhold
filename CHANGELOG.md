@@ -4,6 +4,7 @@ All notable changes to Emberhold are recorded here, with the newest changes firs
 
 ## 2026-09-28
 
+- Fixed periodic panel updates so long pages such as Settings keep their scroll position.
 - Wonder calamity losses now include a section-scaled surcharge based on current production of the affected resource.
 - Conquered towns now reserve their occupation Guards against Barracks capacity until release or regional unification; Commonality's returned Guards are accounted for correctly.
 - Diplomacy now explains how enemy military and economic strength affect attacks and loot, and shows a success-chance forecast for the selected raid stage.
