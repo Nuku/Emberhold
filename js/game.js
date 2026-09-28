@@ -847,12 +847,14 @@ function wonderCalamityMultiplier(record = wonderRecord(), def = wonderDef()) {
   def.researches.forEach((research, index) => { if (record.researches?.[index]) multiplier *= research.calamity || 1; });
   return multiplier;
 }
-function activeWonderCalamity() {
+function activeWonderCalamity(productionRate = 0) {
   const def = wonderDef();
   const record = state.wonders?.[state.landing];
   if (!def || !record?.found || wonderReadyForDecision(record)) return null;
   const section = Math.max(0, wonderSectionIndex(record));
-  return { ...def.calamity, amount: def.calamity.values[section] * wonderCalamityMultiplier(record, def), section };
+  const productionShare = [0.01, 0.02, 0.04, 0.08, 0.16][section];
+  const productionSurcharge = Math.floor(Math.max(0, productionRate) * productionShare);
+  return { ...def.calamity, amount: def.calamity.values[section] * wonderCalamityMultiplier(record, def) + productionSurcharge, section };
 }
 function assignRapture(delta) {
   const def = wonderDef();
@@ -2467,7 +2469,8 @@ function production(dt = 0.25, breakdown = null) {
     const job = JOBS[j], n = state.jobs[j] || 0;
     if (n && job.upkeep) add('food', `${jobName(j)} upkeep: ${n} × ${job.upkeep}/s`, -n * job.upkeep);
   }
-  const calamity = activeWonderCalamity();
+  const calamityDef = activeWonderCalamity();
+  const calamity = calamityDef && activeWonderCalamity(incomeRates[calamityDef.resource] || 0);
   if (calamity?.amount) add(calamity.resource, calamity.name, -calamity.amount);
   for (const [id, active] of Object.entries(poweredSites)) {
     if (active) add('power', `${BUILDING_BY_ID.get(id).name}: ${active} × ${DIG_SITE_POWER} capacity`, -active * DIG_SITE_POWER);
@@ -3350,7 +3353,7 @@ function startGameClock() {
   // lose time; it only wakes the simulation to account for elapsed time.
   if (typeof Worker === 'function') {
     try {
-      gameClockWorker = new Worker('js/game-clock.worker.js?v=publish-20260928u0001');
+      gameClockWorker = new Worker('js/game-clock.worker.js?v=publish-20260928u0005');
       gameClockWorker.addEventListener('message', () => {
         updateGameClock(true);
         renderBonusTimer();
@@ -5462,7 +5465,7 @@ function renderSidePanel() {
 function loadLatestUpdatesTooltip() {
   const button = document.getElementById('btn-updates');
   if (!button || typeof fetch !== 'function' || typeof DOMParser !== 'function') return;
-      fetch('changelog.html?v=publish-20260928u0001')
+      fetch('changelog.html?v=publish-20260928u0005')
     .then(response => response.ok ? response.text() : Promise.reject(new Error('changelog unavailable')))
     .then(source => {
       const doc = new DOMParser().parseFromString(source, 'text/html');
