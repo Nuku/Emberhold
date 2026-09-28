@@ -1185,6 +1185,11 @@ function assignedWorkers() {
 function jobName(id) {
   return id === 'forager' && wonderChoice('floodmeadows', 'silence') ? 'Farmer' : JOBS[id]?.name || id;
 }
+function jobDescription(id) {
+  return id === 'forager' && wonderChoice('floodmeadows', 'silence')
+    ? 'tends fields and harvests crops'
+    : JOBS[id]?.desc || '';
+}
 function unassigned() { return state.pop - assignedWorkers(); }
 function raptureWorkers() { return Math.max(0, Math.floor(state.rapture?.workers || 0)); }
 function raptureActiveHere() {
@@ -4717,7 +4722,7 @@ function renderVillage() {
     const workResource = workRecipe ? workRecipe.id : job.res;
     const workInputs = workRecipe ? workRecipe.id === 'tools' ? job.inputs : effectiveCoalInputs(Object.fromEntries(Object.entries(workRecipe.inputs).map(([r, amount]) => [r, amount * 0.5 * n])), 'tinkerer', n) : job.inputs;
     h += `<div class="job-row">` +
-      `<span class="job-name has-tooltip" data-tooltip="${attrText(job.desc)}">${jobName(j)}</span>` +
+      `<span class="job-name has-tooltip" data-tooltip="${attrText(jobDescription(j))}">${jobName(j)}</span>` +
       `<span class="job-assign">${assignment}</span>` +
       `<span class="job-rate">${fmt(workRate)} ${resourceName(workResource)}/s each` +
       (workInputs ? ` (uses ${Object.entries(workInputs).map(([r, v]) => `${fmt(n ? v / n : v)} ${resourceName(r).toLowerCase()}/s`).join(' + ')})` : '') +
