@@ -3105,6 +3105,9 @@ function setOut(trialId = null) {
   state.lineagesUnlocked = unlockedLineages;
   state.tribesSeen = keep.tribesSeen;
   state.diplomacy = keep.diplomacy;
+  // Siege readiness belongs to the current settlement. A town that was
+  // exposed to a successful siege in the old village must be sieged again.
+  for (const entry of Object.values(state.diplomacy || {})) entry.siegeReady = false;
   state.culturalConquestRatings = keep.culturalConquestRatings;
   state.lineageQualificationRatings = keep.lineageQualificationRatings;
   state.achievements = keep.achievements;
@@ -3325,7 +3328,7 @@ function startGameClock() {
   // lose time; it only wakes the simulation to account for elapsed time.
   if (typeof Worker === 'function') {
     try {
-      gameClockWorker = new Worker('js/game-clock.worker.js?v=publish-20260924u0003');
+      gameClockWorker = new Worker('js/game-clock.worker.js?v=publish-20260928u0001');
       gameClockWorker.addEventListener('message', () => {
         updateGameClock(true);
         renderBonusTimer();
@@ -3783,7 +3786,7 @@ function doRaid(id, stageId = 'raid', guardCount = ableGuards()) {
       if (gained > 0) {
         state.res[pick] += gained;
         state.seen[pick] = true;
-        loot.push(`${gained} ${resourceName(pick)}`);
+        loot.push(`${Math.round(gained)} ${resourceName(pick)}`);
       }
     };
     for (let i = 0; i < stage.rolls; i++) addLoot(common);
@@ -5431,7 +5434,7 @@ function renderSidePanel() {
 function loadLatestUpdatesTooltip() {
   const button = document.getElementById('btn-updates');
   if (!button || typeof fetch !== 'function' || typeof DOMParser !== 'function') return;
-      fetch('changelog.html?v=publish-20260924u0003')
+      fetch('changelog.html?v=publish-20260928u0001')
     .then(response => response.ok ? response.text() : Promise.reject(new Error('changelog unavailable')))
     .then(source => {
       const doc = new DOMParser().parseFromString(source, 'text/html');

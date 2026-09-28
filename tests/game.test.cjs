@@ -834,6 +834,15 @@ test('Known Task automatically commits migration supplies', () => {
   assert.equal(run('state.res.tools'), 0);
 });
 
+test('migration clears old siege readiness for every neighbor', () => {
+  const { run } = game();
+  run(`state.diplomacy.human = { disposition: 0, siegeReady: true };
+    state.diplomacy.clocklings = { disposition: 0, siegeReady: true };
+    state.migrating = true; setOut()`);
+  assert.equal(run('state.diplomacy.human.siegeReady'), false);
+  assert.equal(run('state.diplomacy.clocklings.siegeReady'), false);
+});
+
 test('Known Task fills supplies produced during migration preparation', () => {
   const { run } = game();
   run(`state.migrating = true; state.migrationPreparation = true;

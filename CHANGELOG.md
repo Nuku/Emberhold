@@ -2,6 +2,11 @@
 
 All notable changes to Emberhold are recorded here, with the newest changes first.
 
+## 2026-09-28
+
+- Migration now clears neighboring towns' siege readiness, so each settlement must complete its own siege before conquering them.
+- Rounded expedition raid loot to whole resource units in the combat log.
+
 ## 2026-09-24
 
 - Cultural-conquest Currency pressure now follows the current occupation, so a violent reconquest no longer retains pressure from an earlier cultural conquest.
