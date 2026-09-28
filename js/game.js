@@ -2186,13 +2186,19 @@ function setBuildingPower(id, count) {
 
 function powerAllocation() {
   const powerFactor = settlementProductionFactors('power').reduce((value, [, factor]) => value * factor, 1);
-  let available = Math.max(0, (bld('steamPlant') * POWER_PER_STEAM_PLANT + bld('oilPowerPlant') * POWER_PER_OIL_PLANT + bld('dynamo') * 1.5 + bld('windDevice') * POWER_PER_WIND_DEVICE) * powerFactor);
+  let available = Math.max(0, (bld('steamPlant') * POWER_PER_STEAM_PLANT + bld('oilPowerPlant') * POWER_PER_OIL_PLANT + bld('dynamo') * 1.5 + bld('windDevice') * POWER_PER_WIND_DEVICE + bld('solarArray') * POWER_PER_SOLAR_ARRAY) * powerFactor);
   const active = { forge: buildingPowerCount('forge') };
   for (const id of ['livingBlock', ...Object.keys(DIG_SITE_RESOURCES), 'factory', 'aluminumWorks']) {
     active[id] = Math.min(buildingPowerCount(id), Math.floor((available + 1e-9) / POWER_BUILDINGS[id].power));
     available = Math.max(0, available - active[id] * POWER_BUILDINGS[id].power);
   }
   return active;
+}
+
+function supplementalPowerUse(active = powerAllocation()) {
+  const factory = active.factory * factoryPowerRequirement();
+  const aluminumWorks = active.aluminumWorks * POWER_BUILDINGS.aluminumWorks.power;
+  return { factory, aluminumWorks, total: factory + aluminumWorks };
 }
 
 function digSitePower() {
@@ -2538,9 +2544,10 @@ function resourceRateTooltip(resource, rate, entries) {
     const capacityAmount = value => `${value > 0 ? '+' : ''}${number(value)} capacity`;
     const generated = entries.filter(entry => entry.base > 0)
       .reduce((sum, entry) => sum + entry.amount, 0);
+    const active = powerAllocation();
+    const supplemental = supplementalPowerUse(active);
     const allocated = entries.filter(entry => entry.base < 0)
-      .reduce((sum, entry) => sum - entry.amount, 0) +
-      powerAllocation().factory * factoryPowerRequirement();
+      .reduce((sum, entry) => sum - entry.amount, 0) + supplemental.total;
     const remaining = Math.max(0, generated - allocated);
     return [
       `${resource.name} — ${number(remaining)} capacity remaining`,
@@ -2551,6 +2558,8 @@ function resourceRateTooltip(resource, rate, entries) {
       `Remaining: ${number(remaining)} capacity`,
       '',
       ...entries.map(entry => `${entry.base > 0 ? 'Generated' : 'Allocated'}: ${entry.label}: ${capacityAmount(entry.amount)}`),
+      ...(supplemental.factory ? [`Allocated: Factories: ${active.factory} active × ${number(factoryPowerRequirement())} capacity: ${capacityAmount(-supplemental.factory)}`] : []),
+      ...(supplemental.aluminumWorks ? [`Allocated: Sky Metal Forges: ${active.aluminumWorks} active × ${number(POWER_BUILDINGS.aluminumWorks.power)} capacity: ${capacityAmount(-supplemental.aluminumWorks)}`] : []),
     ].join('\n');
   }
   const lines = [`${resource.name} — net ${signed(rate)}`, 'Amounts per second; modifiers multiply in order.'];
@@ -4597,7 +4606,7 @@ function renderStores() {
     const cls = rate > 0.0001 ? 'rate-pos' : (rate < -0.0001 ? 'rate-neg' : '');
     const cap = capacityOf(r.id);
     const amount = r.id === 'power'
-      ? `${fmtAvailablePower(Math.max(0, state.res[r.id] - activePower.factory * factoryPowerRequirement()))} capacity`
+      ? `${fmtAvailablePower(Math.max(0, state.res[r.id] - supplementalPowerUse(activePower).total))} capacity`
       : cap === Infinity
       ? fmtHeld(state.res[r.id])
       : `${fmtHeld(state.res[r.id])} / ${fmt(cap)}${isFull(r.id) ? ' FULL' : ''}`;
@@ -5537,11 +5546,10 @@ function powerStatus() {
   const rates = production(0, breakdown);
   const generated = breakdown.power.reduce((sum, entry) => sum + Math.max(0, entry.amount), 0);
   const active = powerAllocation();
-  // Factories and Aluminum Works reserve capacity in powerAllocation(), but
-  // only Factory consumption is represented separately from production().
-  const aluminumWorksUsed = active.aluminumWorks * POWER_BUILDINGS.aluminumWorks.power;
+  // Factories and Aluminum Works reserve capacity outside production().
+  const supplemental = supplementalPowerUse(active);
   const used = breakdown.power.reduce((sum, entry) => sum + Math.max(0, -entry.amount), 0) +
-    active.factory * factoryPowerRequirement() + aluminumWorksUsed;
+    supplemental.total;
   const buildings = {};
   for (const [id, info] of Object.entries(POWER_BUILDINGS)) {
     if (!powerBuildingControllable(id) || bld(id) < 1) continue;
@@ -5555,7 +5563,7 @@ function powerStatus() {
   }
   const requested = used + Object.values(buildings).reduce((sum, building) => sum + building.requested - building.used, 0);
   return { generated, used,
-    available: Math.max(0, rates.power - active.factory * factoryPowerRequirement() - aluminumWorksUsed), requested,
+    available: Math.max(0, rates.power - supplemental.total), requested,
     shortfall: Math.max(0, requested - generated), buildings };
 }
 
