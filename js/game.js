@@ -2303,6 +2303,16 @@ function production(dt = 0.25, breakdown = null) {
       entry.factors.push(...factors.filter(([, factor]) => factor !== 1));
     }
   };
+  const scaleIncome = (res, factors) => {
+    const multiplier = factors.reduce((value, [, factor]) => value * factor, 1);
+    rates[res] += incomeRates[res] * (multiplier - 1);
+    incomeRates[res] *= multiplier;
+    if (breakdown) for (const entry of breakdown[res]) {
+      if (entry.base <= 0) continue;
+      entry.amount = factors.reduce((value, [, factor]) => value * factor, entry.amount);
+      entry.factors.push(...factors.filter(([, factor]) => factor !== 1));
+    }
+  };
   const global = globalProductionFactors();
 
   // job output
@@ -2450,8 +2460,8 @@ function production(dt = 0.25, breakdown = null) {
   // multipliers (such as achievement completion) do not change its value.
   if (state.ancestralBlessing && !trialActive('silence')) add('knowledge', 'Smiling ancestors', 0.33);
   const ironForges = Math.min(buildingPowerCount('forge'), Math.floor(state.forgeIron || 0));
-  scale('iron', [...global, ['Ember Vein', expDone('emberVein') ? 1.10 : 1],
-    ['Iron Forges', 1 + 0.15 * ironForges]]);
+  scale('iron', [...global, ['Ember Vein', expDone('emberVein') ? 1.10 : 1]]);
+  scaleIncome('iron', [['Iron Forges', 1 + 0.15 * ironForges]]);
   scale('copper', [...global, ['Copper Prospecting', tech('copperProspecting') ? 1.75 : 1],
     ['Metallurgy', tech('metallurgy') ? 2 : 1], ['Electrical Engineering', tech('electricalEngineering') ? 1.5 : 1]]);
   scale('aether', [...global, ['Glacial Peaks', expDone('glacialPeaks') ? 1.10 : 1],

@@ -4,6 +4,7 @@ All notable changes to Emberhold are recorded here, with the newest changes firs
 
 ## 2026-09-29
 
+- Iron Forge bonuses now increase Iron income without increasing Iron costs.
 - Iron-assigned Forges now consume 0.4 Coal/s each as fuel.
 - Leaving a settlement now ends its active Wonder attempt, clearing section, research, expedition, and obstacle progress while preserving discovered fates.
 
