@@ -230,6 +230,23 @@ before the target. The action returns `true` when an entry moves and `false`
 for invalid indices or an unknown queue. Successful moves refresh the UI and
 emit the standard action event.
 
+### Immediate build and research API
+
+Automation can complete an affordable project directly, without adding it to
+the Construction or Research queue:
+
+```js
+const api = window.emberhold;
+api.actions.buildNow('hut');
+api.actions.researchNow('writing');
+```
+
+Each action returns `true` when it completes a build or research and `false`
+when the item is unknown, locked, already complete, at its limit, or unaffordable.
+Staged buildings such as the Beacon advance one affordable stage per call.
+These actions leave existing queue entries unchanged; normal `build` and
+`research` actions keep their queue behavior.
+
 ### Morale telemetry API
 
 `window.emberhold.helpers.morale()` returns the live morale value, ceiling,

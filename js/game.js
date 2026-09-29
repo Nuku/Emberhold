@@ -1627,6 +1627,26 @@ function attemptBuild(id) {
   if (canAfford(cost)) doBuild(id);
   else if (state.queues.build.length < queueCapacity('build')) queueEntry('build', id);
 }
+// Automation callers can request an immediate completion without creating a
+// native queue entry. Staged projects advance one affordable part per call.
+function buildNow(id) {
+  const def = BUILDING_BY_ID.get(id);
+  if (!def || !canBuild(id)) return false;
+  if (id === 'beacon') {
+    if (!canAfford(beaconStageCost())) return false;
+    return advanceBeaconProject() > 0;
+  }
+  if (id === 'airControl') {
+    if (!canAfford(airControlStageCost())) return false;
+    return advanceAirControlProject() > 0;
+  }
+  if (id === 'greatMigration') {
+    if (!canAfford(buildingCost(def))) return false;
+    return advanceGreatMigrationProject() > 0;
+  }
+  if (Number.isFinite(def.max) && bld(id) >= def.max) return false;
+  return doBuild(id);
+}
 function attemptWonderObstacle() {
   const record = wonderRecord();
   const obstacle = currentWonderObstacle(record);
@@ -1664,6 +1684,9 @@ function attemptResearch(id) {
   if (state.queues.research.some(entry => entry.id === id)) return;
   if (canAfford(researchCost(def))) doResearch(id);
   else if (state.queues.research.length < queueCapacity('research')) queueEntry('research', id);
+}
+function researchNow(id) {
+  return doResearch(id);
 }
 
 function attemptExpedition(id) {
@@ -5539,7 +5562,7 @@ function renderSidePanel() {
 function loadLatestUpdatesTooltip() {
   const button = document.getElementById('btn-updates');
   if (!button || typeof fetch !== 'function' || typeof DOMParser !== 'function') return;
-      fetch('changelog.html?v=publish-20260928u0006')
+      fetch('changelog.html?v=publish-20260929u0003')
     .then(response => response.ok ? response.text() : Promise.reject(new Error('changelog unavailable')))
     .then(source => {
       const doc = new DOMParser().parseFromString(source, 'text/html');
@@ -5694,6 +5717,7 @@ const automationActionFns = {
   assignExplorer: doAssignExplorer,
   assignPerformer: doAssignPerformer,
   build: attemptBuild,
+  buildNow,
   craft: doCraft,
   chooseFactoryRecipe,
   chooseLanding,
@@ -5712,6 +5736,7 @@ const automationActionFns = {
   conquer: conquerTown,
   release: releaseTown,
   research: attemptResearch,
+  researchNow,
   reorderQueue,
   trialAbandon: () => endTrial(false),
   trialStart: startTrial,
