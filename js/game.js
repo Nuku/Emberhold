@@ -3107,7 +3107,6 @@ function setOut(trialId = null) {
     landingsSeen: state.landingsSeen,
     species: state.species, tribesSeen: state.tribesSeen,
     customLineage: state.customLineage,
-    diplomacy: state.diplomacy,
     culturalConquestRatings: state.culturalConquestRatings,
     lineageQualificationRatings,
     achievements: state.achievements,
@@ -3140,10 +3139,10 @@ function setOut(trialId = null) {
   state.customLineage = keep.customLineage;
   state.lineagesUnlocked = unlockedLineages;
   state.tribesSeen = keep.tribesSeen;
-  state.diplomacy = keep.diplomacy;
-  // Siege readiness belongs to the current settlement. A town that was
-  // exposed to a successful siege in the old village must be sieged again.
-  for (const entry of Object.values(state.diplomacy || {})) entry.siegeReady = false;
+  // Diplomacy belongs to the settlement being left. The new settlement must
+  // meet its neighbors anew, regardless of whether this is a trial or a
+  // regular migration.
+  state.diplomacy = {};
   state.culturalConquestRatings = keep.culturalConquestRatings;
   state.lineageQualificationRatings = keep.lineageQualificationRatings;
   state.achievements = keep.achievements;
