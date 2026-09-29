@@ -2516,8 +2516,8 @@ function production(dt = 0.25, breakdown = null) {
   // settlement scaling pass so expedition bonuses affect supply, not recipe
   // costs; the factory below can still account for Forge consumption.
   const activeForges = power.forge;
-  const ironForges = Math.min(activeForges, Math.floor(state.forgeIron || 0));
-  const steelForges = activeForges - ironForges;
+  const assignedIronForges = Math.min(activeForges, Math.floor(state.forgeIron || 0));
+  const steelForges = activeForges - assignedIronForges;
   if (steelForges > 0 && dt > 0) {
     const rate = 0.04;
     const inputs = inputCosts({ iron: 0.6 * steelForges, coal: 0.4 * steelForges }, 'forge', steelForges);
