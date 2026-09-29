@@ -2518,6 +2518,7 @@ function production(dt = 0.25, breakdown = null) {
   const activeForges = power.forge;
   const assignedIronForges = Math.min(activeForges, Math.floor(state.forgeIron || 0));
   const steelForges = activeForges - assignedIronForges;
+  if (assignedIronForges > 0) add('coal', `Iron Forge fuel: ${assignedIronForges} × 0.4/s`, -0.4 * assignedIronForges);
   if (steelForges > 0 && dt > 0) {
     const rate = 0.04;
     const inputs = inputCosts({ iron: 0.6 * steelForges, coal: 0.4 * steelForges }, 'forge', steelForges);
@@ -3066,6 +3067,23 @@ function totalMigrationEchoes() {
 function setOut(trialId = null) {
   if (!state.migrating && !trialId) return;
   if (!trialId && state.migrationPreparation && !migrationPreparationComplete()) return;
+  // A Wonder attempt belongs to the settlement being left. Its fate is
+  // permanent history, but the active calamity and expedition progress must
+  // not follow the lineage into a new founding (including a trial restart).
+  const activeWonder = state.wonders?.[state.landing];
+  if (activeWonder?.found) {
+    activeWonder.found = false;
+    activeWonder.sections = [false, false, false, false, false];
+    activeWonder.progress = 0;
+    activeWonder.researches = {};
+    activeWonder.expeditions = {};
+    activeWonder.obstacles = {};
+    activeWonder.obstacleNotices = {};
+    if (state.rapture?.landing === state.landing) {
+      state.rapture.workers = 0;
+      state.rapture.landing = null;
+    }
+  }
   if (!trialId && state.rapture?.landing === state.landing && raptureWorkers() > 0) {
     state.rapture.workers = 0;
     resetWonderSection('The migration recalls the last Rapture workers. The active section closes behind them.');
@@ -4722,7 +4740,7 @@ function renderVillage() {
       `<button data-action="forge-iron-dec" ${state.forgeIron > 0 ? '' : 'disabled'} aria-label="Assign one fewer Forge to Iron">−</button>` +
       `<button data-action="forge-iron-inc" ${state.forgeIron < bld('forge') ? '' : 'disabled'} aria-label="Assign one more Forge to Iron">+</button></div>`;
     h += `<div class="card"><div class="card-head"><span class="card-title">Iron</span><span class="card-count">${ironForges} active</span></div>` +
-      `<div class="card-desc">Increases Iron production by ${fmt(15 * ironForges)}%.</div>${ironControl}</div>`;
+      `<div class="card-desc">Increases Iron production by ${fmt(15 * ironForges)}%; consumes ${fmt(0.4 * ironForges)} Coal/s as fuel.</div>${ironControl}</div>`;
     h += `<div class="card"><div class="card-head"><span class="card-title">Steel</span><span class="card-count">${steelForges} active</span></div>` +
       `<div class="card-desc">Produces ${fmt(0.04 * steelForges)}/s; consumes ${fmt(forgeInputs.iron)} Iron/s and ${fmt(forgeInputs.wood || forgeInputs.coal)} ${forgeInputs.wood ? 'Wood' : 'Coal'}/s.</div>` +
       woodFuelControls('forge', steelForges) + '</div>';

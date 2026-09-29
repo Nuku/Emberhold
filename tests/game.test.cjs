@@ -2178,6 +2178,15 @@ test('Forges can be disabled without consuming inputs or producing Steel', () =>
   assert.equal(run("buildingPowerCount('forge')"), 0);
 });
 
+test('Iron-assigned Forges consume Coal fuel', () => {
+  const { run } = game();
+  run(`state.bld.forge = 2; state.forgeIron = 1; state.techs.metallurgy = true;
+    state.res.iron = 100; state.res.coal = 100; const detail = {}; const rates = production(1, detail)`);
+  assert.equal(run('rates.coal'), -0.4);
+  assert.equal(run('rates.iron'), 0);
+  assert.equal(run("detail.coal.some(entry => entry.label.startsWith('Iron Forge fuel'))"), true);
+});
+
 test('a newly built controllable building starts enabled only when all prior copies were enabled', () => {
   const { run } = game();
   run(`state.techs.metallurgy = true; state.bld.forge = 1; state.buildingPower.forge = 1;

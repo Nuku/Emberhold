@@ -2,6 +2,11 @@
 
 All notable changes to Emberhold are recorded here, with the newest changes first.
 
+## 2026-09-29
+
+- Iron-assigned Forges now consume 0.4 Coal/s each as fuel.
+- Leaving a settlement now ends its active Wonder attempt, clearing section, research, expedition, and obstacle progress while preserving discovered fates.
+
 ## 2026-09-28
 
 - Forges can now be assigned to Iron production for a 15% Iron bonus each; unassigned Forges continue smelting Steel.
