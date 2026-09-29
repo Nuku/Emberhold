@@ -195,6 +195,24 @@ Changes refresh the UI and emit the standard action event. Enabled counts are
 saved; active counts reflect current supply. Returned snapshots are detached
 from game state and are calculated immediately, without waiting for a tick.
 
+### Forge production assignment API
+
+Assign a number of owned Forges to Iron production with
+`api.actions.setIronForges(count)` or
+`api.action('setIronForges', count)`. Each assigned Forge adds 15% to Iron
+production; every other active Forge produces Steel. The assigned count is
+available as `api.getState().forgeIron`.
+
+```js
+const api = window.emberhold;
+api.actions.setIronForges(2); // Assign two Forges to Iron; the rest make Steel.
+```
+
+The action floors and clamps the finite count to the number of owned Forges,
+returns `true` when Forges are owned, and returns `false` for an invalid count
+or when no Forge is owned. Changes refresh the UI and emit the standard action
+event.
+
 ### Queue ordering API
 
 Queue entries can be moved through the public automation API by queue type and

@@ -87,6 +87,7 @@ function defaultState() {
     queues: { build: [], research: [], expedition: [] },
     factoryRecipe: 'goods',
     factoryRecipes: ['goods'],
+    forgeIron: 0,
     buildingPower: {},
     techs: {},
     trialDone: {},
@@ -1289,7 +1290,7 @@ function effectiveCoalCost(cost, id = 'cost', total = 1) {
 }
 function setWoodForCoal(id, count) {
   if (!id || !Number.isFinite(count) || count < 0) return false;
-  const totals = { steamPlant: bld('steamPlant'), forge: buildingPowerCount('forge'), factory: powerAllocation().factory,
+  const totals = { steamPlant: bld('steamPlant'), forge: woodFuelTotal('forge'), factory: powerAllocation().factory,
     tinkerer: state.jobs.tinkerer || 0, cost: 1 };
   if (!Object.hasOwn(totals, id)) return false;
   state.settings = state.settings || {};
@@ -1301,7 +1302,7 @@ function setWoodForCoal(id, count) {
 }
 function woodFuelTotal(id) {
   if (id === 'steamPlant') return bld('steamPlant');
-  if (id === 'forge') return buildingPowerCount('forge');
+  if (id === 'forge') return Math.max(0, buildingPowerCount('forge') - Math.min(buildingPowerCount('forge'), Math.floor(state.forgeIron || 0)));
   if (id === 'factory') return powerAllocation().factory;
   if (id === 'tinkerer') return state.jobs.tinkerer || 0;
   return 0;
@@ -2209,6 +2210,12 @@ function setBuildingPower(id, count) {
   return true;
 }
 
+function setIronForges(count) {
+  if (!bld('forge') || !Number.isFinite(count)) return false;
+  state.forgeIron = Math.max(0, Math.min(Math.floor(bld('forge')), Math.floor(count)));
+  return true;
+}
+
 function powerAllocation() {
   const powerFactor = settlementProductionFactors('power').reduce((value, [, factor]) => value * factor, 1);
   let available = Math.max(0, (bld('steamPlant') * POWER_PER_STEAM_PLANT + bld('oilPowerPlant') * POWER_PER_OIL_PLANT + bld('dynamo') * 1.5 + bld('windDevice') * POWER_PER_WIND_DEVICE + bld('solarArray') * POWER_PER_SOLAR_ARRAY) * powerFactor);
@@ -2442,7 +2449,9 @@ function production(dt = 0.25, breakdown = null) {
   // Ancestral Blessing is a flat bonus, so unrelated global production
   // multipliers (such as achievement completion) do not change its value.
   if (state.ancestralBlessing && !trialActive('silence')) add('knowledge', 'Smiling ancestors', 0.33);
-  scale('iron', [...global, ['Ember Vein', expDone('emberVein') ? 1.10 : 1]]);
+  const ironForges = Math.min(buildingPowerCount('forge'), Math.floor(state.forgeIron || 0));
+  scale('iron', [...global, ['Ember Vein', expDone('emberVein') ? 1.10 : 1],
+    ['Iron Forges', 1 + 0.15 * ironForges]]);
   scale('copper', [...global, ['Copper Prospecting', tech('copperProspecting') ? 1.75 : 1],
     ['Metallurgy', tech('metallurgy') ? 2 : 1], ['Electrical Engineering', tech('electricalEngineering') ? 1.5 : 1]]);
   scale('aether', [...global, ['Glacial Peaks', expDone('glacialPeaks') ? 1.10 : 1],
@@ -2502,16 +2511,18 @@ function production(dt = 0.25, breakdown = null) {
     if (active) add('power', `${BUILDING_BY_ID.get(id).name}: ${active} × ${DIG_SITE_POWER} capacity`, -active * DIG_SITE_POWER);
   }
   // Reserve inputs after other consumption; bonuses affect output, not costs.
-  // Forges are independent production buildings: each one smelts Steel
+  // Forges are independent production buildings: steel-assigned ones smelt
   // continuously, using fixed amounts of Iron and Coal. Keep this after the
   // settlement scaling pass so expedition bonuses affect supply, not recipe
   // costs; the factory below can still account for Forge consumption.
   const activeForges = power.forge;
-  if (activeForges > 0 && dt > 0) {
+  const ironForges = Math.min(activeForges, Math.floor(state.forgeIron || 0));
+  const steelForges = activeForges - ironForges;
+  if (steelForges > 0 && dt > 0) {
     const rate = 0.04;
-    const inputs = inputCosts({ iron: 0.6 * activeForges, coal: 0.4 * activeForges }, 'forge', activeForges);
+    const inputs = inputCosts({ iron: 0.6 * steelForges, coal: 0.4 * steelForges }, 'forge', steelForges);
     const factors = forgeProductionFactors();
-    const output = factors.reduce((value, [, factor]) => value * factor, activeForges * rate);
+    const output = factors.reduce((value, [, factor]) => value * factor, steelForges * rate);
     let fraction = Math.min(1, Math.max(0, capacityOf('steel') - state.res.steel) / (output * dt));
     let limitation = fraction < 1 ? 'Steel storage space' : 'Forge utilization';
     for (const r in inputs) {
@@ -2520,8 +2531,8 @@ function production(dt = 0.25, breakdown = null) {
       if (supplied < fraction) limitation = `${resourceName(r)} shortage`;
       fraction = Math.min(fraction, supplied);
     }
-    add('steel', `Forges: ${activeForges} active × ${rate}/s`, activeForges * rate, [...factors, [limitation, fraction]]);
-    for (const r in inputs) add(r, `Forge inputs: ${activeForges} active × ${inputs[r] / activeForges}/s`, -inputs[r], [[limitation, fraction]]);
+    add('steel', `Forges: ${steelForges} steel × ${rate}/s`, steelForges * rate, [...factors, [limitation, fraction]]);
+    for (const r in inputs) add(r, `Forge inputs: ${steelForges} steel × ${inputs[r] / steelForges}/s`, -inputs[r], [[limitation, fraction]]);
   }
 
   if (bld('factory') > 0 && dt > 0) {
@@ -4057,6 +4068,7 @@ function normalizeSave(s) {
     for (const n of Object.values(s[key]))
       if (typeof n !== 'number' || n < 0) throw new Error(`Invalid ${key}`);
   }
+  s.forgeIron = Math.max(0, Math.min(Math.floor(s.bld.forge || 0), Math.floor(s.forgeIron || 0)));
   // Foundry was the original one-off Steel unlock. Preserve it as a Forge
   // before normalizing building toggles so migrated Forges start enabled.
   if (s.bld.foundry) {
@@ -4701,12 +4713,19 @@ function renderVillage() {
     }
   }
   if (bld('forge') > 0) {
-    h += '<h2 class="section">Forge production</h2><div class="res-note">Each Forge smelts Steel automatically. Production slows when Iron or Coal runs short and pauses when the Steel store is full.</div>';
+    h += '<h2 class="section">Forge production</h2><div class="res-note">Assign Forges to Iron to increase Iron production by 15% each; the remaining Forges smelt Steel. Steel production slows when Iron or Coal runs short and pauses when the Steel store is full.</div>';
     const activeForges = buildingPowerCount('forge');
-    const forgeInputs = effectiveCoalInputs({ iron: 0.6 * activeForges, coal: 0.4 * activeForges }, 'forge', activeForges);
-    h += `<div class="card"><div class="card-head"><span class="card-title">Steel</span><span class="card-count">${bld('forge')} Forge${bld('forge') === 1 ? '' : 's'}</span></div>` +
-      `<div class="card-desc">Produces ${fmt(0.04 * bld('forge'))}/s; consumes ${fmt(forgeInputs.iron)} Iron/s and ${fmt(forgeInputs.wood || forgeInputs.coal)} ${forgeInputs.wood ? 'Wood' : 'Coal'}/s.</div>` +
-      woodFuelControls('forge', buildingPowerCount('forge')) + '</div>';
+    const ironForges = Math.min(activeForges, Math.floor(state.forgeIron || 0));
+    const steelForges = activeForges - ironForges;
+    const forgeInputs = effectiveCoalInputs({ iron: 0.6 * steelForges, coal: 0.4 * steelForges }, 'forge', steelForges);
+    const ironControl = `<div class="card-actions"><span>Iron Forges: ${ironForges} (${fmt(15 * ironForges)}% bonus)</span>` +
+      `<button data-action="forge-iron-dec" ${state.forgeIron > 0 ? '' : 'disabled'} aria-label="Assign one fewer Forge to Iron">−</button>` +
+      `<button data-action="forge-iron-inc" ${state.forgeIron < bld('forge') ? '' : 'disabled'} aria-label="Assign one more Forge to Iron">+</button></div>`;
+    h += `<div class="card"><div class="card-head"><span class="card-title">Iron</span><span class="card-count">${ironForges} active</span></div>` +
+      `<div class="card-desc">Increases Iron production by ${fmt(15 * ironForges)}%.</div>${ironControl}</div>`;
+    h += `<div class="card"><div class="card-head"><span class="card-title">Steel</span><span class="card-count">${steelForges} active</span></div>` +
+      `<div class="card-desc">Produces ${fmt(0.04 * steelForges)}/s; consumes ${fmt(forgeInputs.iron)} Iron/s and ${fmt(forgeInputs.wood || forgeInputs.coal)} ${forgeInputs.wood ? 'Wood' : 'Coal'}/s.</div>` +
+      woodFuelControls('forge', steelForges) + '</div>';
   }
   h += renderWonderAssignment();
   h += '<h2 class="section">Crafting</h2>';
@@ -5641,6 +5660,7 @@ const automationActionFns = {
   chooseWonderFate,
   buyWonderUnlock,
   setBuildingPower,
+  setIronForges,
   setWoodForCoal,
   assignDiplomat: doAssignDiplomat,
   assignExplorer: doAssignExplorer,
@@ -5781,6 +5801,8 @@ function runAction(btn) {
     case 'power-all': setBuildingPower(btn.dataset.id, powerBuildingMax(btn.dataset.id)); render(); break;
     case 'wood-coal-dec': setWoodForCoal(btn.dataset.id, woodForCoalCount(btn.dataset.id, woodFuelTotal(btn.dataset.id)) - 1); render(); break;
     case 'wood-coal-inc': setWoodForCoal(btn.dataset.id, woodForCoalCount(btn.dataset.id, woodFuelTotal(btn.dataset.id)) + 1); render(); break;
+    case 'forge-iron-dec': setIronForges((state.forgeIron || 0) - 1); render(); break;
+    case 'forge-iron-inc': setIronForges((state.forgeIron || 0) + 1); render(); break;
     case 'research': attemptResearch(btn.dataset.id); render(); break;
     case 'queue-cancel': cancelQueue(btn.dataset.type, +btn.dataset.index); render(); break;
     case 'diplomacy-supply': supplyDiplomacyRequest(btn.dataset.tribe); render(); break;

@@ -4,6 +4,7 @@ All notable changes to Emberhold are recorded here, with the newest changes firs
 
 ## 2026-09-28
 
+- Forges can now be assigned to Iron production for a 15% Iron bonus each; unassigned Forges continue smelting Steel.
 - Fixed Tinkerer production accounting so recipes slow their output and input consumption together when storage or ingredients limit production.
 - Diplomacy now resets when a trial or migration begins, so each settlement meets its neighbors anew.
 - Forced Wonder migrations now choose only settled-world landings, keeping post-waters biomes for the Great Waters migration.
