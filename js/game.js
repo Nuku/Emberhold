@@ -2313,11 +2313,26 @@ function production(dt = 0.25, breakdown = null) {
           const keepsToolWork = recipe.id === 'tools';
           const rate = keepsToolWork ? job.base : recipe.rate * 0.5 * recipeFactor;
           const recipeInputs = keepsToolWork ? job.inputs : recipe.inputs;
-          add(recipe.id, `Tinkerers (${recipe.name}): ${workers} × ${rate}/s`, workers * rate);
           const effectiveInputs = inputCosts(recipeInputs, 'tinkerer', workers);
+          let fraction = 1;
+          if (dt > 0) {
+            const output = workers * rate;
+            fraction = output > 0
+              ? Math.min(1, Math.max(0, capacityOf(recipe.id) - state.res[recipe.id] - Math.max(0, rates[recipe.id]) * dt) / (output * dt))
+              : 0;
+            for (const r in effectiveInputs) {
+              const inputRate = workers * (keepsToolWork ? effectiveInputs[r] : effectiveInputs[r] * 0.5 * recipeFactor);
+              const available = Math.max(0, state.res[r] + Math.min(0, rates[r]) * dt);
+              fraction = Math.min(fraction, inputRate > 0 ? available / (inputRate * dt) : 1);
+            }
+          }
+          const limitation = fraction < 1 ? `${recipe.name} storage or inputs` : 'Tinkerer utilization';
+          add(recipe.id, `Tinkerers (${recipe.name}): ${workers} × ${rate}/s`, workers * rate,
+            [[limitation, fraction]]);
           for (const r in effectiveInputs) {
             const inputRate = keepsToolWork ? effectiveInputs[r] : effectiveInputs[r] * 0.5 * recipeFactor;
-            add(r, `Tinkerer inputs (${recipe.name}): ${workers} × ${inputRate}/s`, -workers * inputRate);
+            add(r, `Tinkerer inputs (${recipe.name}): ${workers} × ${inputRate}/s`, -workers * inputRate,
+              [[limitation, fraction]]);
           }
         }
       } else if (!job.winterproof) {

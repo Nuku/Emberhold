@@ -4,6 +4,7 @@ All notable changes to Emberhold are recorded here, with the newest changes firs
 
 ## 2026-09-28
 
+- Fixed Tinkerer production accounting so recipes slow their output and input consumption together when storage or ingredients limit production.
 - Diplomacy now resets when a trial or migration begins, so each settlement meets its neighbors anew.
 - Forced Wonder migrations now choose only settled-world landings, keeping post-waters biomes for the Great Waters migration.
 - When the Worldroot is silenced, the Forager job tooltip now describes tending fields and harvesting crops.
