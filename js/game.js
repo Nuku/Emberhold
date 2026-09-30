@@ -5179,7 +5179,14 @@ function renderWonder() {
     return `<div class="wonder-section ${done ? 'done' : index === section?.index ? 'active' : ''}${tooltipClass}"${tooltipAttrs}><span>${index + 1}</span>${name}</div>`;
   }).join('') + '</div>';
   if (section) {
-    const calamity = activeWonderCalamity();
+    const productionBreakdown = {};
+    production(0, productionBreakdown);
+    const calamityDef = activeWonderCalamity();
+    const calamityIncome = calamityDef
+      ? (productionBreakdown[calamityDef.resource] || []).filter(entry => entry.base > 0)
+        .reduce((sum, entry) => sum + entry.amount, 0)
+      : 0;
+    const calamity = calamityDef && activeWonderCalamity(calamityIncome);
     const obstacle = currentWonderObstacle(record);
     const obstacleBlocked = !!obstacle;
     const workers = raptureWorkers();

@@ -2,6 +2,10 @@
 
 All notable changes to Emberhold are recorded here, with the newest changes first.
 
+## 2026-09-30
+
+- Wonder calamity surcharges now scale with current positive production of the affected resource.
+
 ## 2026-09-29
 
 - Added immediate build and research actions to the automation API, allowing affordable projects to complete without entering the normal queues; staged buildings advance one stage per call.
