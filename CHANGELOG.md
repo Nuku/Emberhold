@@ -2,6 +2,10 @@
 
 All notable changes to Emberhold are recorded here, with the newest changes first.
 
+## 2026-10-01
+
+- Trials now restore the migration difficulty settings that were active before the trial when it ends, including when a soft reset abandons it.
+
 ## 2026-09-30
 
 - Wonder calamity surcharges now scale with current positive production of the affected resource.

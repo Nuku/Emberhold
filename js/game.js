@@ -92,6 +92,7 @@ function defaultState() {
     techs: {},
     trialDone: {},
     trial: null,
+    trialDifficultySettings: null,
     expeditions: {},
     expeditionRatings: {},
     beaconsLit: {},
@@ -2752,6 +2753,7 @@ function startTrial(id) {
   if (def.repeat === 0 && trialCount(id) > 0) return;
   if (def.req && !def.req()) return;
   if (!confirm(`Start ${def.name}? This restarts your migration in the same location with the same lineage, upgrades, and governance settings. Your village, resources, and jobs reset to migration starting values; permanent progress is kept. You will receive the migration Echoes due from your village immediately, since there will be no chance to spend them first. All four difficulty options will be turned on for the trial and will remain active until it ends. Continue?`)) return;
+  state.trialDifficultySettings = [...(state.migrationChallenges || [])];
   const earned = echoesEarned([]);
   state.echoes += earned;
   state.migrationChallenges = MIGRATION_CHALLENGES.map(challenge => challenge.id);
@@ -2776,7 +2778,8 @@ function endTrial(success) {
     state.greatMigrationProgress = 0;
   }
   state.trial = null;
-  state.migrationChallenges = [];
+  if (Array.isArray(state.trialDifficultySettings)) state.migrationChallenges = state.trialDifficultySettings;
+  state.trialDifficultySettings = null;
   state.badAncestry = null;
 }
 
@@ -2996,6 +2999,7 @@ function prepareMigration(id, parts = 1) {
 
 function beginMigration() {
   if (!canMigrate()) return;
+  state.trialDifficultySettings = null;
   state.pendingEchoMultiplier = 1;
   state.pendingEchoes = echoesEarned([]);
   state.echoes += state.pendingEchoes;
@@ -3013,6 +3017,8 @@ function beginMigration() {
 function beginSoftReset() {
   if (state.migrating) return;
   if (!window.confirm('Begin a soft reset? This ends the current settlement and any active trial without granting Echoes or other rewards. You will receive migration choices and can set out immediately. Continue?')) return;
+  if (state.trial) endTrial(false);
+  state.trialDifficultySettings = null;
   state.pendingEchoes = 0;
   state.pendingEchoMultiplier = 1;
   state.pendingSpecies = state.species;
@@ -3100,6 +3106,7 @@ function totalMigrationEchoes() {
 function setOut(trialId = null) {
   if (!state.migrating && !trialId) return;
   if (!trialId && state.migrationPreparation && !migrationPreparationComplete()) return;
+  if (!trialId) state.trialDifficultySettings = null;
   // A Wonder attempt belongs to the settlement being left. Its fate is
   // permanent history, but the active calamity and expedition progress must
   // not follow the lineage into a new founding (including a trial restart).
@@ -3177,6 +3184,7 @@ function setOut(trialId = null) {
   const keep = {
     echoes: state.echoes, upgrades: state.upgrades,
     trialDone: state.trialDone, expeditions: state.expeditions, expeditionRatings: state.expeditionRatings,
+    trialDifficultySettings: trialId ? state.trialDifficultySettings : null,
     beaconsLit: state.beaconsLit, beaconRevisited: state.beaconRevisited, wonders: state.wonders,
     wonderUnlocks: state.wonderUnlocks,
     hope: state.hope, ancient: state.ancient,
@@ -3200,6 +3208,7 @@ function setOut(trialId = null) {
   state.echoes = keep.echoes;
   state.upgrades = keep.upgrades;
   state.trialDone = keep.trialDone;
+  state.trialDifficultySettings = keep.trialDifficultySettings;
   state.expeditions = keep.expeditions;
   state.expeditionRatings = keep.expeditionRatings;
   state.beaconsLit = keep.beaconsLit;
@@ -4077,6 +4086,9 @@ function normalizeSave(s) {
   if (!Number.isFinite(s.greatMigrationProgress) || s.greatMigrationProgress < 0) throw new Error('Invalid Great Waters progress');
   s.greatMigrationProgress = Math.min(GREAT_MIGRATION_STAGE_COUNT, Math.floor(s.greatMigrationProgress));
   s.migrationChallenges = [...new Set((s.migrationChallenges || []).filter(id => MIGRATION_CHALLENGES.some(challenge => challenge.id === id)))];
+  s.trialDifficultySettings = Array.isArray(s.trialDifficultySettings)
+    ? [...new Set(s.trialDifficultySettings.filter(id => MIGRATION_CHALLENGES.some(challenge => challenge.id === id)))]
+    : null;
   s.pendingMigrationChallenges = [...new Set((s.pendingMigrationChallenges || []).filter(id => MIGRATION_CHALLENGES.some(challenge => challenge.id === id)))];
   s.expeditions = object(s.expeditions) ? Object.fromEntries(Object.entries(s.expeditions).filter(([id, done]) => EXPEDITION_BY_ID.has(id) && done === true)) : {};
   s.expeditionRatings = object(s.expeditionRatings)
