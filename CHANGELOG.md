@@ -2,6 +2,10 @@
 
 All notable changes to Emberhold are recorded here, with the newest changes first.
 
+## 2026-10-02
+
+- Wonder fate rewards now scale with the migration challenge difficulty when each fate is chosen, including production bonuses and silenced Wonder effects; existing saves retain each fate's earned difficulty.
+
 ## 2026-10-01
 
 - Trials now restore the migration difficulty settings that were active before the trial when it ends, including when a soft reset abandons it.

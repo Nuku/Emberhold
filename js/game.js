@@ -210,6 +210,10 @@ function wonderRecord(id = state.landing) {
 function beaconsLitCount() { return Object.keys(state.beaconsLit || {}).filter(id => state.beaconsLit[id]).length; }
 function wonderHintsAvailable() { return tech('optics') && !!state.beaconRevisited?.[state.landing]; }
 function wonderChoice(id, choice) { return !!state.wonders?.[id]?.outcomes?.[choice]; }
+function wonderEffectScale(id, choice) {
+  const difficulty = Number(state.wonders?.[id]?.outcomeDifficulty?.[choice]);
+  return 0.2 + 0.2 * Math.max(0, Math.min(4, Number.isFinite(difficulty) ? difficulty : 0));
+}
 function wondersWithAnEnding() {
   return Object.values(state.wonders || {}).filter(record =>
     Object.values(record?.outcomes || {}).some(Boolean)).length;
@@ -1015,6 +1019,8 @@ function chooseWonderFate(choice) {
   const def = wonderDef(); const record = wonderRecord();
   if (!def || !wonderReadyForDecision(record) || !remainingWonderChoices(record).includes(choice)) return false;
   record.outcomes[choice] = true;
+  record.outcomeDifficulty = record.outcomeDifficulty || {};
+  record.outcomeDifficulty[choice] = migrationChallengeCount();
   const rewardMultiplier = migrationRewardMultiplier();
   state.hope = (state.hope || 0) + rewardMultiplier;
   state.hopeEver = true;
@@ -1352,7 +1358,7 @@ function applyReclamation(cost) {
   if (!wonderChoice('ashfen', 'silence')) return;
   for (const resource of ['tools', 'steel', 'machinery', 'goods']) {
     if (!cost[resource]) continue;
-    state.res[resource] = Math.min(capacityOf(resource), state.res[resource] + cost[resource] * 0.10);
+    state.res[resource] = Math.min(capacityOf(resource), state.res[resource] + cost[resource] * 0.10 * wonderEffectScale('ashfen', 'silence'));
   }
 }
 
@@ -1955,7 +1961,7 @@ function moralePressures(foodRate = production(0.25).food) {
   add('foodStores', state.res.food <= 0.0001 ? 'Empty food stores' : foodRate < 0 ? 'Food production falling short' : 'Secure food stores', foodRateValue);
   add('season', season, season === 'Winter' ? -0.006 : season === 'Summer' ? 0.006 : 0);
   add('shrine', 'Shrines', bld('shrine') > 0 && state.morale < 75 ? 0.012 : 0, bld('shrine'));
-  add('farming', 'Farming', wonderChoice('floodmeadows', 'silence') ? 0.1 : 0);
+  add('farming', 'Farming', wonderChoice('floodmeadows', 'silence') ? 0.1 * wonderEffectScale('floodmeadows', 'silence') : 0);
   add('ranch', 'Ranches', bld('ranch') * 0.008, bld('ranch'));
   add('hospital', 'Hospitals', bld('hospital') > 0 && state.morale < 50 ? 0.01 : 0, bld('hospital'));
   add('performers', 'Performers', performerCount() * 0.10, performerCount());
@@ -2352,7 +2358,8 @@ function production(dt = 0.25, breakdown = null) {
           const workers = n / selectedRecipes.length;
           const recipeFactor = recipe.id === 'steel' && tech('lightningMetal') ? 1.5 : 1;
           const keepsToolWork = recipe.id === 'tools';
-          const rate = keepsToolWork ? job.base : recipe.rate * 0.5 * recipeFactor;
+          const factorySpeed = 0.5 * wonderEffectScale('grayrocks', 'silence');
+          const rate = keepsToolWork ? job.base : recipe.rate * factorySpeed * recipeFactor;
           const recipeInputs = keepsToolWork ? job.inputs : recipe.inputs;
           const effectiveInputs = inputCosts(recipeInputs, 'tinkerer', workers);
           let fraction = 1;
@@ -2362,7 +2369,7 @@ function production(dt = 0.25, breakdown = null) {
               ? Math.min(1, Math.max(0, capacityOf(recipe.id) - state.res[recipe.id] - Math.max(0, rates[recipe.id]) * dt) / (output * dt))
               : 0;
             for (const r in effectiveInputs) {
-              const inputRate = workers * (keepsToolWork ? effectiveInputs[r] : effectiveInputs[r] * 0.5 * recipeFactor);
+              const inputRate = workers * (keepsToolWork ? effectiveInputs[r] : effectiveInputs[r] * factorySpeed * recipeFactor);
               const available = Math.max(0, state.res[r] + Math.min(0, rates[r]) * dt);
               fraction = Math.min(fraction, inputRate > 0 ? available / (inputRate * dt) : 1);
             }
@@ -2414,7 +2421,8 @@ function production(dt = 0.25, breakdown = null) {
   const ranchers = state.jobs.rancher || 0;
   if (ranchers > 0) add('fur', `Ranchers: ${ranchers} × 0.035/s`, ranchers * 0.035);
   if (wonderChoice('windmere', 'silence') && explorerCount() > 0) {
-    add('knowledge', `Explorers documenting discoveries: ${explorerCount()} × 0.06/s`, explorerCount() * 0.06);
+    const rate = 0.06 * wonderEffectScale('windmere', 'silence');
+    add('knowledge', `Explorers documenting discoveries: ${explorerCount()} × ${rate.toFixed(3)}/s`, explorerCount() * rate);
   }
   const localIds = localTribeIds();
   if (tradeAvailable()) add('currency', `Trade with ${localIds.map(id => tribeDef(id).name).join(' and ')}`, 0.05 * localIds.length);
@@ -2462,7 +2470,7 @@ function production(dt = 0.25, breakdown = null) {
     ['Forager Lodges', 1 + 0.10 * bld('foragerLodge')], ['Aqueducts', 1 + 0.20 * bld('aqueduct')],
     ['Echoes of Harvest', 1 + 0.01 * upg('echoesOfHarvest')],
     ['Scarcity completions', 1 + 0.10 * trialCount('scarcity')], ['Scarcity trial', trialActive('scarcity') ? trialDifficulty('scarcity') : 1],
-    ['Restored River Crown', wonderChoice('floodmeadows', 'restore') ? 1.20 : 1]]);
+    ['Restored River Crown', wonderChoice('floodmeadows', 'restore') ? 1 + wonderEffectScale('floodmeadows', 'restore') : 1]]);
   for (const j in JOBS) {
     const job = JOBS[j], n = state.jobs[j] || 0;
     if (!n || job.targeted) continue;
@@ -2474,12 +2482,12 @@ function production(dt = 0.25, breakdown = null) {
     ['Echoes of Timber', 1 + 0.01 * upg('echoesOfTimber')],
     ['Tree Husbandry', tech('treeHusbandry') ? 1.20 : 1],
     ['Old Forest', expDone('oldForest') ? 1.15 : 1],
-    ['Restored Worldroot', wonderChoice('greenfold', 'restore') ? 1.25 : 1],
+    ['Restored Worldroot', wonderChoice('greenfold', 'restore') ? 1 + wonderEffectScale('greenfold', 'restore') : 1],
     ['Scarcity trial', trialActive('scarcity') ? scarcityWoodMultiplier() : 1]]);
   scale('stone', [...global, ['Stone Works', 1 + 0.10 * bld('stoneWorks')], ['Echoes of Stone', 1 + 0.01 * upg('echoesOfStone')], ['Foothills', expDone('foothills') ? 1.15 : 1]]);
   scale('knowledge', [...global, ['Libraries', 1 + 0.10 * bld('library')], ['Writing', tech('writing') ? 1.25 : 1],
     ['Sunken Ruins', expDone('sunkenRuins') ? 1.15 : 1], ['Oral Tradition', perm('oralTradition') ? 1.5 : 1],
-    ['Restored Mirrored Orrery', wonderChoice('windmere', 'restore') ? 1.20 : 1], ['Silence trial', trialActive('silence') ? 0 : 1]]);
+    ['Restored Mirrored Orrery', wonderChoice('windmere', 'restore') ? 1 + wonderEffectScale('windmere', 'restore') : 1], ['Silence trial', trialActive('silence') ? 0 : 1]]);
   // Ancestral Blessing is a flat bonus, so unrelated global production
   // multipliers (such as achievement completion) do not change its value.
   if (state.ancestralBlessing && !trialActive('silence')) add('knowledge', 'Smiling ancestors', 0.33);
@@ -2489,16 +2497,16 @@ function production(dt = 0.25, breakdown = null) {
   scale('copper', [...global, ['Copper Prospecting', tech('copperProspecting') ? 1.75 : 1],
     ['Metallurgy', tech('metallurgy') ? 2 : 1], ['Electrical Engineering', tech('electricalEngineering') ? 1.5 : 1]]);
   scale('aether', [...global, ['Glacial Peaks', expDone('glacialPeaks') ? 1.10 : 1],
-    ['Restored Mirrored Orrery', wonderChoice('windmere', 'restore') ? 1.20 : 1]]);
-  scale('coal', [...globalProductionFactors('coal'), ['Restored Renewal Basin', wonderChoice('ashfen', 'restore') ? 1.15 : 1]]);
-  scale('tools', [...global, ['Restored Renewal Basin', wonderChoice('ashfen', 'restore') ? 1.25 : 1]]);
+    ['Restored Mirrored Orrery', wonderChoice('windmere', 'restore') ? 1 + wonderEffectScale('windmere', 'restore') : 1]]);
+  scale('coal', [...globalProductionFactors('coal'), ['Restored Renewal Basin', wonderChoice('ashfen', 'restore') ? 1 + wonderEffectScale('ashfen', 'restore') : 1]]);
+  scale('tools', [...global, ['Restored Renewal Basin', wonderChoice('ashfen', 'restore') ? 1 + wonderEffectScale('ashfen', 'restore') : 1]]);
   scale('currency', global);
   if (trialActive('industrialization')) {
     scale('coal', [['Industrialization trial', INDUSTRIALIZATION_COAL_MULTIPLIER]]);
   }
 
   if (bld('steamPlant') > 0) {
-    const steamPower = POWER_PER_STEAM_PLANT + (wonderChoice('emberplain', 'silence') ? 1 : 0);
+    const steamPower = POWER_PER_STEAM_PLANT + (wonderChoice('emberplain', 'silence') ? wonderEffectScale('emberplain', 'silence') : 0);
     add('power', `Steam Plants: ${bld('steamPlant')} × ${steamPower} capacity`, bld('steamPlant') * steamPower);
     const steamCount = woodForCoalCount('steamPlant', bld('steamPlant'));
     const coalFuel = bld('steamPlant') - steamCount;
@@ -4215,6 +4223,9 @@ function normalizeSave(s) {
       record.obstacles = object(record.obstacles) ? Object.fromEntries(Object.entries(record.obstacles).filter(([index, built]) => /^[0-4]:[0-4]$/.test(index) && built === true)) : {};
       record.obstacleNotices = object(record.obstacleNotices) ? Object.fromEntries(Object.entries(record.obstacleNotices).filter(([index, noticed]) => /^[0-4]:[0-4]$/.test(index) && noticed === true)) : {};
       record.outcomes = object(record.outcomes) ? record.outcomes : {};
+      record.outcomeDifficulty = object(record.outcomeDifficulty) ? Object.fromEntries(
+        Object.entries(record.outcomeDifficulty).filter(([choice, count]) => ['restore', 'silence'].includes(choice) && Number.isInteger(count) && count >= 0 && count <= 4)
+      ) : {};
       return [id, record];
     }));
   if (!object(s.rapture)) s.rapture = { landing: null, workers: 0, tabSeen: false };
@@ -4440,12 +4451,12 @@ function lineageAccessCount() { return LINEAGES.filter(lineage => lineageUnlocke
 function steelHearted() { return !!state.achievements?.steelHearted; }
 
 const WONDER_ACHIEVEMENT_REWARDS = {
-  emberplain: { restore: 'Unlock Solar Arrays and soften extreme heat in future settlements.', silence: 'Steam Plants gain +1 Power capacity.', become: 'Gain 1 Ancient point.' },
+  emberplain: { restore: 'Unlock Solar Arrays and soften extreme heat in future settlements.', silence: 'Steam Plants gain 0.2–1 Power capacity based on challenge difficulty.', become: 'Gain 1 Ancient point.' },
   greenfold: { restore: 'Unlock Heartwood research for future settlements.', silence: 'Unlock Animal Husbandry and Ranches for future settlements.', become: 'Gain 1 Ancient point.' },
-  grayrocks: { restore: 'Unlock Living Alloy research for future settlements.', silence: 'Tinkerers can run factory recipes without Power at half speed.', become: 'Gain 1 Ancient point.' },
-  floodmeadows: { restore: 'River Crown power increases Food production by 20%.', silence: 'Foragers become Farmers and gain a Farming bonus.', become: 'Gain 1 Ancient point.' },
-  ashfen: { restore: 'Renewal Basin power increases Coal production by 15% and Tools by 25%.', silence: 'Recover 10% of factory-material construction costs.', become: 'Gain 1 Ancient point.' },
-  windmere: { restore: 'Mirrored Orrery power increases Knowledge and Aether production by 20%, and unlocks Star Glass research.', silence: 'Explorers generate additional Knowledge and document discoveries.', become: 'Gain 1 Ancient point.' },
+  grayrocks: { restore: 'Unlock Living Alloy research for future settlements.', silence: 'Tinkerers can run factory recipes without Power at 10–50% speed based on challenge difficulty.', become: 'Gain 1 Ancient point.' },
+  floodmeadows: { restore: 'River Crown power increases Food production by 20–100% based on challenge difficulty.', silence: 'Foragers become Farmers and gain a difficulty-scaled Farming bonus.', become: 'Gain 1 Ancient point.' },
+  ashfen: { restore: 'Renewal Basin power increases Coal and Tools production by 20–100% based on challenge difficulty.', silence: 'Recover 2–10% of factory-material construction costs based on challenge difficulty.', become: 'Gain 1 Ancient point.' },
+  windmere: { restore: 'Mirrored Orrery power increases Knowledge and Aether production by 20–100% based on challenge difficulty, and unlocks Star Glass research.', silence: 'Explorers generate difficulty-scaled additional Knowledge and document discoveries.', become: 'Gain 1 Ancient point.' },
   pallidExpanse: { restore: 'The White Engine stabilizes distance across future settlements.', silence: 'The White Engine is locked and no longer alters the roads.', become: 'Gain 1 Ancient point.' },
   glassMire: { restore: 'The Prism Womb makes carefully bounded new life possible.', silence: 'The Prism Womb is sealed before it can reproduce.', become: 'Gain 1 Ancient point.' },
   hollowCanopy: { restore: 'The Breath Archive preserves extinct voices in the living forest.', silence: 'The Breath Archive releases no more dead things into the world.', become: 'Gain 1 Ancient point.' },
@@ -4818,9 +4829,9 @@ function renderVillage() {
     const assignment = typeof job.max === 'function' || job.mining || j === 'astronomer' ? `${n}/${jobCapacity(j)}` : n;
     const tinkererFactory = j === 'tinkerer' && tinkererFactoryAvailable();
     const workRecipe = tinkererFactory ? factoryRecipe() : null;
-    const workRate = workRecipe ? workRecipe.id === 'tools' ? job.base : workRecipe.rate * 0.5 * (workRecipe.id === 'steel' && tech('lightningMetal') ? 1.5 : 1) : job.base;
+    const workRate = workRecipe ? workRecipe.id === 'tools' ? job.base : workRecipe.rate * 0.5 * wonderEffectScale('grayrocks', 'silence') * (workRecipe.id === 'steel' && tech('lightningMetal') ? 1.5 : 1) : job.base;
     const workResource = workRecipe ? workRecipe.id : job.res;
-    const workInputs = workRecipe ? workRecipe.id === 'tools' ? job.inputs : effectiveCoalInputs(Object.fromEntries(Object.entries(workRecipe.inputs).map(([r, amount]) => [r, amount * 0.5 * n])), 'tinkerer', n) : job.inputs;
+    const workInputs = workRecipe ? workRecipe.id === 'tools' ? job.inputs : effectiveCoalInputs(Object.fromEntries(Object.entries(workRecipe.inputs).map(([r, amount]) => [r, amount * 0.5 * wonderEffectScale('grayrocks', 'silence') * n])), 'tinkerer', n) : job.inputs;
     h += `<div class="job-row">` +
       `<span class="job-name has-tooltip" data-tooltip="${attrText(jobDescription(j))}">${jobName(j)}</span>` +
       `<span class="job-assign">${assignment}</span>` +
