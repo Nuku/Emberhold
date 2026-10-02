@@ -94,7 +94,7 @@ const STORAGE = {
   aluminum:  { base: 50,  per: 150, bld: 'aluminumWorks', bonus: { bld: 'removedStorage', per: 100 } },
   aether:    { base: 25,  per: 50,  bld: 'vault' },
   oil:       { base: 0,   per: 500, bld: 'deepStore' },
-  livingAlloy: { base: 50, per: 150, bld: 'alloyMine' },
+  livingAlloy: { base: 500, per: 150, bld: 'alloyMine', bonus: { bld: 'factory', per: 100 } },
   heartwood: { base: 50, per: 150, bld: 'heartwoodGrove' },
   starGlass: { base: 50, per: 150, bld: 'starLens' },
   fur: { base: 0, per: 1000, bld: 'ranch' },
@@ -447,6 +447,9 @@ const TECHS = [
   { id: 'aluminum', name: 'Aluminum', cost: 1500, materials: { steel: 140, machinery: 60, copper: 100 },
     desc: 'The Ancients spoke of metal surprisingly light. We have found how to tame it ourselves. Our projects are not as grand, but they have a use. Unlocks the Sky Metal Forge and Aluminum Workers.',
     req: () => tech('machineryTech') },
+  { id: 'livingManufacture', name: 'Living Manufacture', cost: 4500, materials: { steel: 220, machinery: 100, aluminum: 120 },
+    desc: 'This metal feels alive, but can bend to the needs we propose to it. Unlocks Living Alloy production in Factories after the World Anvil’s instructions have been preserved with Hope.',
+    req: () => tech('aluminum') && wonderUnlock('livingAlloy') },
   { id: 'airControl', name: 'Air Control', cost: 2600, materials: { aluminum: 80, steel: 200, machinery: 100 },
     desc: 'The sky is wide, but not empty. With enough Sky Metal and stone, we can make a place where machines may rise and return. Unlocks the multi-stage Air Control project.',
     req: () => tech('aluminum') },
@@ -717,6 +720,7 @@ const FACTORY_RECIPES = [
   { id: 'tools', name: 'Tools', rate: 0.08, inputs: { wood: 3.2 }, tech: 'craftsmanship', unlock: 'Craftsmanship' },
   { id: 'steel', name: 'Steel', rate: 0.04, inputs: { iron: 0.6, coal: 0.4 }, tech: 'metallurgy', unlock: 'Metallurgy' },
   { id: 'machinery', name: 'Machinery', rate: 0.02, inputs: { steel: 0.1, coal: 0.4 }, tech: 'machineryTech', unlock: 'Mechanism' },
+  { id: 'livingAlloy', name: 'Living Alloy', rate: 0.02, inputs: { aluminum: 0.2, goods: 0.04 }, tech: 'livingManufacture', unlock: 'Living Manufacture' },
 ];
 
 // --- crafting (instant conversions) ---

@@ -4,6 +4,7 @@ All notable changes to Emberhold are recorded here, with the newest changes firs
 
 ## 2026-10-02
 
+- Added Living Manufacture research, unlocked by preserving the World Anvil's instructions with Hope, and a Factory recipe for producing Living Alloy from Aluminum and Industrial Goods.
 - Expedition rewards now scale with their recorded challenge rating: ratings 1–4 grant 25%–100% of each reward.
 - Wonder fate rewards now scale with the migration challenge difficulty when each fate is chosen, including production bonuses and silenced Wonder effects; existing saves retain each fate's earned difficulty.
 
