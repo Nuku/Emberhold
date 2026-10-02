@@ -745,6 +745,11 @@ function expeditionCost(def) {
 function siteExpeditionsComplete() {
   return LANDINGS.filter(l => !l.postWaters).every(l => EXPEDITIONS.some(e => e.landing === l.id && expDone(e.id)));
 }
+function expeditionRewardScale(id) { return expeditionRating(id) / 4; }
+function siteExpeditionRewardScale() {
+  const sites = EXPEDITIONS.filter(e => e.landing && !LANDING_BY_ID.get(e.landing)?.postWaters);
+  return sites.length ? sites.reduce((sum, e) => sum + expeditionRewardScale(e.id), 0) / sites.length : 0;
+}
 function practicedMigratorAvailable() { return siteExpeditionsComplete(); }
 
 // ---------- Wonders ----------
@@ -1038,16 +1043,16 @@ function chooseWonderFate(choice) {
   updateAchievements([`wonder-${def.id}-${choice}`]);
   const cultivateLineage = def.id === 'glassMire' && choice === 'restore';
   if (cultivateLineage) beginCustomLineageDraft();
-  beginForcedWonderMigration(cultivateLineage);
+  beginForcedWonderMigration(cultivateLineage, [...(state.migrationChallenges || [])]);
   return true;
 }
-function beginForcedWonderMigration(waitForCustomLineage = false) {
+function beginForcedWonderMigration(waitForCustomLineage = false, difficultySettings = state.migrationChallenges || []) {
   // Forced Wonder migrations stay on the settled side of the great waters.
   // Post-waters biomes are a later progression tier and must be reached by
   // the player, not selected as a random destination.
   const compatible = LANDINGS.filter(landing => !landing.postWaters && lineageSelectable(state.species, landing.id));
   const choices = compatible.filter(landing => landing.id !== state.landing);
-  const challenges = [...(state.migrationChallenges || [])];
+  const challenges = [...difficultySettings];
   // A habitat specialist can occasionally have only one viable homeland. The
   // Wonder still forces the reset in that case; it simply carries them back
   // to the same country rather than producing an impossible landing choice.
@@ -1875,8 +1880,8 @@ function globalProductionFactors(resource = null) {
     }, 0)],
     ['United Region', state.unifiedRegion ? 1.15 : 1],
     ['Stored machinery', 1 + 0.002 * state.res.machinery],
-    ['Glacial Peaks', expDone('glacialPeaks') ? 1.10 : 1],
-    ['All six sites explored', siteExpeditionsComplete() ? 1.05 : 1],
+    ['Glacial Peaks', expDone('glacialPeaks') ? 1 + 0.10 * expeditionRewardScale('glacialPeaks') : 1],
+    ['All six sites explored', siteExpeditionsComplete() ? 1 + 0.05 * siteExpeditionRewardScale() : 1],
     ['Everwarm', perm('everwarm') ? 1.05 : 1],
     ['Deep Roots', 1 + 0.05 * upg('deepRoots')],
     ['Completion bonus', 1 + 0.0025 * achievementRatingTotal() * achievementPower],
@@ -1902,7 +1907,7 @@ function settlementProductionFactors(res, outgoing = false) {
   if (conquered && conqueredLineageMod(res) > 1) factors.push([`${conquered.name} (Commonality)`, conqueredLineageMod(res)]);
   for (const e of EXPEDITIONS) {
     const modifier = outgoing ? e.mods?.outgoing?.[res] : e.mods?.[res];
-    if (expDone(e.id) && modifier) factors.push([e.name, modifier]);
+    if (expDone(e.id) && modifier) factors.push([e.name, 1 + (modifier - 1) * expeditionRewardScale(e.id)]);
   }
   if (tech('civics')) {
     for (const def of [civicDef(state.policy), governorDef(state.governor), ...(state.council || []).map(councilorDef)]) {
@@ -1920,7 +1925,7 @@ function forgeProductionFactors() {
   const conquered = conqueredLineage();
   if (conquered && conqueredLineageMod('steel') > 1) factors.push([`${conquered.name} (Commonality)`, conqueredLineageMod('steel')]);
   for (const e of EXPEDITIONS) {
-    if (expDone(e.id) && e.mods?.forge) factors.push([`${e.name} (Forges)`, e.mods.forge]);
+    if (expDone(e.id) && e.mods?.forge) factors.push([`${e.name} (Forges)`, 1 + (e.mods.forge - 1) * expeditionRewardScale(e.id)]);
   }
   if (tech('civics')) {
     for (const def of [civicDef(state.policy), governorDef(state.governor), ...(state.council || []).map(councilorDef)]) {
@@ -2412,12 +2417,12 @@ function production(dt = 0.25, breakdown = null) {
     add('aluminum', `Foragers reclaiming Aluminum: ${state.jobs.forager} × 0.005/s`, state.jobs.forager * 0.005);
 
   // expedition passives
-  if (expDone('oldForest')) add('wood', 'Old Forest passive', 1.5);
-  if (expDone('foothills')) add('stone', 'Foothills passive', 1.0);
-  if (expDone('sunkenRuins')) add('knowledge', 'Sunken Ruins passive', 0.3);
+  if (expDone('oldForest')) add('wood', 'Old Forest passive', 1.5 * expeditionRewardScale('oldForest'));
+  if (expDone('foothills')) add('stone', 'Foothills passive', 1.0 * expeditionRewardScale('foothills'));
+  if (expDone('sunkenRuins')) add('knowledge', 'Sunken Ruins passive', 0.3 * expeditionRewardScale('sunkenRuins'));
   if (upg('journalOfOldTimes')) add('knowledge', 'Journal of Old Times', 0.2 * upg('journalOfOldTimes'));
-  if (expDone('emberVein')) add('coal', 'Ember Vein passive', 0.5);
-  if (expDone('glacialPeaks')) add('aether', 'Glacial Peaks passive', 0.1);
+  if (expDone('emberVein')) add('coal', 'Ember Vein passive', 0.5 * expeditionRewardScale('emberVein'));
+  if (expDone('glacialPeaks')) add('aether', 'Glacial Peaks passive', 0.1 * expeditionRewardScale('glacialPeaks'));
   const ranchers = state.jobs.rancher || 0;
   if (ranchers > 0) add('fur', `Ranchers: ${ranchers} × 0.035/s`, ranchers * 0.035);
   if (wonderChoice('windmere', 'silence') && explorerCount() > 0) {
@@ -2481,22 +2486,22 @@ function production(dt = 0.25, breakdown = null) {
   scale('wood', [...global, ['Lumber Yards', 1 + 0.10 * bld('lumberYard')],
     ['Echoes of Timber', 1 + 0.01 * upg('echoesOfTimber')],
     ['Tree Husbandry', tech('treeHusbandry') ? 1.20 : 1],
-    ['Old Forest', expDone('oldForest') ? 1.15 : 1],
+    ['Old Forest', expDone('oldForest') ? 1 + 0.15 * expeditionRewardScale('oldForest') : 1],
     ['Restored Worldroot', wonderChoice('greenfold', 'restore') ? 1 + wonderEffectScale('greenfold', 'restore') : 1],
     ['Scarcity trial', trialActive('scarcity') ? scarcityWoodMultiplier() : 1]]);
-  scale('stone', [...global, ['Stone Works', 1 + 0.10 * bld('stoneWorks')], ['Echoes of Stone', 1 + 0.01 * upg('echoesOfStone')], ['Foothills', expDone('foothills') ? 1.15 : 1]]);
+  scale('stone', [...global, ['Stone Works', 1 + 0.10 * bld('stoneWorks')], ['Echoes of Stone', 1 + 0.01 * upg('echoesOfStone')], ['Foothills', expDone('foothills') ? 1 + 0.15 * expeditionRewardScale('foothills') : 1]]);
   scale('knowledge', [...global, ['Libraries', 1 + 0.10 * bld('library')], ['Writing', tech('writing') ? 1.25 : 1],
-    ['Sunken Ruins', expDone('sunkenRuins') ? 1.15 : 1], ['Oral Tradition', perm('oralTradition') ? 1.5 : 1],
+    ['Sunken Ruins', expDone('sunkenRuins') ? 1 + 0.15 * expeditionRewardScale('sunkenRuins') : 1], ['Oral Tradition', perm('oralTradition') ? 1.5 : 1],
     ['Restored Mirrored Orrery', wonderChoice('windmere', 'restore') ? 1 + wonderEffectScale('windmere', 'restore') : 1], ['Silence trial', trialActive('silence') ? 0 : 1]]);
   // Ancestral Blessing is a flat bonus, so unrelated global production
   // multipliers (such as achievement completion) do not change its value.
   if (state.ancestralBlessing && !trialActive('silence')) add('knowledge', 'Smiling ancestors', 0.33);
   const ironForges = Math.min(buildingPowerCount('forge'), Math.floor(state.forgeIron || 0));
-  scale('iron', [...global, ['Ember Vein', expDone('emberVein') ? 1.10 : 1]]);
+  scale('iron', [...global, ['Ember Vein', expDone('emberVein') ? 1 + 0.10 * expeditionRewardScale('emberVein') : 1]]);
   scaleIncome('iron', [['Iron Forges', 1 + 0.15 * ironForges]]);
   scale('copper', [...global, ['Copper Prospecting', tech('copperProspecting') ? 1.75 : 1],
     ['Metallurgy', tech('metallurgy') ? 2 : 1], ['Electrical Engineering', tech('electricalEngineering') ? 1.5 : 1]]);
-  scale('aether', [...global, ['Glacial Peaks', expDone('glacialPeaks') ? 1.10 : 1],
+  scale('aether', [...global, ['Glacial Peaks', expDone('glacialPeaks') ? 1 + 0.10 * expeditionRewardScale('glacialPeaks') : 1],
     ['Restored Mirrored Orrery', wonderChoice('windmere', 'restore') ? 1 + wonderEffectScale('windmere', 'restore') : 1]]);
   scale('coal', [...globalProductionFactors('coal'), ['Restored Renewal Basin', wonderChoice('ashfen', 'restore') ? 1 + wonderEffectScale('ashfen', 'restore') : 1]]);
   scale('tools', [...global, ['Restored Renewal Basin', wonderChoice('ashfen', 'restore') ? 1 + wonderEffectScale('ashfen', 'restore') : 1]]);
@@ -5266,7 +5271,7 @@ function renderWonder() {
 
 function renderExpeditions() {
   let h = '<h2 class="section">Expeditions — widen the world</h2>';
-  h += '<div class="res-note">Expedition discoveries endure. Site expeditions can be repeated on a harder challenge run to improve their recorded rating.</div>';
+  h += '<div class="res-note">Expedition discoveries endure. Rewards scale with their recorded challenge rating: rating 1 grants 25%, rising to 100% at rating 4. Site expeditions can be repeated on a harder challenge run to improve their recorded rating.</div>';
   if (beaconsLitCount() > 0) h += '<h2 class="section">Beacon hints</h2>' + renderWonderDiscovery();
   const sitesDone = EXPEDITIONS.filter(e => e.landing && !LANDING_BY_ID.get(e.landing)?.postWaters && expDone(e.id)).length;
   const expeditionLandings = LANDINGS.filter(landing => !landing.postWaters).length;
