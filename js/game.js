@@ -4825,7 +4825,7 @@ function drawSettlementGround(ctx, width, height, landing, now) {
   const season = seasonIndex();
   const seasonWash = [null, 'rgba(226,184,91,.08)', 'rgba(191,105,55,.17)', 'rgba(187,211,228,.22)'][season];
   const seasonAccent = ['rgba(192,220,126,.62)', 'rgba(245,207,105,.72)', 'rgba(226,143,69,.78)', 'rgba(231,241,246,.82)'][season];
-  const top = Math.floor(height * 0.62);
+  const top = 0;
   const phase = now / 1100;
   const hash = (x, y) => {
     const value = Math.sin(x * 127.1 + y * 311.7 + landing.length * 74.7) * 43758.5453;
