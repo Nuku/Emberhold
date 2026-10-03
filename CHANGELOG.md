@@ -4,6 +4,7 @@ All notable changes to Emberhold are recorded here, with the newest changes firs
 
 ## 2026-10-03
 
+- Added softly animated, location-specific ground textures beneath the wandering villagers, from Greenfold grass to Grayrocks stone.
 - Added curled, pointed tails to mephit villagers.
 - Added animated, lineage-colored pixel villagers wandering across the settlement header; their number follows the population and each lineage has a distinct palette and identifying features.
 - Refined villagers with a finer pixel grid and added upright, detailed rabbit ears.

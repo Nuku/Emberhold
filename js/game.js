@@ -4803,6 +4803,58 @@ function drawLineagePixelPerson(ctx, x, y, id, step, hue) {
   if (bird) { detail(3, 8, coat); detail(4, 10, shade); detail(12, 8, coat); }
 }
 
+const SETTLEMENT_GROUND = {
+  emberplain: { colors: ['rgba(171,119,60,.18)', 'rgba(222,169,92,.24)'], kind: 'dry' },
+  greenfold: { colors: ['rgba(65,119,61,.19)', 'rgba(145,186,89,.26)'], kind: 'grass' },
+  grayrocks: { colors: ['rgba(111,119,125,.22)', 'rgba(183,190,191,.28)'], kind: 'rock' },
+  floodmeadows: { colors: ['rgba(73,132,111,.2)', 'rgba(163,201,139,.26)'], kind: 'reed' },
+  ashfen: { colors: ['rgba(100,87,75,.22)', 'rgba(202,120,65,.24)'], kind: 'ember' },
+  windmere: { colors: ['rgba(68,117,139,.2)', 'rgba(151,203,205,.24)'], kind: 'water' },
+  pallidExpanse: { colors: ['rgba(157,154,138,.18)', 'rgba(220,211,183,.25)'], kind: 'salt' },
+  glassMire: { colors: ['rgba(77,132,132,.2)', 'rgba(171,225,209,.26)'], kind: 'water' },
+  hollowCanopy: { colors: ['rgba(52,104,70,.2)', 'rgba(151,181,93,.26)'], kind: 'root' },
+  redChasm: { colors: ['rgba(132,62,48,.22)', 'rgba(226,112,65,.26)'], kind: 'ember' },
+  drownedMoon: { colors: ['rgba(60,83,110,.22)', 'rgba(142,174,207,.26)'], kind: 'water' },
+  boneOrchard: { colors: ['rgba(133,119,93,.2)', 'rgba(204,190,149,.26)'], kind: 'root' },
+  blackTidelands: { colors: ['rgba(63,87,78,.22)', 'rgba(147,180,151,.25)'], kind: 'water' },
+  singingCrater: { colors: ['rgba(104,92,96,.22)', 'rgba(191,149,121,.27)'], kind: 'rock' },
+};
+
+function drawSettlementGround(ctx, width, height, landing, now) {
+  const ground = SETTLEMENT_GROUND[landing] || SETTLEMENT_GROUND.emberplain;
+  const top = Math.floor(height * 0.62);
+  const phase = now / 1100;
+  const hash = (x, y) => {
+    const value = Math.sin(x * 127.1 + y * 311.7 + landing.length * 74.7) * 43758.5453;
+    return value - Math.floor(value);
+  };
+  ctx.fillStyle = ground.colors[0];
+  ctx.fillRect(0, top, width, height - top);
+  for (let x = -12; x < width + 12; x += 18) {
+    for (let y = top + 4; y < height; y += 13) {
+      const variation = hash(x, y);
+      const drift = ground.kind === 'water' ? Math.sin(phase + x * 0.035 + y) * 2 : Math.sin(phase * 0.55 + x * 0.04 + y) * 0.7;
+      const px = Math.round(x + variation * 10 + drift);
+      const py = Math.round(y + hash(y, x) * 5);
+      ctx.fillStyle = variation > 0.56 ? ground.colors[1] : ground.colors[0];
+      if (ground.kind === 'grass' || ground.kind === 'reed') {
+        ctx.fillRect(px, py, 2, 4 + Math.floor(variation * 3));
+        if (variation > 0.7) ctx.fillRect(px - 2, py + 2, 2, 3);
+      } else if (ground.kind === 'water') {
+        ctx.fillRect(px, py, 7 + Math.floor(variation * 7), 1);
+      } else if (ground.kind === 'root') {
+        ctx.fillRect(px, py, 8 + Math.floor(variation * 7), 2);
+        if (variation > 0.72) ctx.fillRect(px + 4, py - 3, 2, 4);
+      } else if (ground.kind === 'ember') {
+        ctx.fillRect(px, py, 5 + Math.floor(variation * 5), 2);
+        if (variation > 0.8) ctx.fillRect(px + 3, py - 2, 2, 3);
+      } else {
+        ctx.fillRect(px, py, 3 + Math.floor(variation * 5), 2 + Math.floor(variation * 2));
+      }
+    }
+  }
+}
+
 function renderLineageWanderers(now = 0) {
   const canvas = document.getElementById('lineage-wanderers');
   if (!canvas || !state) return;
@@ -4848,6 +4900,7 @@ function renderLineageWanderers(now = 0) {
   if (!ctx) return;
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   ctx.clearRect(0, 0, width, height);
+  drawSettlementGround(ctx, width, height, state.landing, now);
   const hue = lineageSpriteHue(appearance);
   const seconds = now && lineageWandererLastFrame
     ? Math.min(0.08, Math.max(0, (now - lineageWandererLastFrame) / 1000))
