@@ -4767,6 +4767,10 @@ function drawLineagePixelPerson(ctx, x, y, id, step, hue) {
   const tail = id.includes('fox') || id.includes('wolf') || id.includes('squirrel') || id.includes('otter') || id.includes('lynx') || id.includes('raccoon') || id.includes('beaver');
   // Every lineage gets its own palette, with silhouette details for its kind.
   if (tail) { put(-1, 7, shade); put(-2, 6, shade); put(-2, 5, coat); }
+  if (id.includes('mephit')) {
+    put(-1, 7, shade); put(-2, 6, shade); put(-3, 5, shade); put(-4, 4, shade);
+    put(-5, 3, shade, 2); put(-5, 2, dark); put(-6, 3, dark); put(-5, 4, dark);
+  }
   if (bird) { put(1, 3, shade, 2); put(0, 2, coat); put(7, 3, shade, 2); put(9, 2, coat); }
   if (aquatic) { put(1, 3, `hsl(${(hue + 175) % 360} 55% 62%)`); put(8, 4, `hsl(${(hue + 175) % 360} 55% 62%)`); }
   if (id.includes('axolotl')) { put(1, 1, '#f28aa0'); put(2, 0, '#f28aa0'); put(8, 1, '#f28aa0'); put(7, 0, '#f28aa0'); }

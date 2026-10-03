@@ -1236,6 +1236,18 @@ test('rabbit villagers have long upright ears with finer inner-ear pixels', () =
   assert.ok(pixels.some(([x, y, width, height]) => x === 12 && y === 14 && width === 2 && height === 2));
 });
 
+test('mephit villagers have a curled tail with a pointed tip', () => {
+  const { run } = game();
+  const pixels = JSON.parse(run(`JSON.stringify((() => {
+    const rectangles = [];
+    const ctx = { fillStyle: '', fillRect: (...rect) => rectangles.push(rect) };
+    drawLineagePixelPerson(ctx, 0, 20, 'mephit', 0, 120);
+    return rectangles;
+  })())`));
+  assert.ok(pixels.some(([x, y, width, height]) => x === -15 && y === 29 && width === 6 && height === 3));
+  assert.ok(pixels.some(([x, y, width, height]) => x === -18 && y === 29 && width === 3 && height === 3));
+});
+
 test('20 animal lineages have reachable habitats and matching encounter and selection rules', () => {
   const { run } = game();
   const habitats = {
