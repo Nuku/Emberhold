@@ -4,7 +4,7 @@ All notable changes to Emberhold are recorded here, with the newest changes firs
 
 ## 2026-10-03
 
-- Added animated, lineage-colored pixel villagers wandering across the settlement header; their number follows the population.
+- Added animated, lineage-colored pixel villagers wandering across the settlement header; their number follows the population and each lineage has a distinct palette and identifying features.
 
 ## 2026-10-02
 

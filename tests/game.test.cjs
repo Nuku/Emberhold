@@ -1201,6 +1201,12 @@ test('Rabbitfolk population growth takes half the usual time', () => {
   assert.equal(run('popGrowthNeed()'), humanGrowth * 0.5);
 });
 
+test('lineage wanderers scale to fifteen and use a distinct palette for each lineage', () => {
+  const { run } = game();
+  assert.deepEqual([0, 1, 10, 11, 150, 300].map(pop => run(`lineageWandererCount(${pop})`)), [0, 1, 1, 2, 15, 15]);
+  assert.equal(run('new Set(LINEAGES.map(l => lineageSpriteHue(l.id))).size'), 30);
+});
+
 test('20 animal lineages have reachable habitats and matching encounter and selection rules', () => {
   const { run } = game();
   const habitats = {

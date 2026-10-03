@@ -4687,16 +4687,22 @@ function renderBonusTimer() {
 let lineageWanderers = [];
 let lineageWandererSize = { width: 0, height: 0 };
 let lineageWandererSpecies = '';
-let lineageWandererCount = -1;
+let lineageWandererTotal = -1;
 
 function lineageSpriteHue(id) {
+  const lineageIndex = LINEAGES.findIndex(lineage => lineage.id === id);
+  if (lineageIndex >= 0) return lineageIndex * 12;
   let hash = 2166136261;
   for (const char of id) hash = Math.imul(hash ^ char.charCodeAt(0), 16777619);
-  return (hash >>> 0) % 360;
+  return (hash >>> 0) / 0xffffffff * 360;
+}
+
+function lineageWandererCount(population) {
+  return population > 0 ? Math.min(15, Math.max(1, Math.ceil(population / 10))) : 0;
 }
 
 function drawLineagePixelPerson(ctx, x, y, id, step, hue) {
-  const pixel = 2;
+  const pixel = 3;
   const put = (col, row, color, width = 1, height = 1) => {
     ctx.fillStyle = color;
     ctx.fillRect(Math.round(x + col * pixel), Math.round(y + row * pixel), width * pixel, height * pixel);
@@ -4714,8 +4720,15 @@ function drawLineagePixelPerson(ctx, x, y, id, step, hue) {
   if (tail) { put(-1, 7, shade); put(-2, 6, shade); put(-2, 5, coat); }
   if (bird) { put(1, 3, shade, 2); put(0, 2, coat); put(7, 3, shade, 2); put(9, 2, coat); }
   if (aquatic) { put(1, 3, `hsl(${(hue + 175) % 360} 55% 62%)`); put(8, 4, `hsl(${(hue + 175) % 360} 55% 62%)`); }
+  if (id.includes('axolotl')) { put(1, 1, '#f28aa0'); put(2, 0, '#f28aa0'); put(8, 1, '#f28aa0'); put(7, 0, '#f28aa0'); }
+  if (id.includes('frog')) { put(3, 0, skin); put(6, 0, skin); put(3, 1, dark); put(6, 1, dark); }
   if (id.includes('turtle')) { put(3, 5, shade, 4, 4); put(4, 4, coat, 2); }
   if (bulky) { put(2, 6, coat, 6, 5); put(1, 7, shade); put(8, 7, shade); }
+  if (id.includes('deer') || id.includes('ibex') || id.includes('bison')) { put(3, -1, shade); put(2, -2, shade); put(7, -1, shade); put(8, -2, shade); }
+  if (id.includes('stonekin')) { put(3, 3, shade, 4, 2); put(4, 4, coat, 2); }
+  if (id.includes('mole')) { put(6, 3, skin, 2); put(8, 3, skin); }
+  if (id.includes('raccoon')) { put(3, 2, dark, 4); put(-3, 4, shade); }
+  if (id.includes('wolf') || id.includes('fox') || id.includes('lynx')) { put(6, 3, skin, 2); put(8, 3, skin); }
   put(3, 1, skin, 4, 3);
   if (ear) { put(3, 0, coat); put(6, 0, coat); put(2, 0, shade); put(7, 0, shade); }
   if (id.includes('mephit')) { put(3, 1, '#d5c79d', 4, 2); put(4, 2, dark); put(6, 2, dark); }
@@ -4745,13 +4758,13 @@ function renderLineageWanderers(now = 0) {
   }
   const id = state.species || 'human';
   const appearance = id === 'custom' ? (state.customLineage?.name || 'custom') : id;
-  const count = state.pop > 0 ? Math.min(15, Math.max(1, Math.ceil(state.pop / 10))) : 0;
-  if (appearance !== lineageWandererSpecies || count !== lineageWandererCount) {
+  const count = lineageWandererCount(state.pop);
+  if (appearance !== lineageWandererSpecies || count !== lineageWandererTotal) {
     lineageWandererSpecies = appearance;
-    lineageWandererCount = count;
+    lineageWandererTotal = count;
     while (lineageWanderers.length < count) {
       const i = lineageWanderers.length;
-      lineageWanderers.push({ x: -22 - i * 19, y: 12 + ((i * 37 + 23) % Math.max(24, height - 36)), vx: .14 + (i % 3) * .025, phase: i * 1.71 });
+      lineageWanderers.push({ x: -34 - i * 29, y: 12 + ((i * 53 + 23) % Math.max(24, height - 56)), vx: .45 + (i % 3) * .1, phase: i * 1.71 });
     }
     lineageWanderers.length = count;
   }
@@ -4764,8 +4777,8 @@ function renderLineageWanderers(now = 0) {
     const walker = lineageWanderers[i];
     if (now) {
       walker.x += walker.vx;
-      if (walker.x > width + 24 && walker.vx > 0) walker.vx = -(.12 + (i % 4) * .025);
-      if (walker.x < -24 && walker.vx < 0) walker.vx = .12 + (i % 4) * .025;
+      if (walker.x > width + 36 && walker.vx > 0) walker.vx = -(.4 + (i % 4) * .08);
+      if (walker.x < -36 && walker.vx < 0) walker.vx = .4 + (i % 4) * .08;
       walker.phase += .04;
       walker.y += Math.sin(walker.phase * .7) * .055;
     }
