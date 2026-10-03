@@ -2,6 +2,10 @@
 
 All notable changes to Emberhold are recorded here, with the newest changes first.
 
+## 2026-10-03
+
+- Added animated, lineage-colored pixel villagers wandering across the settlement header; their number follows the population.
+
 ## 2026-10-02
 
 - Added Living Manufacture research, unlocked by preserving the World Anvil's instructions with Hope, and a Factory recipe for producing Living Alloy from Aluminum and Industrial Goods.

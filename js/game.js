@@ -4683,6 +4683,97 @@ function renderBonusTimer() {
   timer.textContent = `2× speed · ${[hours, minutes, seconds % 60].map(n => String(n).padStart(2, '0')).join(':')}`;
 }
 
+// Tiny lineage-colored villagers drift through the header behind its text.
+let lineageWanderers = [];
+let lineageWandererSize = { width: 0, height: 0 };
+let lineageWandererSpecies = '';
+let lineageWandererCount = -1;
+
+function lineageSpriteHue(id) {
+  let hash = 2166136261;
+  for (const char of id) hash = Math.imul(hash ^ char.charCodeAt(0), 16777619);
+  return (hash >>> 0) % 360;
+}
+
+function drawLineagePixelPerson(ctx, x, y, id, step, hue) {
+  const pixel = 2;
+  const put = (col, row, color, width = 1, height = 1) => {
+    ctx.fillStyle = color;
+    ctx.fillRect(Math.round(x + col * pixel), Math.round(y + row * pixel), width * pixel, height * pixel);
+  };
+  const coat = `hsl(${hue} 54% 57%)`;
+  const shade = `hsl(${hue} 48% 34%)`;
+  const skin = `hsl(${(hue + 26) % 360} 48% 72%)`;
+  const dark = `hsl(${(hue + 12) % 360} 32% 20%)`;
+  const ear = id.includes('owl') || id.includes('lynx') || id.includes('rabbit') || id.includes('fox') || id.includes('wolf') || id.includes('cat') || id.includes('squirrel');
+  const bird = id.includes('sky') || id.includes('eagle') || id.includes('heron') || id.includes('owl');
+  const aquatic = id.includes('otter') || id.includes('carp') || id.includes('frog') || id.includes('axolotl') || id.includes('turtle');
+  const bulky = id.includes('bear') || id.includes('bison') || id.includes('stonekin');
+  const tail = id.includes('fox') || id.includes('wolf') || id.includes('squirrel') || id.includes('otter') || id.includes('lynx') || id.includes('raccoon') || id.includes('beaver');
+  // Every lineage gets its own palette, with silhouette details for its kind.
+  if (tail) { put(-1, 7, shade); put(-2, 6, shade); put(-2, 5, coat); }
+  if (bird) { put(1, 3, shade, 2); put(0, 2, coat); put(7, 3, shade, 2); put(9, 2, coat); }
+  if (aquatic) { put(1, 3, `hsl(${(hue + 175) % 360} 55% 62%)`); put(8, 4, `hsl(${(hue + 175) % 360} 55% 62%)`); }
+  if (id.includes('turtle')) { put(3, 5, shade, 4, 4); put(4, 4, coat, 2); }
+  if (bulky) { put(2, 6, coat, 6, 5); put(1, 7, shade); put(8, 7, shade); }
+  put(3, 1, skin, 4, 3);
+  if (ear) { put(3, 0, coat); put(6, 0, coat); put(2, 0, shade); put(7, 0, shade); }
+  if (id.includes('mephit')) { put(3, 1, '#d5c79d', 4, 2); put(4, 2, dark); put(6, 2, dark); }
+  else { put(4, 2, dark); put(6, 2, dark); }
+  put(3, 4, coat, 4, 4); put(2, 5, shade); put(7, 5, shade);
+  put(3, 8, dark); put(6, 8, dark);
+  put(3, 9, coat); put(6, 9, coat);
+  const walking = step ? 1 : 0;
+  put(3, 10, dark, 2, 3 - walking); put(6, 10 + walking, dark, 2, 3 - walking);
+  if (id.includes('clock')) { put(4, 5, '#edc65d'); put(5, 6, '#edc65d'); }
+  if (id.includes('glimmer')) { put(2, 4, '#a9f5e8'); put(8, 6, '#a9f5e8'); }
+  if (id.includes('thorn')) { put(2, 3, '#83bb61'); put(8, 3, '#83bb61'); }
+  if (id.includes('dune')) { put(3, 0, '#d9ad54', 4); }
+}
+
+function renderLineageWanderers(now = 0) {
+  const canvas = document.getElementById('lineage-wanderers');
+  if (!canvas || !state) return;
+  const rect = canvas.getBoundingClientRect();
+  const dpr = Math.min(window.devicePixelRatio || 1, 2);
+  const width = Math.max(1, Math.round(rect.width));
+  const height = Math.max(1, Math.round(rect.height));
+  if (width !== lineageWandererSize.width || height !== lineageWandererSize.height || canvas.width !== Math.round(width * dpr) || canvas.height !== Math.round(height * dpr)) {
+    lineageWandererSize = { width, height };
+    canvas.width = Math.round(width * dpr);
+    canvas.height = Math.round(height * dpr);
+  }
+  const id = state.species || 'human';
+  const appearance = id === 'custom' ? (state.customLineage?.name || 'custom') : id;
+  const count = state.pop > 0 ? Math.min(15, Math.max(1, Math.ceil(state.pop / 10))) : 0;
+  if (appearance !== lineageWandererSpecies || count !== lineageWandererCount) {
+    lineageWandererSpecies = appearance;
+    lineageWandererCount = count;
+    while (lineageWanderers.length < count) {
+      const i = lineageWanderers.length;
+      lineageWanderers.push({ x: -22 - i * 19, y: 12 + ((i * 37 + 23) % Math.max(24, height - 36)), vx: .14 + (i % 3) * .025, phase: i * 1.71 });
+    }
+    lineageWanderers.length = count;
+  }
+  const ctx = canvas.getContext('2d');
+  if (!ctx) return;
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.clearRect(0, 0, width, height);
+  const hue = lineageSpriteHue(appearance);
+  for (let i = 0; i < lineageWanderers.length; i++) {
+    const walker = lineageWanderers[i];
+    if (now) {
+      walker.x += walker.vx;
+      if (walker.x > width + 24 && walker.vx > 0) walker.vx = -(.12 + (i % 4) * .025);
+      if (walker.x < -24 && walker.vx < 0) walker.vx = .12 + (i % 4) * .025;
+      walker.phase += .04;
+      walker.y += Math.sin(walker.phase * .7) * .055;
+    }
+    drawLineagePixelPerson(ctx, walker.x, walker.y + Math.sin(walker.phase * 2) * 1.5, id, Math.floor(walker.phase * 2) % 2, (hue + i * 7) % 360);
+  }
+  requestAnimationFrame(renderLineageWanderers);
+}
+
 function renderHeader() {
   renderBonusTimer();
   const pauseButton = document.getElementById('btn-pause');
@@ -6290,6 +6381,7 @@ function boot() {
     }
   });
   render();
+  renderLineageWanderers();
 }
 
 boot();
