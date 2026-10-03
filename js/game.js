@@ -3125,27 +3125,6 @@ function migrationStoryText(text) {
 }
 
 function buildMigrationStory(source, destination, trialId) {
-  const entries = allLogEntries(source);
-  const lastArrival = entries.filter(entry => /The road ends at /.test(entry.t || ''))
-    .reduce((latest, entry) => Math.max(latest, entry.n || 0), 0);
-  const roundStart = Number(source.roundStartLogSequence) || lastArrival;
-  const events = entries
-    .filter(entry => (entry.n || 0) > roundStart && ['log-important', 'log-good', 'log-bad'].includes(entry.c))
-    .sort((a, b) => (a.n || 0) - (b.n || 0))
-    .map(entry => migrationStoryText(entry.t)).filter(Boolean);
-  const fateTitles = { restore: 'Restoration', silence: 'Silence', become: 'Transformation' };
-  const chosenFates = [];
-  for (const wonder of WONDERS) {
-    const record = source.wonders?.[wonder.id];
-    for (const choice of Object.keys(fateTitles)) {
-      const aftermath = migrationStoryText(wonder.aftermath?.[choice]);
-      if (record?.outcomes?.[choice] && aftermath && events.includes(aftermath)) {
-        chosenFates.push(`${wonder.name}: ${fateTitles[choice]}. ${aftermath}`);
-        const index = events.indexOf(aftermath);
-        if (index >= 0) events.splice(index, 1);
-      }
-    }
-  }
   const lineage = source.species === 'custom'
     ? (source.customLineage?.name || 'custom lineage') : (lineageDef(source.species)?.name || 'people');
   const oldPlace = LANDING_BY_ID.get(source.landing)?.name || 'their old home';
@@ -3154,10 +3133,6 @@ function buildMigrationStory(source, destination, trialId) {
   const paragraphs = [
     `After ${Math.floor(source.day || 0)} days, ${population} ${lineage} leave ${oldPlace} behind and set out for ${newPlace}${trialId ? `, bound by the ${TRIAL_BY_ID.get(trialId)?.name || 'trial'} oath` : ''}.`,
   ];
-  paragraphs.push(...chosenFates);
-  for (let index = 0; index < events.length; index += 2)
-    paragraphs.push(events.slice(index, index + 2).join(' '));
-  if (!events.length) paragraphs.push('The chronicle holds no other major events from this stretch of the road.');
   return {
     paragraphs,
     oldLanding: source.landing,
@@ -3190,42 +3165,12 @@ function drawMigrationSky(ctx, width, height, progress, now) {
   const fade = Math.max(0, Math.min(1, (progress - 0.38) / 0.45));
   if (!fade) return;
   const x = width * 0.73, y = height * 0.27, radius = Math.min(94, Math.max(48, height * 0.105));
+  if (!migrationMoonSprite.complete || !migrationMoonSprite.naturalWidth) return;
   ctx.save(); ctx.globalAlpha = baseAlpha * fade;
-  ctx.shadowColor = 'rgba(255,116,61,.72)'; ctx.shadowBlur = 30;
-  ctx.beginPath(); ctx.arc(x, y, radius, 0, Math.PI * 2);
-  const moon = ctx.createLinearGradient(x - radius, y - radius, x + radius, y + radius);
-  moon.addColorStop(0, '#f0dcad'); moon.addColorStop(0.68, '#c6a781'); moon.addColorStop(1, '#8b756b');
-  ctx.fillStyle = moon; ctx.fill(); ctx.shadowBlur = 0;
-  // A jagged cleft leaves the moon in two smoldering pieces, with roughly a third missing.
-  ctx.beginPath();
-  ctx.moveTo(x + radius * 0.48, y - radius * 1.2);
-  ctx.lineTo(x + radius * 0.26, y - radius * 0.62);
-  ctx.lineTo(x + radius * 0.52, y - radius * 0.24);
-  ctx.lineTo(x + radius * 0.27, y + radius * 0.08);
-  ctx.lineTo(x + radius * 0.52, y + radius * 0.39);
-  ctx.lineTo(x + radius * 0.22, y + radius * 0.68);
-  ctx.lineTo(x + radius * 0.5, y + radius * 1.2);
-  ctx.lineTo(x + radius * 1.25, y + radius * 1.2);
-  ctx.lineTo(x + radius * 1.25, y - radius * 1.2);
-  ctx.closePath(); ctx.fillStyle = '#29283b'; ctx.fill();
-  ctx.beginPath();
-  ctx.moveTo(x + radius * 0.63, y - radius * 0.48);
-  ctx.lineTo(x + radius * 0.83, y - radius * 0.7);
-  ctx.quadraticCurveTo(x + radius * 1.03, y, x + radius * 0.83, y + radius * 0.7);
-  ctx.lineTo(x + radius * 0.62, y + radius * 0.46);
-  ctx.lineTo(x + radius * 0.79, y + radius * 0.12);
-  ctx.lineTo(x + radius * 0.61, y - radius * 0.15);
-  ctx.lineTo(x + radius * 0.78, y - radius * 0.4);
-  ctx.closePath(); ctx.fillStyle = moon; ctx.fill();
-  ctx.strokeStyle = 'rgba(255,125,69,.8)'; ctx.lineWidth = 2; ctx.shadowColor = '#ff7547'; ctx.shadowBlur = 9; ctx.stroke(); ctx.shadowBlur = 0;
-  ctx.beginPath();
-  ctx.moveTo(x + radius * 0.49, y - radius * 1.03);
-  ctx.lineTo(x + radius * 0.31, y - radius * 0.61);
-  ctx.lineTo(x + radius * 0.55, y - radius * 0.25);
-  ctx.lineTo(x + radius * 0.31, y + radius * 0.08);
-  ctx.lineTo(x + radius * 0.56, y + radius * 0.39);
-  ctx.lineTo(x + radius * 0.29, y + radius * 0.66);
-  ctx.strokeStyle = '#ff7547'; ctx.lineWidth = 3; ctx.shadowColor = '#ff7547'; ctx.shadowBlur = 12; ctx.stroke();
+  const spriteHeight = radius * 2.18;
+  const spriteWidth = spriteHeight * migrationMoonSprite.naturalWidth / migrationMoonSprite.naturalHeight;
+  ctx.shadowColor = 'rgba(255,173,105,.42)'; ctx.shadowBlur = 20;
+  ctx.drawImage(migrationMoonSprite, x - spriteWidth * 0.5, y - spriteHeight * 0.5, spriteWidth, spriteHeight);
   ctx.restore();
 }
 
@@ -3376,6 +3321,8 @@ function finishMigrationTransition() {
 function setOut(trialId = null) {
   if (!state.migrating && !trialId) return;
   if (!trialId && state.migrationPreparation && !migrationPreparationComplete()) return;
+  const migrationLogSequence = Number(state.logSequence) || 0;
+  const previousAchievementRatings = { ...(state.achievements || {}) };
   if (!trialId) state.trialDifficultySettings = null;
   // A Wonder attempt belongs to the settlement being left. Its fate is
   // permanent history, but the active calamity and expedition progress must
@@ -3618,6 +3565,20 @@ function setOut(trialId = null) {
   if (state.era >= 2) achievementTriggers.push('stoneAge');
   if (state.era >= 5) achievementTriggers.push('beacon');
   updateAchievements(achievementTriggers);
+  if (transitionStory) {
+    const newlyEarned = ACHIEVEMENTS
+      .filter(achievement => achievementRating(achievement.id) > (Number(previousAchievementRatings[achievement.id]) || 0))
+      .map(achievement => `${achievement.name} (${CHALLENGE_RATING_NAMES[achievementRating(achievement.id)]})`);
+    if (newlyEarned.length)
+      transitionStory.paragraphs.splice(1, 0, `At the moment of departure, the people earned: ${newlyEarned.join(', ')}.`);
+    const migrationEvents = allLogEntries()
+      .filter(entry => (entry.n || 0) > migrationLogSequence && ['log-important', 'log-good', 'log-bad'].includes(entry.c))
+      .sort((a, b) => (a.n || 0) - (b.n || 0))
+      .map(entry => migrationStoryText(entry.t))
+      .filter(text => text && !/^Achievement completed:/.test(text));
+    for (let index = 0; index < migrationEvents.length; index += 2)
+      transitionStory.paragraphs.push(migrationEvents.slice(index, index + 2).join(' '));
+  }
   state.roundStartLogSequence = state.logSequence;
   if (transitionStory) startMigrationTransition(transitionStory);
 }
@@ -4961,6 +4922,8 @@ let lineageWandererSpecies = '';
 let lineageWandererTotal = -1;
 let lineageWandererLastFrame = 0;
 let activeMigrationTransition = null;
+const migrationMoonSprite = new Image();
+migrationMoonSprite.src = new URL('assets/migration-broken-moon.png', document.baseURI).href;
 
 function lineageSpriteHue(id) {
   const lineageIndex = LINEAGES.findIndex(lineage => lineage.id === id);
