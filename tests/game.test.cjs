@@ -1223,6 +1223,19 @@ test('lineage wanderers take independent paths and face the direction they walk'
   assert.equal(motion.facing, -1);
 });
 
+test('rabbit villagers have long upright ears with finer inner-ear pixels', () => {
+  const { run } = game();
+  const pixels = JSON.parse(run(`JSON.stringify((() => {
+    const rectangles = [];
+    const ctx = { fillStyle: '', fillRect: (...rect) => rectangles.push(rect) };
+    drawLineagePixelPerson(ctx, 0, 20, 'rabbitfolk', 0, 120);
+    return rectangles;
+  })())`));
+  assert.ok(pixels.some(([x, y, width, height]) => x === 12 && y === 11 && width === 3 && height === 9));
+  assert.ok(pixels.some(([x, y, width, height]) => x === 18 && y === 8 && width === 3 && height === 12));
+  assert.ok(pixels.some(([x, y, width, height]) => x === 12 && y === 14 && width === 2 && height === 2));
+});
+
 test('20 animal lineages have reachable habitats and matching encounter and selection rules', () => {
   const { run } = game();
   const habitats = {

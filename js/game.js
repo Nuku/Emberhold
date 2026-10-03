@@ -4708,7 +4708,8 @@ function lineageRandom(walker) {
 }
 
 function chooseLineageWanderTarget(walker, width, height, forceInside = false) {
-  const maxY = Math.max(8, height - 48);
+  const topInset = walker.topInset || 8;
+  const maxY = Math.max(topInset, height - 48);
   const outsideLeft = walker.x < -36;
   const outsideRight = walker.x > width + 36;
   if (outsideLeft) walker.targetX = 24 + lineageRandom(walker) * Math.min(180, Math.max(0, width - 54));
@@ -4719,8 +4720,8 @@ function chooseLineageWanderTarget(walker, width, height, forceInside = false) {
     const range = lineageRandom(walker) < 0.14 ? 420 : 90 + lineageRandom(walker) * 130;
     walker.targetX = Math.max(-44, Math.min(width + 44, walker.x + (lineageRandom(walker) - 0.5) * 2 * range));
   }
-  if (forceInside || lineageRandom(walker) < 0.18) walker.targetY = 8 + lineageRandom(walker) * Math.max(0, maxY - 8);
-  else walker.targetY = Math.max(8, Math.min(maxY, walker.y + (lineageRandom(walker) - 0.5) * 70));
+  if (forceInside || lineageRandom(walker) < 0.18) walker.targetY = topInset + lineageRandom(walker) * Math.max(0, maxY - topInset);
+  else walker.targetY = Math.max(topInset, Math.min(maxY, walker.y + (lineageRandom(walker) - 0.5) * 70));
   walker.speed = 22 + lineageRandom(walker) * 18;
 }
 
@@ -4745,10 +4746,15 @@ function advanceLineageWanderer(walker, seconds, width, height) {
 }
 
 function drawLineagePixelPerson(ctx, x, y, id, step, hue) {
-  const pixel = 3;
+  const pixel = 2;
+  const gridScale = 1.5; // Fine 15-by-20 grid; coarse marks retain the existing sprite footprint.
   const put = (col, row, color, width = 1, height = 1) => {
     ctx.fillStyle = color;
-    ctx.fillRect(Math.round(x + col * pixel), Math.round(y + row * pixel), width * pixel, height * pixel);
+    ctx.fillRect(Math.round(x + col * pixel * gridScale), Math.round(y + row * pixel * gridScale), width * pixel * gridScale, height * pixel * gridScale);
+  };
+  const detail = (col, row, color) => {
+    ctx.fillStyle = color;
+    ctx.fillRect(Math.round(x + col * pixel), Math.round(y + row * pixel), pixel, pixel);
   };
   const coat = `hsl(${hue} 54% 57%)`;
   const shade = `hsl(${hue} 48% 34%)`;
@@ -4773,7 +4779,10 @@ function drawLineagePixelPerson(ctx, x, y, id, step, hue) {
   if (id.includes('raccoon')) { put(3, 2, dark, 4); put(-3, 4, shade); }
   if (id.includes('wolf') || id.includes('fox') || id.includes('lynx')) { put(6, 3, skin, 2); put(8, 3, skin); }
   put(3, 1, skin, 4, 3);
-  if (ear) { put(3, 0, coat); put(6, 0, coat); put(2, 0, shade); put(7, 0, shade); }
+  if (id.includes('rabbit')) {
+    put(4, -3, coat, 1, 3); put(6, -4, coat, 1, 4);
+    detail(6, -3, '#e9b2ad'); detail(9, -4, '#e9b2ad'); detail(6, -1, '#e9b2ad'); detail(9, -2, '#e9b2ad');
+  } else if (ear) { put(3, 0, coat); put(6, 0, coat); put(2, 0, shade); put(7, 0, shade); }
   if (id.includes('mephit')) { put(3, 1, '#d5c79d', 4, 2); put(4, 2, dark); put(6, 2, dark); }
   else { put(4, 2, dark); put(6, 2, dark); }
   put(3, 4, coat, 4, 4); put(2, 5, shade); put(7, 5, shade);
@@ -4785,6 +4794,9 @@ function drawLineagePixelPerson(ctx, x, y, id, step, hue) {
   if (id.includes('glimmer')) { put(2, 4, '#a9f5e8'); put(8, 6, '#a9f5e8'); }
   if (id.includes('thorn')) { put(2, 3, '#83bb61'); put(8, 3, '#83bb61'); }
   if (id.includes('dune')) { put(3, 0, '#d9ad54', 4); }
+  detail(7, 3, '#f2ddbd'); detail(10, 3, '#f2ddbd');
+  if (id.includes('turtle')) { detail(7, 10, '#b4c97a'); detail(10, 13, '#b4c97a'); }
+  if (bird) { detail(3, 8, coat); detail(4, 10, shade); detail(12, 8, coat); }
 }
 
 function renderLineageWanderers(now = 0) {
@@ -4811,15 +4823,17 @@ function renderLineageWanderers(now = 0) {
       const walker = {
         seed,
         x: i === 0 ? -42 : 0,
+        topInset: id.includes('rabbit') ? 16 : 8,
         y: 8 + (i * 53 % Math.max(10, height - 56)),
         speed: 30, targetX: 0, targetY: 0, facing: i % 2 ? -1 : 1,
         walkCycle: 0, pause: 0,
       };
+      walker.y = walker.topInset + (i * 53 % Math.max(10, height - 48 - walker.topInset));
       if (i === 0) {
         chooseLineageWanderTarget(walker, width, height, true);
       } else {
         walker.x = lineageRandom(walker) * width;
-        walker.y = 8 + lineageRandom(walker) * Math.max(10, height - 56);
+        walker.y = walker.topInset + lineageRandom(walker) * Math.max(0, height - 48 - walker.topInset);
         chooseLineageWanderTarget(walker, width, height);
       }
       lineageWanderers.push(walker);
