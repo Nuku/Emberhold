@@ -4822,6 +4822,9 @@ const SETTLEMENT_GROUND = {
 
 function drawSettlementGround(ctx, width, height, landing, now) {
   const ground = SETTLEMENT_GROUND[landing] || SETTLEMENT_GROUND.emberplain;
+  const season = seasonIndex();
+  const seasonWash = [null, 'rgba(226,184,91,.08)', 'rgba(191,105,55,.17)', 'rgba(187,211,228,.22)'][season];
+  const seasonAccent = ['rgba(192,220,126,.62)', 'rgba(245,207,105,.72)', 'rgba(226,143,69,.78)', 'rgba(231,241,246,.82)'][season];
   const top = Math.floor(height * 0.62);
   const phase = now / 1100;
   const hash = (x, y) => {
@@ -4850,6 +4853,32 @@ function drawSettlementGround(ctx, width, height, landing, now) {
         if (variation > 0.8) ctx.fillRect(px + 3, py - 2, 2, 3);
       } else {
         ctx.fillRect(px, py, 3 + Math.floor(variation * 5), 2 + Math.floor(variation * 2));
+      }
+    }
+  }
+  if (seasonWash) {
+    ctx.fillStyle = seasonWash;
+    ctx.fillRect(0, top, width, height - top);
+  }
+  for (let x = 5; x < width; x += 29) {
+    for (let y = top + 8; y < height; y += 23) {
+      const variation = hash(x + 41, y - 17);
+      const drift = Math.sin(phase * 0.7 + x * 0.025 + y) * (season === 2 ? 3 : 1);
+      const px = Math.round(x + variation * 12 + drift);
+      const py = Math.round(y + variation * 5);
+      if (season === 1 && variation > 0.48) {
+        ctx.fillStyle = seasonAccent;
+        ctx.fillRect(px, py, 2, 2);
+        if (ground.kind === 'grass' || ground.kind === 'reed') ctx.fillRect(px - 1, py + 2, 1, 2);
+      } else if (season === 2 && variation > 0.32) {
+        ctx.fillStyle = seasonAccent;
+        ctx.fillRect(px, py, 4, 2);
+        ctx.fillRect(px + 1, py - 1, 2, 1);
+        ctx.fillRect(px + 3, py + 1, 2, 1);
+      } else if (season === 3 && variation > 0.2) {
+        ctx.fillStyle = seasonAccent;
+        ctx.fillRect(px, py, 3 + Math.floor(variation * 3), 1);
+        if (ground.kind === 'water' && variation > 0.72) ctx.fillRect(px + 2, py + 1, 4, 1);
       }
     }
   }
