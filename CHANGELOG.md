@@ -4,6 +4,7 @@ All notable changes to Emberhold are recorded here, with the newest changes firs
 
 ## 2026-10-03
 
+- Refreshed published stylesheet and script cache versions for the latest settlement updates.
 - Settlement ground now changes with the season: summer warmth, drifting autumn leaves, and winter frost overlay each location's terrain.
 - Added softly animated, location-specific ground textures beneath the wandering villagers, from Greenfold grass to Grayrocks stone.
 - Added curled, pointed tails to mephit villagers.
