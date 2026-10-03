@@ -4688,6 +4688,7 @@ let lineageWanderers = [];
 let lineageWandererSize = { width: 0, height: 0 };
 let lineageWandererSpecies = '';
 let lineageWandererTotal = -1;
+let lineageWandererLastFrame = 0;
 
 function lineageSpriteHue(id) {
   const lineageIndex = LINEAGES.findIndex(lineage => lineage.id === id);
@@ -4699,6 +4700,48 @@ function lineageSpriteHue(id) {
 
 function lineageWandererCount(population) {
   return population > 0 ? Math.min(15, Math.max(1, Math.ceil(population / 10))) : 0;
+}
+
+function lineageRandom(walker) {
+  walker.seed = (Math.imul(walker.seed, 1664525) + 1013904223) >>> 0;
+  return walker.seed / 4294967296;
+}
+
+function chooseLineageWanderTarget(walker, width, height, forceInside = false) {
+  const maxY = Math.max(8, height - 48);
+  const outsideLeft = walker.x < -36;
+  const outsideRight = walker.x > width + 36;
+  if (outsideLeft) walker.targetX = 24 + lineageRandom(walker) * Math.min(180, Math.max(0, width - 54));
+  else if (outsideRight) walker.targetX = width - 24 - lineageRandom(walker) * Math.min(180, Math.max(0, width - 54));
+  else if (forceInside) walker.targetX = Math.min(width - 30, 70 + lineageRandom(walker) * 300);
+  else if (lineageRandom(walker) < 0.12) walker.targetX = walker.x < width / 2 ? -44 : width + 44;
+  else {
+    const range = lineageRandom(walker) < 0.14 ? 420 : 90 + lineageRandom(walker) * 130;
+    walker.targetX = Math.max(-44, Math.min(width + 44, walker.x + (lineageRandom(walker) - 0.5) * 2 * range));
+  }
+  if (forceInside || lineageRandom(walker) < 0.18) walker.targetY = 8 + lineageRandom(walker) * Math.max(0, maxY - 8);
+  else walker.targetY = Math.max(8, Math.min(maxY, walker.y + (lineageRandom(walker) - 0.5) * 70));
+  walker.speed = 22 + lineageRandom(walker) * 18;
+}
+
+function advanceLineageWanderer(walker, seconds, width, height) {
+  if (walker.pause > 0) {
+    walker.pause -= seconds;
+    if (walker.pause <= 0) chooseLineageWanderTarget(walker, width, height);
+    return;
+  }
+  const dx = walker.targetX - walker.x;
+  const dy = walker.targetY - walker.y;
+  const distance = Math.hypot(dx, dy);
+  if (distance <= 3) {
+    walker.pause = 0.45 + lineageRandom(walker) * 1.8;
+    return;
+  }
+  const stride = Math.min(distance, walker.speed * seconds);
+  walker.facing = dx < 0 ? -1 : 1;
+  walker.x += dx / distance * stride;
+  walker.y += dy / distance * stride;
+  walker.walkCycle += stride / 5;
 }
 
 function drawLineagePixelPerson(ctx, x, y, id, step, hue) {
@@ -4764,7 +4807,22 @@ function renderLineageWanderers(now = 0) {
     lineageWandererTotal = count;
     while (lineageWanderers.length < count) {
       const i = lineageWanderers.length;
-      lineageWanderers.push({ x: -34 - i * 29, y: 12 + ((i * 53 + 23) % Math.max(24, height - 56)), vx: .45 + (i % 3) * .1, phase: i * 1.71 });
+      const seed = (Math.floor(lineageSpriteHue(appearance) * 1000000) + (i + 1) * 2654435761) >>> 0;
+      const walker = {
+        seed,
+        x: i === 0 ? -42 : 0,
+        y: 8 + (i * 53 % Math.max(10, height - 56)),
+        speed: 30, targetX: 0, targetY: 0, facing: i % 2 ? -1 : 1,
+        walkCycle: 0, pause: 0,
+      };
+      if (i === 0) {
+        chooseLineageWanderTarget(walker, width, height, true);
+      } else {
+        walker.x = lineageRandom(walker) * width;
+        walker.y = 8 + lineageRandom(walker) * Math.max(10, height - 56);
+        chooseLineageWanderTarget(walker, width, height);
+      }
+      lineageWanderers.push(walker);
     }
     lineageWanderers.length = count;
   }
@@ -4773,16 +4831,23 @@ function renderLineageWanderers(now = 0) {
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   ctx.clearRect(0, 0, width, height);
   const hue = lineageSpriteHue(appearance);
+  const seconds = now && lineageWandererLastFrame
+    ? Math.min(0.08, Math.max(0, (now - lineageWandererLastFrame) / 1000))
+    : 1 / 60;
+  lineageWandererLastFrame = now || lineageWandererLastFrame;
   for (let i = 0; i < lineageWanderers.length; i++) {
     const walker = lineageWanderers[i];
-    if (now) {
-      walker.x += walker.vx;
-      if (walker.x > width + 36 && walker.vx > 0) walker.vx = -(.4 + (i % 4) * .08);
-      if (walker.x < -36 && walker.vx < 0) walker.vx = .4 + (i % 4) * .08;
-      walker.phase += .04;
-      walker.y += Math.sin(walker.phase * .7) * .055;
+    if (now) advanceLineageWanderer(walker, seconds, width, height);
+    const bob = Math.sin(walker.walkCycle * 2) * 1.5;
+    if (walker.facing < 0) {
+      ctx.save();
+      ctx.translate(walker.x * 2 + 30, 0);
+      ctx.scale(-1, 1);
+      drawLineagePixelPerson(ctx, walker.x, walker.y + bob, id, Math.floor(walker.walkCycle) % 2, (hue + i * 7) % 360);
+      ctx.restore();
+    } else {
+      drawLineagePixelPerson(ctx, walker.x, walker.y + bob, id, Math.floor(walker.walkCycle) % 2, (hue + i * 7) % 360);
     }
-    drawLineagePixelPerson(ctx, walker.x, walker.y + Math.sin(walker.phase * 2) * 1.5, id, Math.floor(walker.phase * 2) % 2, (hue + i * 7) % 360);
   }
   requestAnimationFrame(renderLineageWanderers);
 }

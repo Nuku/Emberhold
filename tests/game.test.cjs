@@ -1207,6 +1207,22 @@ test('lineage wanderers scale to fifteen and use a distinct palette for each lin
   assert.equal(run('new Set(LINEAGES.map(l => lineageSpriteHue(l.id))).size'), 30);
 });
 
+test('lineage wanderers take independent paths and face the direction they walk', () => {
+  const { run } = game();
+  const motion = JSON.parse(run(`JSON.stringify((() => {
+    const a = { seed: 1, x: 20, y: 20, speed: 30, targetX: 0, targetY: 20, facing: 1, walkCycle: 0, pause: 0 };
+    const b = { seed: 2, x: 20, y: 20, speed: 30, targetX: 0, targetY: 20, facing: 1, walkCycle: 0, pause: 0 };
+    chooseLineageWanderTarget(a, 800, 100);
+    chooseLineageWanderTarget(b, 800, 100);
+    a.targetX = 0; a.targetY = 20;
+    advanceLineageWanderer(a, 0.25, 800, 100);
+    return { a: [a.targetX, a.targetY], b: [b.targetX, b.targetY], x: a.x, facing: a.facing };
+  })())`));
+  assert.notDeepEqual(motion.a, motion.b);
+  assert.ok(motion.x < 20);
+  assert.equal(motion.facing, -1);
+});
+
 test('20 animal lineages have reachable habitats and matching encounter and selection rules', () => {
   const { run } = game();
   const habitats = {
