@@ -5192,10 +5192,13 @@ function drawHeaderWeather(ctx, width, height, weather, now) {
     ctx.lineWidth = storm ? 1.4 : 1;
     ctx.globalAlpha = storm ? 0.88 : 0.72;
     for (let i = 0; i < count; i++) {
-      const x = noise(i + 201) * width;
-      const y = ((seconds * (storm ? 205 : 132) + noise(i + 401) * (height + 35)) % (height + 35)) - 18;
       const slant = storm ? 8 : 4;
-      ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x - slant, y + (storm ? 13 : 9)); ctx.stroke();
+      const dropLength = storm ? 13 : 9;
+      const fallDistance = seconds * (storm ? 205 : 132) + noise(i + 401) * (height + 35);
+      const y = (fallDistance % (height + 35)) - 18;
+      // Carry each streak sideways at the same slope as its drawn trail.
+      const x = ((noise(i + 201) * width - fallDistance * slant / dropLength) % width + width) % width;
+      ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x - slant, y + dropLength); ctx.stroke();
     }
     ctx.globalAlpha = 1;
     if (storm) {
