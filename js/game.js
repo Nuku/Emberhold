@@ -156,6 +156,7 @@ function defaultState() {
     armor: 0,
     migrating: false,
     migrationPreparation: false,
+    migrationTransition: null,
     projects: {},
     pendingEchoes: 0,
     pendingEchoMultiplier: 1,
@@ -173,6 +174,7 @@ function defaultState() {
     logs: Object.fromEntries(LOG_CATEGORIES.map(category => [category, []])),
     log: [],
     logSequence: 0,
+    roundStartLogSequence: 0,
   };
   s.res.food = 60;
   s.res.wood = 40;
@@ -3116,6 +3118,261 @@ function totalMigrationEchoes() {
   }, 0);
 }
 
+function migrationStoryText(text) {
+  return String(text || '').replace(/<[^>]*>/g, '').replace(/&nbsp;/g, ' ')
+    .replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>')
+    .replace(/&#39;|&apos;/g, "'").replace(/&quot;/g, '"').trim();
+}
+
+function buildMigrationStory(source, destination, trialId) {
+  const entries = allLogEntries(source);
+  const lastArrival = entries.filter(entry => /The road ends at /.test(entry.t || ''))
+    .reduce((latest, entry) => Math.max(latest, entry.n || 0), 0);
+  const roundStart = Number(source.roundStartLogSequence) || lastArrival;
+  const events = entries
+    .filter(entry => (entry.n || 0) > roundStart && ['log-important', 'log-good', 'log-bad'].includes(entry.c))
+    .sort((a, b) => (a.n || 0) - (b.n || 0))
+    .map(entry => migrationStoryText(entry.t)).filter(Boolean);
+  const fateTitles = { restore: 'Restoration', silence: 'Silence', become: 'Transformation' };
+  const chosenFates = [];
+  for (const wonder of WONDERS) {
+    const record = source.wonders?.[wonder.id];
+    for (const choice of Object.keys(fateTitles)) {
+      const aftermath = migrationStoryText(wonder.aftermath?.[choice]);
+      if (record?.outcomes?.[choice] && aftermath && events.includes(aftermath)) {
+        chosenFates.push(`${wonder.name}: ${fateTitles[choice]}. ${aftermath}`);
+        const index = events.indexOf(aftermath);
+        if (index >= 0) events.splice(index, 1);
+      }
+    }
+  }
+  const lineage = source.species === 'custom'
+    ? (source.customLineage?.name || 'custom lineage') : (lineageDef(source.species)?.name || 'people');
+  const oldPlace = LANDING_BY_ID.get(source.landing)?.name || 'their old home';
+  const newPlace = destination?.name || 'a new land';
+  const population = Math.max(0, Math.floor(source.pop || 0));
+  const paragraphs = [
+    `After ${Math.floor(source.day || 0)} days, ${population} ${lineage} leave ${oldPlace} behind and set out for ${newPlace}${trialId ? `, bound by the ${TRIAL_BY_ID.get(trialId)?.name || 'trial'} oath` : ''}.`,
+  ];
+  paragraphs.push(...chosenFates);
+  for (let index = 0; index < events.length; index += 2)
+    paragraphs.push(events.slice(index, index + 2).join(' '));
+  if (!events.length) paragraphs.push('The chronicle holds no other major events from this stretch of the road.');
+  return {
+    paragraphs,
+    oldLanding: source.landing,
+    newLanding: destination?.id || source.landing,
+    species: source.species === 'custom' ? (source.customLineage?.name || 'custom') : source.species,
+    customLineage: source.customLineage,
+    resumePaused: false,
+    walkers: lineageWanderers.map(walker => ({ x: walker.x, y: walker.y, facing: walker.facing, step: Math.floor(walker.walkCycle) % 2 })),
+    oldHeaderHeight: typeof document.getElementById === 'function'
+      ? Math.max(100, document.querySelector('header')?.getBoundingClientRect().height || 170) : 170,
+  };
+}
+
+function drawMigrationSky(ctx, width, height, progress, now) {
+  const baseAlpha = ctx.globalAlpha;
+  const sky = ctx.createLinearGradient(0, 0, 0, height);
+  sky.addColorStop(0, '#101223'); sky.addColorStop(0.52, '#262844'); sky.addColorStop(1, '#694b48');
+  ctx.fillStyle = sky;
+  ctx.fillRect(0, 0, width, height);
+  for (let index = 0; index < 90; index++) {
+    const x = ((index * 173.73 + 31) % 997) / 997 * width;
+    const y = ((index * 317.19 + 13) % 991) / 991 * height * 0.82;
+    const twinkle = 0.25 + (0.5 + 0.5 * Math.sin(now / 520 + index * 2.31)) * 0.75;
+    ctx.globalAlpha = baseAlpha * twinkle;
+    ctx.fillStyle = index % 7 === 0 ? '#ffd79a' : '#d5e6ff';
+    const radius = index % 13 === 0 ? 2 : 1;
+    ctx.fillRect(Math.round(x), Math.round(y), radius, radius);
+  }
+  ctx.globalAlpha = baseAlpha;
+  const fade = Math.max(0, Math.min(1, (progress - 0.38) / 0.45));
+  if (!fade) return;
+  const x = width * 0.73, y = height * 0.27, radius = Math.min(94, Math.max(48, height * 0.105));
+  ctx.save(); ctx.globalAlpha = baseAlpha * fade;
+  ctx.shadowColor = 'rgba(255,116,61,.72)'; ctx.shadowBlur = 30;
+  ctx.beginPath(); ctx.arc(x, y, radius, 0, Math.PI * 2);
+  const moon = ctx.createLinearGradient(x - radius, y - radius, x + radius, y + radius);
+  moon.addColorStop(0, '#f0dcad'); moon.addColorStop(0.68, '#c6a781'); moon.addColorStop(1, '#8b756b');
+  ctx.fillStyle = moon; ctx.fill(); ctx.shadowBlur = 0;
+  // A jagged cleft leaves the moon in two smoldering pieces, with roughly a third missing.
+  ctx.beginPath();
+  ctx.moveTo(x + radius * 0.48, y - radius * 1.2);
+  ctx.lineTo(x + radius * 0.26, y - radius * 0.62);
+  ctx.lineTo(x + radius * 0.52, y - radius * 0.24);
+  ctx.lineTo(x + radius * 0.27, y + radius * 0.08);
+  ctx.lineTo(x + radius * 0.52, y + radius * 0.39);
+  ctx.lineTo(x + radius * 0.22, y + radius * 0.68);
+  ctx.lineTo(x + radius * 0.5, y + radius * 1.2);
+  ctx.lineTo(x + radius * 1.25, y + radius * 1.2);
+  ctx.lineTo(x + radius * 1.25, y - radius * 1.2);
+  ctx.closePath(); ctx.fillStyle = '#29283b'; ctx.fill();
+  ctx.beginPath();
+  ctx.moveTo(x + radius * 0.63, y - radius * 0.48);
+  ctx.lineTo(x + radius * 0.83, y - radius * 0.7);
+  ctx.quadraticCurveTo(x + radius * 1.03, y, x + radius * 0.83, y + radius * 0.7);
+  ctx.lineTo(x + radius * 0.62, y + radius * 0.46);
+  ctx.lineTo(x + radius * 0.79, y + radius * 0.12);
+  ctx.lineTo(x + radius * 0.61, y - radius * 0.15);
+  ctx.lineTo(x + radius * 0.78, y - radius * 0.4);
+  ctx.closePath(); ctx.fillStyle = moon; ctx.fill();
+  ctx.strokeStyle = 'rgba(255,125,69,.8)'; ctx.lineWidth = 2; ctx.shadowColor = '#ff7547'; ctx.shadowBlur = 9; ctx.stroke(); ctx.shadowBlur = 0;
+  ctx.beginPath();
+  ctx.moveTo(x + radius * 0.49, y - radius * 1.03);
+  ctx.lineTo(x + radius * 0.31, y - radius * 0.61);
+  ctx.lineTo(x + radius * 0.55, y - radius * 0.25);
+  ctx.lineTo(x + radius * 0.31, y + radius * 0.08);
+  ctx.lineTo(x + radius * 0.56, y + radius * 0.39);
+  ctx.lineTo(x + radius * 0.29, y + radius * 0.66);
+  ctx.strokeStyle = '#ff7547'; ctx.lineWidth = 3; ctx.shadowColor = '#ff7547'; ctx.shadowBlur = 12; ctx.stroke();
+  ctx.restore();
+}
+
+function renderMigrationTransitionText() {
+  const story = activeMigrationTransition;
+  const content = document.getElementById('migration-transition-copy');
+  const prompt = document.getElementById('migration-transition-prompt');
+  if (!story || !content || !prompt) return;
+  while (content.children.length < story.revealed) {
+    const paragraph = document.createElement('p');
+    paragraph.textContent = story.paragraphs[content.children.length];
+    content.appendChild(paragraph);
+    requestAnimationFrame(() => paragraph.classList.add('shown'));
+  }
+  content.scrollTop = content.scrollHeight;
+  prompt.textContent = story.revealed < story.paragraphs.length ? 'Click to reveal the next part' : 'Click to continue to the new Emberhold';
+}
+
+function drawMigrationTransitionFrame(now) {
+  const story = activeMigrationTransition;
+  if (!story) return;
+  const root = document.getElementById('migration-transition');
+  const canvas = document.getElementById('migration-transition-scene');
+  const ctx = canvas?.getContext('2d');
+  if (!root || !canvas || !ctx) return;
+  const dpr = Math.min(window.devicePixelRatio || 1, 2);
+  const width = Math.max(1, window.innerWidth), height = Math.max(1, window.innerHeight);
+  if (canvas.width !== Math.round(width * dpr) || canvas.height !== Math.round(height * dpr)) {
+    canvas.width = Math.round(width * dpr); canvas.height = Math.round(height * dpr);
+  }
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  const elapsed = now - story.phaseStarted;
+  let progress = 1;
+  if (story.phase === 'rise') progress = Math.min(1, elapsed / 3600);
+  if (story.phase === 'descend') progress = Math.min(1, elapsed / 2800);
+  if (story.phase === 'rise') {
+    const expansion = Math.min(1, progress / 0.34);
+    const groundHeight = progress < 0.34
+      ? story.oldHeaderHeight + (height - story.oldHeaderHeight) * (expansion * expansion * (3 - 2 * expansion))
+      : height * Math.max(0, 1 - (progress - 0.34) / 0.66);
+    ctx.fillStyle = 'rgba(7,9,15,.56)'; ctx.fillRect(0, 0, width, height);
+    drawMigrationSky(ctx, width, height, Math.max(0, (progress - 0.34) / 0.66), now);
+    if (groundHeight > 1) drawSettlementGround(ctx, width, groundHeight, story.oldLanding, now);
+    // Retain the old villagers as the landscape first opens beneath them.
+    if (progress < 0.18) {
+      const heading = document.querySelector('header')?.getBoundingClientRect();
+      const offsetY = Math.max(0, heading?.top || 0);
+      story.walkers.forEach((walker, index) => {
+        const walkerY = offsetY + walker.y + Math.sin(now / 180 + index) * 1.3;
+        if (walker.facing < 0) {
+          ctx.save(); ctx.translate(walker.x * 2 + 30, 0); ctx.scale(-1, 1);
+        }
+        drawLineagePixelPerson(ctx, walker.x, walkerY, story.species, walker.step, (lineageSpriteHue(story.species) + index * 7) % 360);
+        if (walker.facing < 0) ctx.restore();
+      });
+    }
+    if (progress >= 1) {
+      story.phase = 'story'; story.phaseStarted = now; story.revealed = 0;
+      document.getElementById('migration-transition').classList.add('story-mode');
+      story.revealed = 1; renderMigrationTransitionText();
+      state.migrationTransition = { ...story, phaseStarted: undefined };
+      saveGame(true);
+    }
+  } else if (story.phase === 'story') {
+    drawMigrationSky(ctx, width, height, 1, now);
+  } else if (story.phase === 'descend') {
+    ctx.clearRect(0, 0, width, height);
+    if (progress < 0.48) {
+      drawMigrationSky(ctx, width, height, 1, now);
+      const reveal = progress / 0.48;
+      ctx.save(); ctx.translate(0, height * (1 - reveal));
+      drawSettlementGround(ctx, width, height * reveal, story.newLanding, now);
+      ctx.restore();
+    } else {
+      const settle = (progress - 0.48) / 0.52;
+      ctx.save(); ctx.globalAlpha = 1 - settle;
+      drawMigrationSky(ctx, width, height, 1, now);
+      ctx.restore();
+      ctx.save(); ctx.globalAlpha = settle;
+      const headerHeight = Math.max(100, document.querySelector('header')?.getBoundingClientRect().height || story.oldHeaderHeight);
+      drawSettlementGround(ctx, width, headerHeight, story.newLanding, now);
+      ctx.restore();
+    }
+    if (progress >= 1) finishMigrationTransition();
+  }
+  if (activeMigrationTransition) requestAnimationFrame(drawMigrationTransitionFrame);
+}
+
+function startMigrationTransition(paragraphs) {
+  const root = document.getElementById('migration-transition');
+  if (!root) return;
+  const resume = !!paragraphs.phase;
+  activeMigrationTransition = {
+    ...paragraphs,
+    phase: resume && ['rise', 'story', 'descend'].includes(paragraphs.phase) ? paragraphs.phase : 'rise',
+    phaseStarted: performance.now(),
+    revealed: Math.max(0, Math.min(paragraphs.paragraphs?.length || 0, Number(paragraphs.revealed) || 0)),
+  };
+  root.hidden = false;
+  root.classList.toggle('story-mode', activeMigrationTransition.phase === 'story');
+  root.classList.toggle('descending', activeMigrationTransition.phase === 'descend');
+  document.getElementById('migration-transition-copy')?.replaceChildren();
+  document.getElementById('migration-transition-prompt').textContent = '';
+  state.migrationTransition = { ...activeMigrationTransition, phaseStarted: undefined };
+  state.paused = true;
+  lastGameAt = Date.now(); state.savedAt = lastGameAt;
+  if (activeMigrationTransition.phase === 'story') renderMigrationTransitionText();
+  saveGame(true);
+  root.focus();
+  requestAnimationFrame(drawMigrationTransitionFrame);
+}
+
+function advanceMigrationTransition() {
+  const story = activeMigrationTransition;
+  if (!story || story.phase !== 'story') return;
+  if (story.revealed < story.paragraphs.length) {
+    story.revealed++;
+    renderMigrationTransitionText();
+    state.migrationTransition = { ...story, phaseStarted: undefined };
+    saveGame(true);
+    return;
+  }
+  story.phase = 'descend'; story.phaseStarted = performance.now();
+  state.migrationTransition = { ...story, phaseStarted: undefined };
+  document.getElementById('migration-transition').classList.add('descending');
+  saveGame(true);
+  document.getElementById('migration-transition').classList.remove('story-mode');
+}
+
+function finishMigrationTransition() {
+  const root = document.getElementById('migration-transition');
+  if (root) { root.hidden = true; root.classList.remove('descending'); }
+  const resumePaused = !!activeMigrationTransition?.resumePaused;
+  activeMigrationTransition = null;
+  state.migrationTransition = null;
+  state.paused = resumePaused;
+  lastGameAt = Date.now(); state.savedAt = lastGameAt;
+  addLog('Migration Complete. A new Emberhold takes root beneath unfamiliar stars.', 'log-important');
+  saveGame(true); render();
+  const toast = document.getElementById('migration-complete-toast');
+  if (toast) {
+    toast.hidden = false; toast.classList.remove('visible');
+    requestAnimationFrame(() => toast.classList.add('visible'));
+    setTimeout(() => { toast.classList.remove('visible'); setTimeout(() => { toast.hidden = true; }, 900); }, 4000);
+  }
+}
+
 function setOut(trialId = null) {
   if (!state.migrating && !trialId) return;
   if (!trialId && state.migrationPreparation && !migrationPreparationComplete()) return;
@@ -3155,6 +3412,8 @@ function setOut(trialId = null) {
   const up = { ...state.upgrades };
   const candidate = state.pendingSpecies || state.species;
   if (!trialId && !lineageSelectable(candidate, landing.id)) return;
+  const transitionStory = typeof document.getElementById === 'function'
+    ? buildMigrationStory(state, landing, trialId) : null;
   if (!trialId) {
     state.migrationChallengePending = true;
     updateAchievements();
@@ -3359,6 +3618,8 @@ function setOut(trialId = null) {
   if (state.era >= 2) achievementTriggers.push('stoneAge');
   if (state.era >= 5) achievementTriggers.push('beacon');
   updateAchievements(achievementTriggers);
+  state.roundStartLogSequence = state.logSequence;
+  if (transitionStory) startMigrationTransition(transitionStory);
 }
 
 const MIGRATION_CHALLENGES = [
@@ -4076,6 +4337,15 @@ function normalizeSave(s) {
       (Array.isArray(d[key]) ? !Array.isArray(s[key]) : object(d[key]) && !object(s[key]))))
       throw new Error(`Invalid ${key}`);
   }
+  if (s.migrationTransition !== null) {
+    const transition = s.migrationTransition;
+    if (!object(transition) || !Array.isArray(transition.paragraphs) ||
+        !['rise', 'story', 'descend'].includes(transition.phase) ||
+        transition.paragraphs.some(text => typeof text !== 'string')) throw new Error('Invalid migration transition');
+    transition.paragraphs = transition.paragraphs.slice(0, 100);
+    transition.revealed = Math.max(0, Math.min(transition.paragraphs.length, Math.floor(Number(transition.revealed) || 0)));
+    transition.walkers = Array.isArray(transition.walkers) ? transition.walkers.slice(0, 15) : [];
+  }
   s.customLineage = normalizeCustomLineage(s.customLineage);
   if (s.species === 'custom' && !s.customLineage) s.species = 'human';
   if (s.pendingSpecies === 'custom' && !s.customLineage) s.pendingSpecies = s.species;
@@ -4298,6 +4568,7 @@ function normalizeSave(s) {
       .slice(0, LOG_LIMIT_PER_CATEGORY);
   }
   s.logSequence = Math.max(Number.isFinite(s.logSequence) ? s.logSequence : 0, maxSequence);
+  s.roundStartLogSequence = Math.max(0, Math.min(s.logSequence, Math.floor(Number(s.roundStartLogSequence) || 0)));
   s.log = allLogEntries({ logs: s.logs });
   if (s.settings.woodForCoal === true) s.settings.woodForCoal = {
     steamPlant: s.bld.steamPlant || 0,
@@ -4689,6 +4960,7 @@ let lineageWandererSize = { width: 0, height: 0 };
 let lineageWandererSpecies = '';
 let lineageWandererTotal = -1;
 let lineageWandererLastFrame = 0;
+let activeMigrationTransition = null;
 
 function lineageSpriteHue(id) {
   const lineageIndex = LINEAGES.findIndex(lineage => lineage.id === id);
@@ -6545,6 +6817,13 @@ function boot() {
   document.getElementById('btn-import').addEventListener('click', importSave);
   document.querySelectorAll('#tabs .tab').forEach(b =>
     b.addEventListener('click', () => switchTab(b.dataset.tab)));
+  const migrationOverlay = document.getElementById('migration-transition');
+  migrationOverlay.addEventListener('click', advanceMigrationTransition);
+  migrationOverlay.addEventListener('keydown', event => {
+    if (event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault(); advanceMigrationTransition();
+    }
+  });
   loadLatestUpdatesTooltip();
 
   lastGameAt = Date.now();
@@ -6560,6 +6839,7 @@ function boot() {
   });
   render();
   renderLineageWanderers();
+  if (state.migrationTransition) startMigrationTransition(state.migrationTransition);
 }
 
 boot();
