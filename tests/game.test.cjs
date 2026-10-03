@@ -2682,15 +2682,13 @@ test('Wonder guards can save workers, wounded-only guards face doubled death wei
   assert.equal(run('solarPowerAvailable()'), true);
   assert.equal(run(`BUILDING_BY_ID.get('solarArray').req()`), true);
   assert.equal(run(`state.wonderUnlocks.livingAlloy === true`), false);
-  assert.equal(run(`TECHS.find(t => t.id === 'livingAlloy').req()`), false);
-  assert.equal(run(`BUILDING_BY_ID.get('alloyMine').req()`), false);
+  assert.equal(run(`TECHS.filter(t => t.id === 'livingAlloy').length`), 0);
+  assert.equal(run(`TECHS.find(t => t.id === 'livingManufacture').cost`), 100000);
   run(`state.migrating = true; state.hope = 4; state.wonders.grayrocks = { outcomes: { restore: true } }; buyWonderUnlock('livingAlloy'); state.techs.optics = true;`);
   assert.equal(run('state.hope'), 0);
   assert.equal(run(`state.wonderUnlocks.livingAlloy`), true);
-  assert.equal(run(`TECHS.find(t => t.id === 'livingAlloy').req()`), true);
-  assert.equal(run(`BUILDING_BY_ID.get('alloyMine').req()`), false);
-  run(`state.techs.livingAlloy = true`);
-  assert.equal(run(`BUILDING_BY_ID.get('alloyMine').req()`), true);
+  assert.equal(run(`BUILDING_BY_ID.has('alloyMine')`), false);
+  assert.equal(run(`Object.hasOwn(JOBS, 'alloyminer')`), false);
 });
 
 test('every Wonder fate doubles the migration Echoes reward', () => {

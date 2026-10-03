@@ -4,6 +4,7 @@ All notable changes to Emberhold are recorded here, with the newest changes firs
 
 ## 2026-10-03
 
+- Removed the Living Alloy Mine and miner; Living Alloy is now produced only through Factory recipes, with higher-cost Living Manufacture research.
 - Refreshed published stylesheet and script cache versions for the latest settlement updates.
 - Extended the seasonal, location-specific settlement ground across the full header.
 - Settlement ground now changes with the season: summer warmth, drifting autumn leaves, and winter frost overlay each location's terrain.

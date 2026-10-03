@@ -3630,7 +3630,7 @@ function doBuild(id) {
   const previousCount = bld(id);
   const previousEnabled = state.buildingPower[id];
   state.bld[id] = previousCount + 1;
-  const discoveredResource = { alloyMine: 'livingAlloy', heartwoodGrove: 'heartwood', starLens: 'starGlass', ranch: 'fur', blackGoldDrill: 'oil' }[id];
+  const discoveredResource = { heartwoodGrove: 'heartwood', starLens: 'starGlass', ranch: 'fur', blackGoldDrill: 'oil' }[id];
   if (discoveredResource) state.seen[discoveredResource] = true;
   // A new copy joins the allocation only when every existing copy was on.
   // Partial or fully disabled allocations remain the player's choice.
