@@ -5156,6 +5156,101 @@ function drawSettlementGround(ctx, width, height, landing, now) {
   }
 }
 
+function drawHeaderWeather(ctx, width, height, weather, now) {
+  if (!weather) return;
+  const seconds = now / 1000;
+  const noise = index => {
+    const value = Math.sin(index * 127.1 + 311.7) * 43758.5453;
+    return value - Math.floor(value);
+  };
+  ctx.save();
+  ctx.beginPath(); ctx.rect(0, 0, width, height); ctx.clip();
+
+  if (weather.id === 'clear') {
+    const glow = ctx.createRadialGradient(width * 0.83, 0, 2, width * 0.83, 0, height * 1.1);
+    glow.addColorStop(0, 'rgba(255,218,143,.12)'); glow.addColorStop(1, 'rgba(255,218,143,0)');
+    ctx.fillStyle = glow; ctx.fillRect(0, 0, width, height);
+    ctx.globalAlpha = 0.28;
+    for (let i = 0; i < 5; i++) {
+      const x = (noise(i + 3) * width + seconds * (4 + i)) % width;
+      const y = 8 + noise(i + 31) * Math.max(1, height - 16);
+      ctx.fillStyle = '#ffe3aa'; ctx.fillRect(x, y, 2, 2);
+    }
+    ctx.globalAlpha = 1;
+  } else if (weather.id === 'cloudy') {
+    ctx.fillStyle = 'rgba(187,198,208,.12)';
+    for (let i = 0; i < 5; i++) {
+      const cloudWidth = 72 + noise(i + 11) * 105;
+      const x = ((noise(i + 71) * (width + cloudWidth) + seconds * (5 + i * 1.5)) % (width + cloudWidth)) - cloudWidth;
+      const y = 4 + noise(i + 93) * height * 0.38;
+      ctx.beginPath(); ctx.ellipse(x, y, cloudWidth * 0.5, 6 + noise(i + 18) * 5, 0, 0, Math.PI * 2); ctx.fill();
+    }
+  } else if (weather.id === 'rain' || weather.id === 'storm') {
+    const storm = weather.id === 'storm';
+    const count = Math.max(24, Math.floor(width / (storm ? 9 : 15)));
+    ctx.strokeStyle = storm ? 'rgba(177,205,235,.54)' : 'rgba(146,195,224,.44)';
+    ctx.lineWidth = storm ? 1.4 : 1;
+    ctx.globalAlpha = storm ? 0.88 : 0.72;
+    for (let i = 0; i < count; i++) {
+      const x = noise(i + 201) * width;
+      const y = ((seconds * (storm ? 205 : 132) + noise(i + 401) * (height + 35)) % (height + 35)) - 18;
+      const slant = storm ? 8 : 4;
+      ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x - slant, y + (storm ? 13 : 9)); ctx.stroke();
+    }
+    ctx.globalAlpha = 1;
+    if (storm) {
+      const flash = Math.max(0, Math.sin(seconds * 0.41 + 1.2) - 0.985) * 18;
+      if (flash > 0) { ctx.fillStyle = `rgba(202,220,255,${flash})`; ctx.fillRect(0, 0, width, height); }
+    }
+  } else if (weather.id === 'fog') {
+    for (let i = 0; i < 4; i++) {
+      const y = height * (0.24 + i * 0.19) + Math.sin(seconds * 0.45 + i) * 5;
+      const drift = ((seconds * (7 + i * 2) + i * width * 0.37) % (width + 160)) - 80;
+      const haze = ctx.createLinearGradient(drift - 110, y, drift + 110, y);
+      haze.addColorStop(0, 'rgba(208,220,222,0)'); haze.addColorStop(0.5, 'rgba(208,220,222,.2)'); haze.addColorStop(1, 'rgba(208,220,222,0)');
+      ctx.strokeStyle = haze; ctx.lineWidth = 9 + i * 2; ctx.beginPath();
+      ctx.moveTo(drift - 110, y); ctx.bezierCurveTo(drift - 45, y - 7, drift + 40, y + 7, drift + 110, y); ctx.stroke();
+    }
+  } else if (weather.id === 'aurora') {
+    const colors = ['rgba(116,246,190,.42)', 'rgba(99,211,232,.34)', 'rgba(186,132,255,.3)'];
+    for (let band = 0; band < colors.length; band++) {
+      ctx.strokeStyle = colors[band]; ctx.lineWidth = 3 + band;
+      ctx.beginPath();
+      for (let x = -8; x <= width + 8; x += 8) {
+        const y = height * (0.16 + band * 0.13) + Math.sin(x * 0.013 + seconds * (0.6 + band * 0.16)) * (8 + band * 3) + Math.sin(x * 0.031 - seconds * 0.3) * 3;
+        if (x === -8) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+      }
+      ctx.stroke();
+    }
+  }
+
+  if (weather.temperature >= 18) {
+    const intensity = Math.min(0.36, 0.12 + Math.max(0, weather.temperature - 22) * 0.018);
+    ctx.strokeStyle = `rgba(255,190,111,${intensity})`; ctx.lineWidth = weather.temperature >= 30 ? 1.5 : 1;
+    for (let band = 0; band < (weather.temperature >= 30 ? 7 : 3); band++) {
+      const baseY = height * (0.56 + band * 0.075) + Math.sin(seconds * 0.75 + band) * 2;
+      ctx.beginPath();
+      for (let x = -4; x <= width + 4; x += 7) {
+        const y = baseY + Math.sin(x * 0.026 + seconds * 1.3 + band * 1.7) * (weather.temperature >= 30 ? 2.4 : 1.2);
+        if (x === -4) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+      }
+      ctx.stroke();
+    }
+  } else if (weather.temperature < 8) {
+    const freezing = weather.temperature <= 0;
+    const count = freezing ? Math.max(16, Math.floor(width / 12)) : Math.max(8, Math.floor(width / 30));
+    ctx.fillStyle = freezing ? 'rgba(221,239,255,.78)' : 'rgba(205,225,239,.5)';
+    for (let i = 0; i < count; i++) {
+      const x = (noise(i + 801) * width + Math.sin(seconds * 0.7 + i) * 8) % width;
+      const y = (seconds * (freezing ? 22 : 10) + noise(i + 901) * height) % height;
+      const size = freezing ? 2 : 1;
+      ctx.fillRect(x, y, size, size);
+      if (freezing && i % 4 === 0) ctx.fillRect(x - 1, y + 1, size + 2, 1);
+    }
+  }
+  ctx.restore();
+}
+
 function renderLineageWanderers(now = 0) {
   const canvas = document.getElementById('lineage-wanderers');
   if (!canvas || !state) return;
@@ -5221,6 +5316,7 @@ function renderLineageWanderers(now = 0) {
       drawLineagePixelPerson(ctx, walker.x, walker.y + bob, id, Math.floor(walker.walkCycle) % 2, (hue + i * 7) % 360);
     }
   }
+  drawHeaderWeather(ctx, width, height, dailyWeather(), now);
   requestAnimationFrame(renderLineageWanderers);
 }
 
