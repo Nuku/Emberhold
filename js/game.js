@@ -4981,7 +4981,7 @@ function chooseLineageWanderTarget(walker, width, height, forceInside = false) {
 
 function advanceLineageWanderer(walker, seconds, width, height) {
   if (walker.weatherMode === 'away') return;
-  if (walker.pause > 0) {
+  if (!walker.weatherMode && walker.pause > 0) {
     walker.pause -= seconds;
     if (walker.pause <= 0) chooseLineageWanderTarget(walker, width, height);
     return;
@@ -4990,6 +4990,11 @@ function advanceLineageWanderer(walker, seconds, width, height) {
   const dy = walker.targetY - walker.y;
   const distance = Math.hypot(dx, dy);
   if (distance <= 3) {
+    if (walker.weatherMode) {
+      walker.weatherMode = walker.weatherMode === 'flee' ? 'away' : null;
+      walker.pause = 0;
+      return;
+    }
     walker.pause = 0.45 + lineageRandom(walker) * 1.8;
     return;
   }

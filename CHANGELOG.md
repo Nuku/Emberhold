@@ -2,6 +2,11 @@
 
 All notable changes to Emberhold are recorded here, with the newest changes first.
 
+## 2026-10-04
+
+- Fixed villagers returning from weather shelter so they complete their retreat before resuming normal wandering pauses.
+- Refreshed published stylesheet and script cache versions for the latest settlement updates.
+
 ## 2026-10-03
 
 - Settlement villagers now seek shelter during rain, storms, and freezing weather, then return when conditions improve.
