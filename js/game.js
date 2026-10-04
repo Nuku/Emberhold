@@ -4980,6 +4980,7 @@ function chooseLineageWanderTarget(walker, width, height, forceInside = false) {
 }
 
 function advanceLineageWanderer(walker, seconds, width, height) {
+  if (walker.weatherMode === 'away') return;
   if (walker.pause > 0) {
     walker.pause -= seconds;
     if (walker.pause <= 0) chooseLineageWanderTarget(walker, width, height);
@@ -4997,6 +4998,44 @@ function advanceLineageWanderer(walker, seconds, width, height) {
   walker.x += dx / distance * stride;
   walker.y += dy / distance * stride;
   walker.walkCycle += stride / 5;
+  if (walker.weatherMode && distance <= stride + 0.01) {
+    if (walker.weatherMode === 'flee') walker.weatherMode = 'away';
+    else walker.weatherMode = null;
+    walker.pause = 0;
+  }
+}
+
+function routeLineageWandererForWeather(walker, weather, width, height) {
+  const inclement = weather.id === 'rain' || weather.id === 'storm' || weather.temperature <= 0;
+  if (inclement && walker.weatherMode !== 'flee' && walker.weatherMode !== 'away') {
+    const top = walker.y;
+    const bottom = height - 48 - walker.y;
+    const left = walker.x;
+    const right = width - walker.x;
+    const edge = Math.min(left, right, top, bottom);
+    if (edge === left) walker.targetX = -40;
+    else if (edge === right) walker.targetX = width + 40;
+    else if (edge === top) walker.targetY = -40;
+    else walker.targetY = height + 10;
+    walker.weatherMode = 'flee';
+    walker.pause = 0;
+    walker.speed = 72;
+  } else if (!inclement && (walker.weatherMode === 'away' || walker.weatherMode === 'flee')) {
+    if (walker.weatherMode === 'away') {
+      if (walker.x < 0) { walker.x = -35; walker.targetX = 30; }
+      else if (walker.x > width) { walker.x = width + 35; walker.targetX = width - 30; }
+      else if (walker.y < 0) { walker.y = -35; walker.targetY = walker.topInset + 8; }
+      else { walker.y = height + 5; walker.targetY = height - 55; }
+      walker.weatherMode = 'return';
+      walker.speed = 58;
+      walker.pause = 0;
+    } else {
+      walker.targetX = Math.max(30, Math.min(width - 30, walker.x));
+      walker.targetY = Math.max(walker.topInset + 8, Math.min(height - 55, walker.y));
+      walker.weatherMode = 'return';
+      walker.pause = 0;
+    }
+  }
 }
 
 function drawLineagePixelPerson(ctx, x, y, id, step, hue) {
@@ -5252,6 +5291,7 @@ function renderLineageWanderers(now = 0) {
   const count = lineageWandererCount(state.pop);
   const compositions = Array.from({ length: count }, (_, i) => lineageWandererLineage(i, count));
   const appearance = `${id}:${compositions.join(',')}`;
+  const weather = dailyWeather();
   if (appearance !== lineageWandererSpecies || count !== lineageWandererTotal) {
     lineageWandererSpecies = appearance;
     lineageWandererTotal = count;
@@ -5289,7 +5329,9 @@ function renderLineageWanderers(now = 0) {
   lineageWandererLastFrame = now || lineageWandererLastFrame;
   for (let i = 0; i < lineageWanderers.length; i++) {
     const walker = lineageWanderers[i];
+    routeLineageWandererForWeather(walker, weather, width, height);
     if (now) advanceLineageWanderer(walker, seconds, width, height);
+    if (walker.weatherMode === 'away') continue;
     const bob = Math.sin(walker.walkCycle * 2) * 1.5;
     if (walker.facing < 0) {
       ctx.save();
@@ -5305,7 +5347,7 @@ function renderLineageWanderers(now = 0) {
       drawLineagePixelPerson(ctx, walker.x, walker.y + bob, walkerLineage, Math.floor(walker.walkCycle) % 2, (lineageSpriteHue(walkerAppearance) + i * 7) % 360);
     }
   }
-  drawHeaderWeather(ctx, width, height, dailyWeather(), now);
+  drawHeaderWeather(ctx, width, height, weather, now);
   requestAnimationFrame(renderLineageWanderers);
 }
 
