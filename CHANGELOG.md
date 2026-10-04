@@ -4,6 +4,7 @@ All notable changes to Emberhold are recorded here, with the newest changes firs
 
 ## 2026-10-03
 
+- Regional unification now records the joined lineages, and wandering villagers reflect the resulting settlement's lineage mix.
 - Added an illustrated broken moon to the migration journey and included newly earned achievements and major departure events in its chronicle.
 - Updated rain and snow streaks to drift sideways in sync with their drawn trails.
 - Added animated local weather to the settlement header, including drifting clouds, rain, lightning, fog, auroras, heat shimmer, and snow.

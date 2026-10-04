@@ -4226,6 +4226,7 @@ function releaseTown(id) {
 function uniteRegion() {
   if (!regionUnificationReady() || state.unifiedRegion) return { ok: false, reason: 'not-ready' };
   const ids = localTribeIds();
+  const unitedLineages = ids.filter(id => LINEAGES.some(lineage => lineage.id === id));
   state.lineagesUnlocked = state.lineagesUnlocked || { human: true };
   state.conqueredLineageTraits = acquiredLineageTraitIds();
   const nativeTraits = new Set(lineageDef(state.species).traits || []);
@@ -4249,7 +4250,9 @@ function uniteRegion() {
   state.jobs.guard = (state.jobs.guard || 0) + returnedGuards;
   state.guardInjuries = Math.min(state.guardInjuries || 0, state.jobs.guard);
   state.unifiedRegion = true;
-  addLog(`The conquered towns unite as one nation. The occupation Guards return to the ranks; production rises by 15%, storage doubles, and the nation adopts ${state.conqueredLineageTraits.length} new lineage traits at half strength.`, 'log-good');
+  state.unifiedRegionLineages = unitedLineages;
+  const lineageNames = unitedLineages.map(id => lineageDef(id).name);
+  addLog(`The conquered towns unite as one nation${lineageNames.length ? ` with the ${lineageNames.join(', ')} lineages` : ''}. The occupation Guards return to the ranks; production rises by 15%, storage doubles, and the nation adopts ${state.conqueredLineageTraits.length} new lineage traits at half strength.`, 'log-good');
   updateAchievements(achievementTriggers);
   return { ok: true, action: 'unite-region', returnedGuards };
 }
@@ -4937,6 +4940,22 @@ function lineageWandererCount(population) {
   return population > 0 ? Math.min(15, Math.max(1, Math.ceil(population / 10))) : 0;
 }
 
+function lineageWandererLineage(index, count) {
+  const others = state.unifiedRegion
+    ? (state.unifiedRegionLineages || []).filter(id => LINEAGES.some(lineage => lineage.id === id)).slice(0, 3)
+    : [];
+  if (others.length !== 3 || !count) return state.species || 'human';
+  const lineages = [state.species || 'human', ...others];
+  const weights = [55, 15, 15, 15];
+  const slot = (index + 0.5) * 100 / count;
+  let threshold = 0;
+  for (let i = 0; i < lineages.length; i++) {
+    threshold += weights[i];
+    if (slot < threshold) return lineages[i];
+  }
+  return lineages[0];
+}
+
 function lineageRandom(walker) {
   walker.seed = (Math.imul(walker.seed, 1664525) + 1013904223) >>> 0;
   return walker.seed / 4294967296;
@@ -5230,8 +5249,9 @@ function renderLineageWanderers(now = 0) {
     canvas.height = Math.round(height * dpr);
   }
   const id = state.species || 'human';
-  const appearance = id === 'custom' ? (state.customLineage?.name || 'custom') : id;
   const count = lineageWandererCount(state.pop);
+  const compositions = Array.from({ length: count }, (_, i) => lineageWandererLineage(i, count));
+  const appearance = `${id}:${compositions.join(',')}`;
   if (appearance !== lineageWandererSpecies || count !== lineageWandererTotal) {
     lineageWandererSpecies = appearance;
     lineageWandererTotal = count;
@@ -5263,7 +5283,6 @@ function renderLineageWanderers(now = 0) {
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   ctx.clearRect(0, 0, width, height);
   drawSettlementGround(ctx, width, height, state.landing, now);
-  const hue = lineageSpriteHue(appearance);
   const seconds = now && lineageWandererLastFrame
     ? Math.min(0.08, Math.max(0, (now - lineageWandererLastFrame) / 1000))
     : 1 / 60;
@@ -5276,10 +5295,14 @@ function renderLineageWanderers(now = 0) {
       ctx.save();
       ctx.translate(walker.x * 2 + 30, 0);
       ctx.scale(-1, 1);
-      drawLineagePixelPerson(ctx, walker.x, walker.y + bob, id, Math.floor(walker.walkCycle) % 2, (hue + i * 7) % 360);
+      const walkerLineage = compositions[i];
+      const walkerAppearance = walkerLineage === 'custom' ? (state.customLineage?.name || 'custom') : walkerLineage;
+      drawLineagePixelPerson(ctx, walker.x, walker.y + bob, walkerLineage, Math.floor(walker.walkCycle) % 2, (lineageSpriteHue(walkerAppearance) + i * 7) % 360);
       ctx.restore();
     } else {
-      drawLineagePixelPerson(ctx, walker.x, walker.y + bob, id, Math.floor(walker.walkCycle) % 2, (hue + i * 7) % 360);
+      const walkerLineage = compositions[i];
+      const walkerAppearance = walkerLineage === 'custom' ? (state.customLineage?.name || 'custom') : walkerLineage;
+      drawLineagePixelPerson(ctx, walker.x, walker.y + bob, walkerLineage, Math.floor(walker.walkCycle) % 2, (lineageSpriteHue(walkerAppearance) + i * 7) % 360);
     }
   }
   drawHeaderWeather(ctx, width, height, dailyWeather(), now);
@@ -6200,7 +6223,7 @@ function renderSidePanel() {
 function loadLatestUpdatesTooltip() {
   const button = document.getElementById('btn-updates');
   if (!button || typeof fetch !== 'function' || typeof DOMParser !== 'function') return;
-      fetch('changelog.html?v=publish-20261002u0004')
+      fetch('changelog.html?v=publish-20261003u0021')
     .then(response => response.ok ? response.text() : Promise.reject(new Error('changelog unavailable')))
     .then(source => {
       const doc = new DOMParser().parseFromString(source, 'text/html');
