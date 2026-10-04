@@ -120,7 +120,7 @@ const JOBS = {
                      unlock: () => bld('instrumentHall') > 0 },
   banker:      { name: 'Banker',      res: 'currency',  base: 0.08, desc: 'keeps trade moving and funds arriving',
                  max: () => bld('moneyLender'),
-                 trade: true, unlock: () => tech('banking') && tradeAvailable() },
+                 trade: true, unlock: () => tech('banking') && (tradeAvailable() || state.unifiedRegion) },
   diplomat:   { name: 'Diplomat',    res: 'currency',  base: 0, targeted: true,
                 desc: 'improves relations with an assigned tribe',
                 unlock: () => tech('diplomacy') },

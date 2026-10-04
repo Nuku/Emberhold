@@ -245,6 +245,16 @@ test('Banking unlocks Money Lenders that cap Bankers and generate population cur
   assert.equal(run("larger.currency.find(e => e.label.startsWith('Money Lenders:')).base"), 0.12);
 });
 
+test('Bankers remain visible and assigned after One Nation removes local trade partners', () => {
+  const { run } = game();
+  run(`state.techs.banking = true; state.techs.currency = true; state.unifiedRegion = true;
+    state.pop = 20; state.bld.moneyLender = 9; state.jobs.banker = 9;`);
+  assert.equal(run("JOBS.banker.unlock()"), true);
+  run('reconcileWorkers()');
+  assert.equal(run('state.jobs.banker'), 9);
+  assert.match(run('renderVillage()'), /Banker/);
+});
+
 test('Awaken Ancients unlocks after Mechanism and powers each mining resource without boosting input costs', () => {
   const { run } = game();
   assert.equal(run("TECHS.find(t => t.id === 'awakenAncients').req()"), false);

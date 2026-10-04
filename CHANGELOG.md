@@ -4,8 +4,9 @@ All notable changes to Emberhold are recorded here, with the newest changes firs
 
 ## 2026-10-04
 
+- Bankers remain available after One Nation unifies the region and removes local trade partners.
 - Fixed villagers returning from weather shelter so they complete their retreat before resuming normal wandering pauses.
-- Refreshed published stylesheet and script cache versions for the latest settlement updates.
+- Refreshed published stylesheet and script cache versions for the latest settlement updates (`publish-20261004u0002`).
 
 ## 2026-10-03
 
