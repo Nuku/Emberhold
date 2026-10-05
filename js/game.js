@@ -2332,10 +2332,10 @@ function production(dt = 0.25, breakdown = null) {
   const inputCosts = (inputs, id, total) => effectiveCoalInputs(inputs, id, total);
   const scale = (res, factors) => {
     const multiplier = factors.reduce((value, [, factor]) => value * factor, 1);
-    rates[res] *= multiplier;
+    rates[res] = incomeRates[res] * multiplier + outgoingRates[res];
     incomeRates[res] *= multiplier;
-    outgoingRates[res] *= multiplier;
     if (breakdown) for (const entry of breakdown[res]) {
+      if (entry.base <= 0) continue;
       entry.amount = factors.reduce((value, [, factor]) => value * factor, entry.amount);
       entry.factors.push(...factors.filter(([, factor]) => factor !== 1));
     }
@@ -3684,7 +3684,7 @@ function startGameClock() {
   // lose time; it only wakes the simulation to account for elapsed time.
   if (typeof Worker === 'function') {
     try {
-      gameClockWorker = new Worker('js/game-clock.worker.js?v=publish-20261002u0004');
+      gameClockWorker = new Worker('js/game-clock.worker.js?v=publish-20261004u0003');
       gameClockWorker.addEventListener('message', () => {
         updateGameClock(true);
         renderBonusTimer();
@@ -5043,7 +5043,7 @@ function routeLineageWandererForWeather(walker, weather, width, height) {
   }
 }
 
-function drawLineagePixelPerson(ctx, x, y, id, step, hue) {
+function drawLineagePixelPerson(ctx, x, y, id, step, hue, worshipping = false) {
   const pixel = 2;
   const gridScale = 1.5; // Fine 15-by-20 grid; coarse marks retain the existing sprite footprint.
   const put = (col, row, color, width = 1, height = 1) => {
@@ -5091,7 +5091,15 @@ function drawLineagePixelPerson(ctx, x, y, id, step, hue) {
   put(3, 8, dark); put(6, 8, dark);
   put(3, 9, coat); put(6, 9, coat);
   const walking = step ? 1 : 0;
-  put(3, 10, dark, 2, 3 - walking); put(6, 10 + walking, dark, 2, 3 - walking);
+  if (worshipping) {
+    // Kneel low with arms lifted toward the Wonder.
+    put(2, 6, dark, 2, 2); put(8, 6, dark, 2, 2);
+    put(1, 5, skin); put(10, 5, skin);
+    put(2, 10, dark, 3, 2); put(6, 10, dark, 3, 2);
+    put(1, 12, dark, 4); put(6, 12, dark, 4);
+  } else {
+    put(3, 10, dark, 2, 3 - walking); put(6, 10 + walking, dark, 2, 3 - walking);
+  }
   if (id.includes('clock')) { put(4, 5, '#edc65d'); put(5, 6, '#edc65d'); }
   if (id.includes('glimmer')) { put(2, 4, '#a9f5e8'); put(8, 6, '#a9f5e8'); }
   if (id.includes('thorn')) { put(2, 3, '#83bb61'); put(8, 3, '#83bb61'); }
@@ -5297,6 +5305,7 @@ function renderLineageWanderers(now = 0) {
   const compositions = Array.from({ length: count }, (_, i) => lineageWandererLineage(i, count));
   const appearance = `${id}:${compositions.join(',')}`;
   const weather = dailyWeather();
+  const activeWonder = !!state.wonders?.[state.landing]?.found;
   if (appearance !== lineageWandererSpecies || count !== lineageWandererTotal) {
     lineageWandererSpecies = appearance;
     lineageWandererTotal = count;
@@ -5334,22 +5343,28 @@ function renderLineageWanderers(now = 0) {
   lineageWandererLastFrame = now || lineageWandererLastFrame;
   for (let i = 0; i < lineageWanderers.length; i++) {
     const walker = lineageWanderers[i];
-    routeLineageWandererForWeather(walker, weather, width, height);
-    if (now) advanceLineageWanderer(walker, seconds, width, height);
-    if (walker.weatherMode === 'away') continue;
-    const bob = Math.sin(walker.walkCycle * 2) * 1.5;
+    if (activeWonder) {
+      walker.weatherMode = null;
+      walker.x = Math.max(18, Math.min(width - 36, walker.x));
+      walker.y = Math.max(walker.topInset, Math.min(height - 48, walker.y));
+    } else {
+      routeLineageWandererForWeather(walker, weather, width, height);
+      if (now) advanceLineageWanderer(walker, seconds, width, height);
+      if (walker.weatherMode === 'away') continue;
+    }
+    const bob = activeWonder ? 0 : Math.sin(walker.walkCycle * 2) * 1.5;
     if (walker.facing < 0) {
       ctx.save();
       ctx.translate(walker.x * 2 + 30, 0);
       ctx.scale(-1, 1);
       const walkerLineage = compositions[i];
       const walkerAppearance = walkerLineage === 'custom' ? (state.customLineage?.name || 'custom') : walkerLineage;
-      drawLineagePixelPerson(ctx, walker.x, walker.y + bob, walkerLineage, Math.floor(walker.walkCycle) % 2, (lineageSpriteHue(walkerAppearance) + i * 7) % 360);
+      drawLineagePixelPerson(ctx, walker.x, walker.y + bob, walkerLineage, Math.floor(walker.walkCycle) % 2, (lineageSpriteHue(walkerAppearance) + i * 7) % 360, activeWonder);
       ctx.restore();
     } else {
       const walkerLineage = compositions[i];
       const walkerAppearance = walkerLineage === 'custom' ? (state.customLineage?.name || 'custom') : walkerLineage;
-      drawLineagePixelPerson(ctx, walker.x, walker.y + bob, walkerLineage, Math.floor(walker.walkCycle) % 2, (lineageSpriteHue(walkerAppearance) + i * 7) % 360);
+      drawLineagePixelPerson(ctx, walker.x, walker.y + bob, walkerLineage, Math.floor(walker.walkCycle) % 2, (lineageSpriteHue(walkerAppearance) + i * 7) % 360, activeWonder);
     }
   }
   drawHeaderWeather(ctx, width, height, weather, now);
@@ -6270,7 +6285,7 @@ function renderSidePanel() {
 function loadLatestUpdatesTooltip() {
   const button = document.getElementById('btn-updates');
   if (!button || typeof fetch !== 'function' || typeof DOMParser !== 'function') return;
-      fetch('changelog.html?v=publish-20261003u0021')
+      fetch('changelog.html?v=publish-20261004u0003')
     .then(response => response.ok ? response.text() : Promise.reject(new Error('changelog unavailable')))
     .then(source => {
       const doc = new DOMParser().parseFromString(source, 'text/html');

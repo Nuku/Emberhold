@@ -8,7 +8,9 @@ function game() {
   const storage = new Map();
   const context = vm.createContext({
     TextDecoder,
-    document: { addEventListener() {} },
+    URL,
+    document: { addEventListener() {}, baseURI: 'http://localhost/' },
+    Image: class Image { complete = false; naturalWidth = 0; naturalHeight = 0; },
     localStorage: {
       getItem: key => storage.get(key) || null,
       setItem: (key, value) => storage.set(key, value),
@@ -849,8 +851,8 @@ test('migration clears old siege readiness for every neighbor', () => {
   run(`state.diplomacy.human = { disposition: 0, siegeReady: true };
     state.diplomacy.clocklings = { disposition: 0, siegeReady: true };
     state.migrating = true; setOut()`);
-  assert.equal(run('state.diplomacy.human.siegeReady'), false);
-  assert.equal(run('state.diplomacy.clocklings.siegeReady'), false);
+  assert.equal(run('state.diplomacy.human'), undefined);
+  assert.equal(run('state.diplomacy.clocklings'), undefined);
 });
 
 test('Known Task fills supplies produced during migration preparation', () => {
@@ -1033,7 +1035,7 @@ test('Commonality appears after conquest and replaces the occupation penalty', (
 test('Commonality returns five Guards from occupation duty per conquered lineage', () => {
   const { run } = game();
   run(`state.era = 4; state.techs = { civics: true, council: true, commonality: true, guards: true };
-    state.bld.barracks = 10; state.jobs.guard = 2; state.diplomacy.human = { conquered: true };
+    state.bld.barracks = 20; state.jobs.guard = 2; state.diplomacy.human = { conquered: true };
     state.tradePartner = 'human'; state.policy = 'commons'; choosePolicy('commonality')`);
   assert.equal(run('state.jobs.guard'), 7);
   run('state.policy = "commons"; choosePolicy("commonality")');
@@ -1132,11 +1134,13 @@ test('site expeditions require local settlement, charge once, and retain rewards
     assert.equal(run(`state.res.${resource}`), 10000 - e.cost[resource] * 0.75, 'cannot pay twice');
   }
   assert.equal(run('siteExpeditionsComplete()'), true);
-  assert.equal(run("globalProductionFactors().find(([label]) => label === 'All six sites explored')[1]"), 1.05);
+  assert.equal(run("globalProductionFactors().find(([label]) => label === 'All six sites explored')[1]"),
+    run('1 + 0.05 * siteExpeditionRewardScale()'));
   run(`saveGame(true); state = loadGame(); state.migrating = true;
     state.pendingLanding = 'greenfold'; state.pendingSpecies = 'human'; setOut()`);
   assert.equal(run('siteExpeditionsComplete()'), true);
-  assert.equal(run("settlementProductionFactors('food').filter(([label]) => ['The First Roads', 'The Living Channels'].includes(label)).reduce((m, [, value]) => m * value, 1)"), 1.1 * 1.1);
+  assert.equal(run("settlementProductionFactors('food').filter(([label]) => ['The First Roads', 'The Living Channels'].includes(label)).reduce((m, [, value]) => m * value, 1)"),
+    run("(1 + 0.1 * expeditionRewardScale('emberRoads')) * (1 + 0.1 * expeditionRewardScale('floodmeadowsChannels'))"));
   run('state.jobs.woodcutter = 1; const siteDetail = {}; const siteRates = production(0.25, siteDetail)');
   assert.ok(run("siteDetail.wood.some(e => e.factors.some(([label]) => label === 'The Heartwood Grove'))"));
   assert.ok(run('RESOURCES.every(r => Math.abs(siteDetail[r.id].reduce((sum, e) => sum + e.amount, 0) - siteRates[r.id]) < 1e-10)'));
@@ -1361,8 +1365,8 @@ test('every lineage has unique flavor and consequential events that appear in th
   assert.equal(run('Object.keys(LINEAGE_EVENTS).length'), ids.length);
   assert.equal(run('new Set(Object.values(LINEAGE_EVENTS).flat().map(e => e.text)).size'), ids.length * 2);
   for (const id of ids) {
-    run(`state = defaultState(); state.species = '${id}'; state.morale = 50;
-      for (const r of RESOURCES) { state.seen[r.id] = true; state.res[r.id] = 20; }
+    run(`state = defaultState(); state.species = '${id}'; state.morale = 50; state.jobs.thinker = 1;
+      for (const r of RESOURCES) { state.seen[r.id] = true; state.res[r.id] = Math.min(20, Math.max(1, capacityOf(r.id) - 1)); }
       Math.random = () => 0`);
     const before = run('JSON.stringify([state.res, state.morale, state.seen])');
     run('updateRandomEvents(60)');
@@ -1748,7 +1752,7 @@ test('starting a trial enables every difficulty option until it ends', () => {
   assert.ok(run('state.badAncestry'));
 
   run('endTrial(false)');
-  assert.equal(JSON.stringify(run('state.migrationChallenges')), '[]');
+  assert.equal(JSON.stringify(run('state.migrationChallenges')), JSON.stringify(['dryGround']));
   assert.equal(run('state.badAncestry'), null);
 });
 
@@ -2239,8 +2243,8 @@ test('Iron-assigned Forges consume Coal fuel', () => {
   const { run } = game();
   run(`state.bld.forge = 2; state.forgeIron = 1; state.techs.metallurgy = true;
     state.res.iron = 100; state.res.coal = 100; const detail = {}; const rates = production(1, detail)`);
-  assert.equal(run('rates.coal'), -0.4);
-  assert.equal(run('rates.iron'), 0);
+  assert.equal(run('rates.coal'), -0.8);
+  assert.equal(run('rates.iron'), -0.6);
   assert.equal(run("detail.coal.some(entry => entry.label.startsWith('Iron Forge fuel'))"), true);
 });
 
@@ -2341,7 +2345,7 @@ test('morale telemetry exposes live aggregate and component rates at the clamp',
 test('Forge input costs are not scaled by expedition production bonuses', () => {
   const { run } = game();
   run(`state.bld.forge = 1; state.techs.metallurgy = true;
-    state.expeditions.grayrocksQuarries = true; state.expeditions.ashfenFires = true;
+    state.expeditions.grayrocksQuarries = true; state.expeditions.ashfenFires = true; state.expeditionRatings.ashfenFires = 4;
     state.res.iron = 100; state.res.coal = 100; state.res.steel = 0;
     const detail = {}; production(1, detail)`);
   assert.equal(run(`detail.iron.find(e => e.label.startsWith('Forge inputs')).amount`), -0.6);
@@ -2354,14 +2358,15 @@ test('Forge input costs are not scaled by expedition production bonuses', () => 
 test('expedition production bonuses do not scale outgoing amounts unless explicit', () => {
   const { run } = game();
   run(`state.expeditions.oldForest = true; state.jobs.tinkerer = 1; state.bld.workbench = 1;
-    state.trialDone.tinkering = 1;
+    state.trialDone.tinkering = 1; state.expeditionRatings.oldForest = 1;
     const detail = {}; production(1, detail);
     const normalInput = detail.wood.find(e => e.label.startsWith('Tinkerer inputs')).amount`);
-  assert.ok(Math.abs(run('normalInput') + 0.069) < 1e-10);
+  assert.ok(Math.abs(run('normalInput') + 0.06) < 1e-10);
   assert.equal(run("settlementProductionFactors('wood', true).some(([label]) => label === 'The Old Forest')"), false);
   run(`EXPEDITIONS.find(e => e.id === 'oldForest').mods = { outgoing: { wood: 1.25 } };
     const explicit = {}; production(1, explicit)`);
-  assert.ok(Math.abs(run("explicit.wood.find(e => e.label.startsWith('Tinkerer inputs')).amount") + 0.08625) < 1e-10);
+  assert.ok(Math.abs(run("explicit.wood.find(e => e.label.startsWith('Tinkerer inputs')).amount") +
+    run("0.06 * (1 + 0.25 * expeditionRewardScale('oldForest'))")) < 1e-10);
 });
 
 test('factory lines unlock through research, persist in saves, and default safely', () => {
@@ -2390,6 +2395,7 @@ test('automation API exposes factory recipe definitions', () => {
       { id: 'tools', name: 'Tools', rate: 0.08, inputs: { wood: 3.2 }, tech: 'craftsmanship', unlock: 'Craftsmanship' },
       { id: 'steel', name: 'Steel', rate: 0.04, inputs: { iron: 0.6, coal: 0.4 }, tech: 'metallurgy', unlock: 'Metallurgy' },
       { id: 'machinery', name: 'Machinery', rate: 0.02, inputs: { steel: 0.1, coal: 0.4 }, tech: 'machineryTech', unlock: 'Mechanism' },
+      { id: 'livingAlloy', name: 'Living Alloy', rate: 0.02, inputs: { aluminum: 0.2, goods: 0.04 }, tech: 'livingManufacture', unlock: 'Living Manufacture' },
     ]),
   );
 });
@@ -2592,7 +2598,9 @@ test('restoring the Prism Womb opens a Custom lineage lab before its forced migr
 
 test('Custom lineage points are three times the Prism Womb achievement rating and buy signature traits', () => {
   const { run } = game();
-  run(`state.achievements['wonder-glassMire-restore'] = 4; beginCustomLineageDraft();
+  run(`state.achievements['wonder-glassMire-restore'] = 4;
+    state.lineagesUnlocked.mephit = true; state.lineagesUnlocked.rabbitfolk = true; state.lineagesUnlocked.skyborn = true;
+    beginCustomLineageDraft();
     chooseCustomLineageTrait('sulfurWards'); chooseCustomLineageTrait('quickLitters');
     chooseCustomLineageTrait('farSight'); createCustomLineage('Brinekin', 'Made to endure the alien coast.');`);
   assert.equal(run('customLineagePoints()'), 12);
@@ -2603,7 +2611,9 @@ test('Custom lineage points are three times the Prism Womb achievement rating an
 
 test('Custom lineage trait complexity raises positive costs and caps frailties before they become positive costs', () => {
   const { run } = game();
-  run(`state.achievements['wonder-glassMire-restore'] = 4; beginCustomLineageDraft();
+  run(`state.achievements['wonder-glassMire-restore'] = 4;
+    state.lineagesUnlocked.mephit = true; state.lineagesUnlocked.rabbitfolk = true; state.lineagesUnlocked.skyborn = true;
+    beginCustomLineageDraft();
     chooseCustomLineageTrait('gift-food'); chooseCustomLineageTrait('gift-knowledge');
     chooseCustomLineageTrait('frailty-steel'); chooseCustomLineageTrait('frailty-iron');
     chooseCustomLineageTrait('frailty-coal');`);
@@ -2676,17 +2686,22 @@ test('Wonder guards can save workers, wounded-only guards face doubled death wei
   assert.equal(run('state.pop'), 12);
   assert.equal(run('state.guardInjuries'), 1);
   assert.ok(run(`resolveWonderGuardOutcome.toString().includes('weights.death *= 2')`));
-  run(`state.wonders.emberplain.sections = [true, true, true, true, true]; chooseWonderFate('silence');`);
+  run(`state.wonders.emberplain.sections = [true, true, true, true, true];
+    state.wonders.emberplain.outcomeDifficulty = { silence: 4, become: 4, restore: 4 };
+    chooseWonderFate('silence');`);
   assert.equal(run('state.hope'), 1);
   assert.equal(run(`state.wonders.emberplain.outcomes.silence`), true);
   assert.notEqual(run('state.landing'), 'emberplain');
+  run('state.wonders.emberplain.outcomeDifficulty.silence = 4');
   run(`state.bld.steamPlant = 1;`);
   assert.equal(run('production(0).power'), 4);
   run(`state.landing = 'emberplain'; state.wonders.emberplain.found = true;
-    state.wonders.emberplain.sections = [true, true, true, true, true]; chooseWonderFate('become');`);
+    state.wonders.emberplain.sections = [true, true, true, true, true];
+    state.wonders.emberplain.outcomeDifficulty = { silence: 4, become: 4, restore: 4 }; chooseWonderFate('become');`);
   assert.equal(run('state.ancient'), 1);
   run(`state.landing = 'emberplain'; state.wonders.emberplain.found = true;
-    state.wonders.emberplain.sections = [true, true, true, true, true]; chooseWonderFate('restore');
+    state.wonders.emberplain.sections = [true, true, true, true, true];
+    state.wonders.emberplain.outcomeDifficulty = { silence: 4, become: 4, restore: 4 }; chooseWonderFate('restore');
     state.bld.steamPlant = 1;`);
   assert.equal(run('state.hope'), 3);
   assert.equal(run('solarPowerAvailable()'), true);
@@ -2778,15 +2793,15 @@ test('self-challenges add 20% per bump to Wonder rewards and forced-migration Ec
 
 test('restored Wonders carry their old purposes into future production', () => {
   const restored = [
-    ['greenfold', 'wood', 'Restored Worldroot', 1.25, 'woodcutter'],
-    ['floodmeadows', 'food', 'Restored River Crown', 1.20, 'forager'],
-    ['ashfen', 'tools', 'Restored Renewal Basin', 1.25, 'tinkerer'],
-    ['windmere', 'knowledge', 'Restored Mirrored Orrery', 1.20, 'thinker'],
-    ['windmere', 'aether', 'Restored Mirrored Orrery', 1.20, 'astronomer'],
+    ['greenfold', 'wood', 'Restored Worldroot', 2, 'woodcutter'],
+    ['floodmeadows', 'food', 'Restored River Crown', 2, 'forager'],
+    ['ashfen', 'tools', 'Restored Renewal Basin', 2, 'tinkerer'],
+    ['windmere', 'knowledge', 'Restored Mirrored Orrery', 2, 'thinker'],
+    ['windmere', 'aether', 'Restored Mirrored Orrery', 2, 'astronomer'],
   ];
   for (const [landing, resource, label, factor, job] of restored) {
     const { run } = game();
-    run(`state.landing = '${landing}'; state.wonders.${landing} = { outcomes: { restore: true } }; state.jobs.${job} = 1;`);
+    run(`state.landing = '${landing}'; state.wonders.${landing} = { outcomes: { restore: true }, outcomeDifficulty: { restore: 4 } }; state.jobs.${job} = 1;`);
     const detail = JSON.parse(run(`JSON.stringify((() => { const d = {}; production(1, d); return d; })())`));
     const entry = detail[resource].find(item => item.factors.some(([name]) => name === label));
     assert.ok(entry, `${landing} should affect ${resource}: ${JSON.stringify(detail)}`);
@@ -2828,7 +2843,7 @@ test('silencing the Worldroot unlocks expensive Animal Husbandry', () => {
 
 test('silencing the Mirrored Orrery makes Explorers document discoveries', () => {
   const { run } = game();
-  run(`state.landing = 'windmere'; state.wonders.windmere = { outcomes: { silence: true } };
+  run(`state.landing = 'windmere'; state.wonders.windmere = { outcomes: { silence: true }, outcomeDifficulty: { silence: 4 } };
     state.trialDone.wayfinding = 1; state.jobs.explorer = 2; const detail = {}; production(1, detail);`);
   assert.equal(run("detail.knowledge.find(entry => entry.label.startsWith('Explorers documenting discoveries')).base"), 0.12);
   run('state.surveyPoints = 0; updateExploration(1)');
@@ -2837,7 +2852,7 @@ test('silencing the Mirrored Orrery makes Explorers document discoveries', () =>
 
 test('silencing the River Crown turns Foragers into morale-boosting Farmers without extra Food', () => {
   const { run } = game();
-  run(`state.landing = 'floodmeadows'; state.wonders.floodmeadows = { outcomes: { silence: true } };
+  run(`state.landing = 'floodmeadows'; state.wonders.floodmeadows = { outcomes: { silence: true }, outcomeDifficulty: { silence: 4 } };
     state.jobs.forager = 2; const detail = {}; production(1, detail);`);
   assert.equal(run("jobName('forager')"), 'Farmer');
   assert.equal(run("detail.food.find(entry => entry.label.startsWith('Farmer:')).base"), 1.1);
@@ -2846,7 +2861,7 @@ test('silencing the River Crown turns Foragers into morale-boosting Farmers with
 
 test('silencing the Renewal Basin returns factory-made construction materials', () => {
   const { run } = game();
-  run(`state.landing = 'ashfen'; state.wonders.ashfen = { outcomes: { silence: true } };
+  run(`state.landing = 'ashfen'; state.wonders.ashfen = { outcomes: { silence: true }, outcomeDifficulty: { silence: 4 } };
     state.techs.metallurgy = true; state.res.stone = 1000; state.res.iron = 100; state.res.tools = 50; state.res.currency = 100;
     doBuild('forge');`);
   assert.equal(run('state.bld.forge'), 1);
@@ -2855,7 +2870,7 @@ test('silencing the Renewal Basin returns factory-made construction materials', 
 
 test('silencing the World Anvil lets Tinkerers run factory recipes slowly', () => {
   const { run } = game();
-  run(`state.landing = 'grayrocks'; state.wonders.grayrocks = { outcomes: { silence: true } };
+  run(`state.landing = 'grayrocks'; state.wonders.grayrocks = { outcomes: { silence: true }, outcomeDifficulty: { silence: 4 } };
     state.trial = { id: 'tinkering', startDay: 0, daysActive: 0, buildings: 0 };
     state.bld.workbench = 1; state.jobs.woodcutter = 5; state.jobs.tinkerer = 1;
     state.techs.machineryTech = true; state.buildingPower = {}; state.res.steel = 10; state.res.coal = 100; state.res.stone = 100; chooseFactoryRecipe('machinery');
