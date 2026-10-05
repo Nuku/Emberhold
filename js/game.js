@@ -3684,7 +3684,7 @@ function startGameClock() {
   // lose time; it only wakes the simulation to account for elapsed time.
   if (typeof Worker === 'function') {
     try {
-      gameClockWorker = new Worker('js/game-clock.worker.js?v=publish-20261004u0003');
+      gameClockWorker = new Worker('js/game-clock.worker.js?v=publish-20261004u0004');
       gameClockWorker.addEventListener('message', () => {
         updateGameClock(true);
         renderBonusTimer();
@@ -5343,28 +5343,23 @@ function renderLineageWanderers(now = 0) {
   lineageWandererLastFrame = now || lineageWandererLastFrame;
   for (let i = 0; i < lineageWanderers.length; i++) {
     const walker = lineageWanderers[i];
-    if (activeWonder) {
-      walker.weatherMode = null;
-      walker.x = Math.max(18, Math.min(width - 36, walker.x));
-      walker.y = Math.max(walker.topInset, Math.min(height - 48, walker.y));
-    } else {
-      routeLineageWandererForWeather(walker, weather, width, height);
-      if (now) advanceLineageWanderer(walker, seconds, width, height);
-      if (walker.weatherMode === 'away') continue;
-    }
-    const bob = activeWonder ? 0 : Math.sin(walker.walkCycle * 2) * 1.5;
+    routeLineageWandererForWeather(walker, weather, width, height);
+    if (now) advanceLineageWanderer(walker, seconds, width, height);
+    if (walker.weatherMode === 'away') continue;
+    const worshipping = activeWonder && !walker.weatherMode;
+    const bob = worshipping ? 0 : Math.sin(walker.walkCycle * 2) * 1.5;
     if (walker.facing < 0) {
       ctx.save();
       ctx.translate(walker.x * 2 + 30, 0);
       ctx.scale(-1, 1);
       const walkerLineage = compositions[i];
       const walkerAppearance = walkerLineage === 'custom' ? (state.customLineage?.name || 'custom') : walkerLineage;
-      drawLineagePixelPerson(ctx, walker.x, walker.y + bob, walkerLineage, Math.floor(walker.walkCycle) % 2, (lineageSpriteHue(walkerAppearance) + i * 7) % 360, activeWonder);
+      drawLineagePixelPerson(ctx, walker.x, walker.y + bob, walkerLineage, Math.floor(walker.walkCycle) % 2, (lineageSpriteHue(walkerAppearance) + i * 7) % 360, worshipping);
       ctx.restore();
     } else {
       const walkerLineage = compositions[i];
       const walkerAppearance = walkerLineage === 'custom' ? (state.customLineage?.name || 'custom') : walkerLineage;
-      drawLineagePixelPerson(ctx, walker.x, walker.y + bob, walkerLineage, Math.floor(walker.walkCycle) % 2, (lineageSpriteHue(walkerAppearance) + i * 7) % 360, activeWonder);
+      drawLineagePixelPerson(ctx, walker.x, walker.y + bob, walkerLineage, Math.floor(walker.walkCycle) % 2, (lineageSpriteHue(walkerAppearance) + i * 7) % 360, worshipping);
     }
   }
   drawHeaderWeather(ctx, width, height, weather, now);
@@ -6285,7 +6280,7 @@ function renderSidePanel() {
 function loadLatestUpdatesTooltip() {
   const button = document.getElementById('btn-updates');
   if (!button || typeof fetch !== 'function' || typeof DOMParser !== 'function') return;
-      fetch('changelog.html?v=publish-20261004u0003')
+      fetch('changelog.html?v=publish-20261004u0004')
     .then(response => response.ok ? response.text() : Promise.reject(new Error('changelog unavailable')))
     .then(source => {
       const doc = new DOMParser().parseFromString(source, 'text/html');

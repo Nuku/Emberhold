@@ -4,9 +4,10 @@ All notable changes to Emberhold are recorded here, with the newest changes firs
 
 ## 2026-10-04
 
+- Villagers continue seeking weather shelter while a Wonder is active.
 - Villagers kneel and raise their arms toward a discovered Wonder while it remains active.
 - Fixed production bonuses so they scale resource income without scaling resource costs; production breakdowns now omit zero-base entries.
-- Refreshed published asset cache versions for these updates (`publish-20261004u0003`).
+- Refreshed published asset cache versions for these updates (`publish-20261004u0004`).
 - Bankers remain available after One Nation unifies the region and removes local trade partners.
 - Fixed villagers returning from weather shelter so they complete their retreat before resuming normal wandering pauses.
 - Refreshed published stylesheet and script cache versions for the latest settlement updates (`publish-20261004u0002`).
