@@ -169,6 +169,8 @@ header { grid-area: header; }
 .queue-waiting { display: flex; flex-direction: column; gap: 2px; min-width: 150px; }
 .queue-waiting-item { display: flex; justify-content: space-between; gap: 8px; white-space: nowrap; }
 .queue-ready { color: var(--dim); }
+.queue-impossible { display: inline-flex; align-items: center; gap: 4px; color: var(--red, #ef6b6b); font-weight: 700; }
+.queue-impossible [aria-hidden="true"] { font-size: 13px; }
 .queue-capacity { margin-top: 4px; color: var(--muted); font-size: 11px; text-align: right; }
 
 #migration-transition[hidden], #migration-complete-toast[hidden] { display: none; }

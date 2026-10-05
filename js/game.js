@@ -1471,12 +1471,18 @@ function queueCapacity(type) {
   return 1 + upg(upgrade) + trialCount(trial);
 }
 
+function queueCannotComplete(entry) {
+  const cost = effectiveCoalCost(queueCost(entry) || {});
+  return Object.entries(cost).some(([resource, amount]) =>
+    amount > capacityOf(resource) + Math.max(1e-9, Math.abs(amount) * 1e-12));
+}
+
 function queuedCostThrough(type, index) {
   const total = {};
   const entries = state.queues[type] || [];
   for (let i = 0; i <= index && i < entries.length; i++) {
     const cost = queueCost(entries[i]);
-    if (!cost) continue;
+    if (!cost || queueCannotComplete(entries[i])) continue;
     for (const [resource, amount] of Object.entries(cost)) {
       total[resource] = (total[resource] || 0) + amount;
     }
@@ -1519,6 +1525,9 @@ function queueWaitingHtml(type, index, entry) {
     .map(([resource, amount]) => `${fmtCost(amount)} ${resourceName(resource)}`)
     .join(' · ');
   const costHtml = `<span class="queue-cost">requires ${required}</span>`;
+  if (queueCannotComplete(entry)) {
+    return costHtml + '<span class="queue-impossible" role="status"><span aria-hidden="true">⚠</span> Cannot be completed: exceeds storage capacity</span>';
+  }
   const requirement = queuedCostThrough(type, index);
   const rates = production(1);
   const waiting = Object.entries(requirement).filter(([resource, amount]) =>
@@ -1743,6 +1752,7 @@ function updateQueues() {
       const entry = state.queues[type][i];
       const def = queueDef(entry);
       if (!def) continue;
+      if (queueCannotComplete(entry)) continue;
       if (type === 'build' && !['beaconStage', 'airControlStage', 'greatMigrationStage'].includes(entry.id) && !isWonderObstacleQueueId(entry.id) && !canBuild(entry.id)) {
         state.queues[type].splice(i, 1);
         continue;
@@ -5391,10 +5401,22 @@ function renderLineageWanderers(now = 0) {
   lineageWandererLastFrame = now || lineageWandererLastFrame;
   for (let i = 0; i < lineageWanderers.length; i++) {
     const walker = lineageWanderers[i];
+    if (activeWonder && !walker.wonderMode) {
+      walker.wonderMode = 'settling';
+      chooseLineageWanderTarget(walker, width, height, true);
+    } else if (!activeWonder) {
+      walker.wonderMode = null;
+    }
     routeLineageWandererForWeather(walker, weather, width, height);
-    if (now) advanceLineageWanderer(walker, seconds, width, height);
+    const shouldMove = !activeWonder || walker.wonderMode !== 'settled' || !!walker.weatherMode;
+    if (now && shouldMove) advanceLineageWanderer(walker, seconds, width, height);
     if (walker.weatherMode === 'away') continue;
-    const worshipping = activeWonder && !walker.weatherMode;
+    if (activeWonder && walker.wonderMode === 'settling' && !walker.weatherMode &&
+        Math.hypot(walker.targetX - walker.x, walker.targetY - walker.y) <= 3) {
+      walker.wonderMode = 'settled';
+      walker.pause = 0;
+    }
+    const worshipping = activeWonder && walker.wonderMode === 'settled' && !walker.weatherMode;
     const bob = worshipping ? 0 : Math.sin(walker.walkCycle * 2) * 1.5;
     if (walker.facing < 0) {
       ctx.save();

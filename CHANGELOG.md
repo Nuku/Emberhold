@@ -2,6 +2,12 @@
 
 All notable changes to Emberhold are recorded here, with the newest changes first.
 
+## 2026-10-05
+
+- Queued projects that exceed storage capacity now remain queued and show why they cannot be completed.
+- Villagers gather at an active Wonder before kneeling to worship, and keep seeking weather shelter while it remains active.
+- Refreshed published stylesheet and script cache versions (`publish-20261005u0001`).
+
 ## 2026-10-04
 
 - Added Living Factories, doubling Factory output while supplied and consuming Living Alloy.
