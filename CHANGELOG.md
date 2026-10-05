@@ -4,9 +4,11 @@ All notable changes to Emberhold are recorded here, with the newest changes firs
 
 ## 2026-10-05
 
+- Strict-order queues now wait at the first unaffordable project instead of completing later entries out of order.
+
 - Queued projects that exceed storage capacity now remain queued and show why they cannot be completed.
 - Villagers gather at an active Wonder before kneeling to worship, and keep seeking weather shelter while it remains active.
-- Refreshed published stylesheet and script cache versions (`publish-20261005u0001`).
+- Refreshed published stylesheet and script cache versions (`publish-20261005u0002`).
 
 ## 2026-10-04
 

@@ -1746,7 +1746,7 @@ function updateQueues() {
   for (const type of ['build', 'research', 'expedition']) {
     const strict = !!state.settings?.strictQueueOrder;
     const start = strict ? 0 : state.queues[type].length - 1;
-    const end = strict ? 1 : -1;
+    const end = strict ? state.queues[type].length : -1;
     const step = strict ? 1 : -1;
     for (let i = start; strict ? i < end : i >= end; i += step) {
       const entry = state.queues[type][i];
@@ -1755,9 +1755,13 @@ function updateQueues() {
       if (queueCannotComplete(entry)) continue;
       if (type === 'build' && !['beaconStage', 'airControlStage', 'greatMigrationStage'].includes(entry.id) && !isWonderObstacleQueueId(entry.id) && !canBuild(entry.id)) {
         state.queues[type].splice(i, 1);
+        if (strict) i--;
         continue;
       }
-      if (!canAfford(queueCost(entry))) continue;
+      if (!canAfford(queueCost(entry))) {
+        if (strict) break;
+        continue;
+      }
       const staged = stagedBuildProject(entry);
       const multiPartSteps = upg('tillItIsComplete') && staged ? staged.count : 1;
       const completed = staged ? staged.advance(multiPartSteps) : type === 'build' ? doBuild(entry.id) :
@@ -1766,6 +1770,7 @@ function updateQueues() {
         state.queues[type].splice(i, 1);
         state.queues[type].push(entry);
       } else if (completed) state.queues[type].splice(i, 1);
+      if (strict) break;
     }
   }
 }
