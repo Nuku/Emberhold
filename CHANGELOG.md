@@ -4,6 +4,11 @@ All notable changes to Emberhold are recorded here, with the newest changes firs
 
 ## 2026-10-04
 
+- Added Living Factories, doubling Factory output while supplied and consuming Living Alloy.
+- Added Metal Knowledge, increasing Forge Steel output by 50% alongside higher Iron and Coal costs.
+- Added Artificial Security research and assemblable artificial Guards that share Guard capacity, prioritize injuries and losses, consume Power while active, and need no Food upkeep.
+- Refreshed published stylesheet and script cache versions (publish-20261004u0005).
+
 - Villagers continue seeking weather shelter while a Wonder is active.
 - Villagers kneel and raise their arms toward a discovered Wonder while it remains active.
 - Fixed production bonuses so they scale resource income without scaling resource costs; production breakdowns now omit zero-base entries.

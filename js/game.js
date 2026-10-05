@@ -83,6 +83,8 @@ function defaultState() {
     res,
     seen,
     jobs: {},
+    artificialGuards: 0,
+    artificialGuardInjuries: 0,
     bld: {},
     queues: { build: [], research: [], expedition: [] },
     factoryRecipe: 'goods',
@@ -455,6 +457,24 @@ function guardBarracksCapacity() {
 function guardCap() {
   return Math.max(0, guardBarracksCapacity() - guardOccupationReserve());
 }
+function artificialGuardCount() { return Math.min(state.jobs.guard || 0, Math.max(0, Math.floor(state.artificialGuards || 0))); }
+function artificialGuardWounds() { return Math.min(artificialGuardCount(), Math.max(0, Number(state.artificialGuardInjuries) || 0)); }
+function normalGuardWounds() { return Math.max(0, (state.guardInjuries || 0) - artificialGuardWounds()); }
+function syncGuardInjuries() {
+  const total = state.jobs.guard || 0;
+  const artificial = artificialGuardCount();
+  state.artificialGuards = artificial;
+  state.artificialGuardInjuries = Math.min(artificial, Math.max(0, Number(state.artificialGuardInjuries) || 0));
+  const normal = total - artificial;
+  state.guardInjuries = state.artificialGuardInjuries + Math.min(normal, Math.max(0, (state.guardInjuries || 0) - state.artificialGuardInjuries));
+}
+function assembleArtificialGuard() {
+  if (!tech('artificialSecurity') || (state.jobs.guard || 0) >= guardCap() || !canAfford(ARTIFICIAL_GUARD_COST)) return false;
+  payCost(ARTIFICIAL_GUARD_COST);
+  state.jobs.guard = (state.jobs.guard || 0) + 1;
+  state.artificialGuards = artificialGuardCount() + 1;
+  return true;
+}
 function guardRecruitmentRate() {
   return lineageSpecialValue('guardRecruitment') / (120 * Math.pow(0.9, bld('trainingYard')) * lineageSpecialValue('guardRecruitmentTime')) * Math.pow(1.1, trialCount('conquest')) *
     currentPlaceTraits().reduce((rate, trait) => rate * (trait.guardRecruitment || 1), 1);
@@ -688,6 +708,7 @@ function returnCommonalityGuards(id) {
   state.jobs.guard = Math.min(guardCap(), (state.jobs.guard || 0) + 5);
 }
 function ableGuards() { return Math.floor(Math.max(0, (state.jobs.guard || 0) - (state.guardInjuries || 0))); }
+function ableArtificialGuards() { return Math.max(0, artificialGuardCount() - artificialGuardWounds()); }
 function guardAttackPower(guardCount = ableGuards()) {
   const healthy = Math.max(0, Math.min(ableGuards(), Math.floor(Number(guardCount) || 0)));
   return healthy * (tech('weaponry') ? 1.9 : 1);
@@ -915,14 +936,12 @@ function resolveWonderGuardOutcome(woundedOnly) {
   let roll = Math.random() * total;
   const healthy = ableGuards();
   if ((roll -= weights.injury) < 0) {
-    if (!woundedOnly) state.guardInjuries = Math.min(state.jobs.guard || 0, (state.guardInjuries || 0) + 1);
+    if (!woundedOnly) applyGuardCasualties(0, 1);
     addLog('A Guard drags a Rapture worker clear, but is injured in the attempt.', 'log-bad');
     return 'injury';
   }
   if ((roll -= weights.death) < 0) {
-    state.jobs.guard = Math.max(0, (state.jobs.guard || 0) - 1);
-    if (woundedOnly) state.guardInjuries = Math.max(0, (state.guardInjuries || 0) - 1);
-    state.migrationGuardDeaths = (state.migrationGuardDeaths || 0) + 1;
+    applyGuardCasualties(1, 0);
     addLog('A Guard saves a Rapture worker and does not return.', 'log-bad');
     return 'death';
   }
@@ -1261,7 +1280,10 @@ function reconcileWorkers() {
     state.rapture.workers = 0;
     state.rapture.landing = null;
   }
+  state.artificialGuards = Math.min(count(state.artificialGuards), state.jobs.guard || 0);
+  state.artificialGuardInjuries = Math.min(count(state.artificialGuardInjuries), state.artificialGuards);
   state.guardInjuries = Math.min(count(state.guardInjuries), state.jobs.guard || 0);
+  syncGuardInjuries();
   state.guardRecruitment = JOBS.guard.unlock() && (state.jobs.guard || 0) < guardCap()
     ? Math.max(0, Math.min(0.999999, Number(state.guardRecruitment) || 0)) : 0;
 }
@@ -2255,7 +2277,8 @@ function setIronForges(count) {
 
 function powerAllocation() {
   const powerFactor = settlementProductionFactors('power').reduce((value, [, factor]) => value * factor, 1);
-  let available = Math.max(0, (bld('steamPlant') * POWER_PER_STEAM_PLANT + bld('oilPowerPlant') * POWER_PER_OIL_PLANT + bld('dynamo') * 1.5 + bld('windDevice') * POWER_PER_WIND_DEVICE + bld('solarArray') * POWER_PER_SOLAR_ARRAY) * powerFactor);
+  let available = Math.max(0, (bld('steamPlant') * POWER_PER_STEAM_PLANT + bld('oilPowerPlant') * POWER_PER_OIL_PLANT + bld('dynamo') * 1.5 + bld('windDevice') * POWER_PER_WIND_DEVICE + bld('solarArray') * POWER_PER_SOLAR_ARRAY) * powerFactor -
+    (tech('artificialSecurity') ? ableArtificialGuards() * ARTIFICIAL_GUARD_POWER : 0));
   const active = { forge: buildingPowerCount('forge') };
   for (const id of ['livingBlock', ...Object.keys(DIG_SITE_RESOURCES), 'factory', 'aluminumWorks']) {
     active[id] = Math.min(buildingPowerCount(id), Math.floor((available + 1e-9) / POWER_BUILDINGS[id].power));
@@ -2551,7 +2574,8 @@ function production(dt = 0.25, breakdown = null) {
   // modifiers so landing and civic food bonuses do not increase consumption.
   for (const j in JOBS) {
     const job = JOBS[j], n = state.jobs[j] || 0;
-    if (n && job.upkeep) add('food', `${jobName(j)} upkeep: ${n} × ${job.upkeep}/s`, -n * job.upkeep);
+    const upkeepCount = j === 'guard' ? Math.max(0, n - artificialGuardCount()) : n;
+    if (upkeepCount && job.upkeep) add('food', `${jobName(j)} upkeep: ${upkeepCount} × ${job.upkeep}/s`, -upkeepCount * job.upkeep);
   }
   const calamityDef = activeWonderCalamity();
   const calamity = calamityDef && activeWonderCalamity(incomeRates[calamityDef.resource] || 0);
@@ -2559,6 +2583,8 @@ function production(dt = 0.25, breakdown = null) {
   for (const [id, active] of Object.entries(poweredSites)) {
     if (active) add('power', `${BUILDING_BY_ID.get(id).name}: ${active} × ${DIG_SITE_POWER} capacity`, -active * DIG_SITE_POWER);
   }
+  if (tech('artificialSecurity') && ableArtificialGuards() > 0)
+    add('power', `Artificial Guards: ${ableArtificialGuards()} × ${ARTIFICIAL_GUARD_POWER} capacity`, -ableArtificialGuards() * ARTIFICIAL_GUARD_POWER);
   // Reserve inputs after other consumption; bonuses affect output, not costs.
   // Forges are independent production buildings: steel-assigned ones smelt
   // continuously, using fixed amounts of Iron and Coal. Keep this after the
@@ -2570,8 +2596,10 @@ function production(dt = 0.25, breakdown = null) {
   if (assignedIronForges > 0) add('coal', `Iron Forge fuel: ${assignedIronForges} × 0.4/s`, -0.4 * assignedIronForges);
   if (steelForges > 0 && dt > 0) {
     const rate = 0.04;
-    const inputs = inputCosts({ iron: 0.6 * steelForges, coal: 0.4 * steelForges }, 'forge', steelForges);
+    const metalKnowledge = tech('metalKnowledge') ? 1.5 : 1;
+    const inputs = inputCosts({ iron: 0.6 * steelForges * metalKnowledge, coal: 0.4 * steelForges * metalKnowledge }, 'forge', steelForges);
     const factors = forgeProductionFactors();
+    if (metalKnowledge > 1) factors.push(['Metal Knowledge', metalKnowledge]);
     const output = factors.reduce((value, [, factor]) => value * factor, steelForges * rate);
     let fraction = Math.min(1, Math.max(0, capacityOf('steel') - state.res.steel) / (output * dt));
     let limitation = fraction < 1 ? 'Steel storage space' : 'Forge utilization';
@@ -2594,10 +2622,15 @@ function production(dt = 0.25, breakdown = null) {
       const lightningMetal = recipe.id === 'steel' && tech('lightningMetal');
       const recipeFactor = lightningMetal ? 1.5 : 1;
       const runningHot = 1 + 0.5 * upg('runningHot');
-      const output = factors.reduce((value, [, factor]) => value * factor, assignedFactories * recipe.rate * recipeFactor * runningHot);
-      const inputs = inputCosts(Object.fromEntries(Object.entries(recipe.inputs).map(([resource, amount]) =>
-        [resource, amount * recipeFactor * assignedFactories * runningHot])), 'factory', assignedFactories);
-      const recipeFactors = [...(lightningMetal ? [...factors, ['Lightning Metal', recipeFactor]] : factors), ['Running Hot', runningHot]];
+      const livingFactorySpeed = tech('livingFactories') ? 2 : 1;
+      const factoryInputs = Object.fromEntries(Object.entries(recipe.inputs).map(([resource, amount]) =>
+        [resource, amount * recipeFactor * assignedFactories * runningHot * livingFactorySpeed]));
+      if (tech('livingFactories')) factoryInputs.livingAlloy = (factoryInputs.livingAlloy || 0) +
+        LIVING_FACTORY_ALLOY_RATE * assignedFactories * runningHot;
+      const output = factors.reduce((value, [, factor]) => value * factor, assignedFactories * recipe.rate * recipeFactor * runningHot * livingFactorySpeed);
+      const inputs = inputCosts(factoryInputs, 'factory', assignedFactories);
+      const recipeFactors = [...(lightningMetal ? [...factors, ['Lightning Metal', recipeFactor]] : factors), ['Running Hot', runningHot],
+        ...(livingFactorySpeed > 1 ? [['Living Factories', livingFactorySpeed]] : [])];
       let fraction = output > 0 ? Math.min(1, Math.max(0, capacityOf(recipe.id) - state.res[recipe.id]) / (output * dt)) : 0;
       let limitation = fraction < 1 ? `${recipe.name} storage space` : 'Factory utilization';
       for (const r in inputs) {
@@ -2610,7 +2643,7 @@ function production(dt = 0.25, breakdown = null) {
         limitation = buildingPowerCount('factory') < bld('factory') ? 'Power disabled' : 'Power shortage';
         if (!activeFactories) fraction = 0;
       }
-      add(recipe.id, `Factories (${recipe.name}): ${assignedFactories} active × ${recipe.rate}/s`, assignedFactories * recipe.rate * runningHot, [...recipeFactors, [limitation, fraction]]);
+      add(recipe.id, `Factories (${recipe.name}): ${assignedFactories} active × ${recipe.rate}/s`, assignedFactories * recipe.rate * runningHot * livingFactorySpeed, [...recipeFactors, [limitation, fraction]]);
       for (const r in inputs) add(r, `Factory inputs (${recipe.name}): ${assignedFactories} active × ${inputs[r] / assignedFactories}/s`, -inputs[r], [
         ...(lightningMetal ? [['Lightning Metal', recipeFactor]] : []), ['Running Hot', runningHot], [limitation, fraction]]);
     }
@@ -2873,7 +2906,13 @@ function updateDiplomacy(dt) {
   }
   if (Object.values(state.diplomacy).some(entry => entry.disposition >= 80 || entry.conquered))
     updateAchievements(['diplomat']);
-  if (state.guardInjuries > 0) state.guardInjuries = Math.max(0, state.guardInjuries - dt / guardHealingNeed());
+  if (state.guardInjuries > 0) {
+    const healing = dt / guardHealingNeed();
+    const artificialHealing = Math.min(artificialGuardWounds(), healing);
+    state.artificialGuardInjuries = Math.max(0, artificialGuardWounds() - artificialHealing);
+    state.guardInjuries = Math.max(0, state.guardInjuries - healing);
+    syncGuardInjuries();
+  }
   if (relationsLocked) return;
   state.diplomacyEventT = (state.diplomacyEventT || 0) + dt;
   if (state.diplomacyEventT < 180) return;
@@ -2921,9 +2960,7 @@ function resolveTribeRaid(id) {
   const deathMult = Math.max(0.15, 1 - armorLevel() * 0.08);
   const deaths = Math.min(able, Math.floor(margin / 7 * deathMult));
   const injuries = Math.min(Math.max(0, able - deaths), Math.max(1, Math.ceil(margin / 4 * harm)));
-  state.jobs.guard = Math.max(0, (state.jobs.guard || 0) - deaths);
-  state.migrationGuardDeaths = (state.migrationGuardDeaths || 0) + deaths;
-  state.guardInjuries = Math.min(ableGuards(), (state.guardInjuries || 0) + injuries);
+  const casualties = applyGuardCasualties(deaths, injuries);
   const lootPool = ['food', 'wood', 'stone', 'tools', 'copper', 'iron', 'coal', 'steel', 'currency']
     .filter(r => (state.res[r] || 0) > 0);
   const loot = [];
@@ -2935,7 +2972,7 @@ function resolveTribeRaid(id) {
   }
   if (!conquestTrialRelationsLocked()) entry.disposition = Math.max(-100, entry.disposition - 6);
   if (isMephit()) state.diplomacyEventT = -mephitRaidDelay();
-  addLog(`The ${tribe.name} raid Emberhold! ${deaths} Guard${deaths === 1 ? '' : 's'} die${deaths === 1 ? 's' : ''}, ${injuries} suffer injuries, and they make off with ${loot.join(' and ') || 'nothing'}.`, 'log-bad');
+  addLog(`The ${tribe.name} raid Emberhold! ${casualties.deaths} Guard${casualties.deaths === 1 ? '' : 's'} die${casualties.deaths === 1 ? 's' : ''}, ${casualties.injuries} suffer injuries, and they make off with ${loot.join(' and ') || 'nothing'}.`, 'log-bad');
 }
 
 function trialProgressText() {
@@ -4043,31 +4080,39 @@ function raidUncommonLoot() {
   ].filter(Boolean);
 }
 
-function applyRaidCasualties(deaths, injuries) {
-  const total = state.jobs.guard || 0;
-  let healthy = ableGuards();
-  let wounded = Math.max(0, total - healthy);
+function applyGuardCasualties(deaths, injuries) {
+  let artificial = artificialGuardCount();
+  let normal = Math.max(0, (state.jobs.guard || 0) - artificial);
+  let artificialWounds = artificialGuardWounds();
+  let normalWounds = Math.min(normal, normalGuardWounds());
+  let losses = Math.max(0, Math.floor(deaths));
+  let hurt = Math.max(0, Math.floor(injuries));
+  const artificialHealthyDeaths = Math.min(losses, artificial - artificialWounds);
+  losses -= artificialHealthyDeaths;
+  const normalHealthyDeaths = Math.min(losses, normal - normalWounds);
+  losses -= normalHealthyDeaths;
+  const artificialWoundedDeaths = Math.min(losses, artificialWounds);
+  losses -= artificialWoundedDeaths;
+  artificialWounds -= artificialWoundedDeaths;
+  const normalWoundedDeaths = Math.min(losses, normalWounds);
+  normalWounds -= normalWoundedDeaths;
+  const totalDeaths = artificialHealthyDeaths + normalHealthyDeaths + artificialWoundedDeaths + normalWoundedDeaths;
+  artificial -= artificialHealthyDeaths + artificialWoundedDeaths;
+  normal -= normalHealthyDeaths + normalWoundedDeaths;
 
-  // Healthy Guards take the first losses. Wounded Guards are only exposed
-  // once the raid's injury count spills past the healthy front line.
-  const healthyDeaths = Math.min(healthy, deaths);
-  healthy -= healthyDeaths;
-  let actualDeaths = healthyDeaths;
-  const woundedDeaths = Math.min(wounded, Math.max(0, deaths - healthyDeaths));
-  wounded -= woundedDeaths;
-  actualDeaths += woundedDeaths;
-
-  const healthyInjuries = Math.min(healthy, injuries);
-  healthy -= healthyInjuries;
-  const reInjuredDeaths = Math.min(wounded, Math.max(0, injuries - healthyInjuries));
-  wounded -= reInjuredDeaths;
-  actualDeaths += reInjuredDeaths;
-
-  state.jobs.guard = Math.max(0, total - actualDeaths);
-  state.guardInjuries = Math.min(state.jobs.guard, wounded + healthyInjuries);
-  state.migrationGuardDeaths = (state.migrationGuardDeaths || 0) + actualDeaths;
-  return { deaths: actualDeaths, injuries: healthyInjuries };
+  const artificialInjuries = Math.min(hurt, Math.max(0, artificial - artificialWounds));
+  artificialWounds += artificialInjuries;
+  const normalInjuries = Math.min(Math.max(0, hurt - artificialInjuries), Math.max(0, normal - normalWounds));
+  normalWounds += normalInjuries;
+  state.artificialGuards = artificial;
+  state.artificialGuardInjuries = artificialWounds;
+  state.jobs.guard = artificial + normal;
+  state.guardInjuries = artificialWounds + normalWounds;
+  state.migrationGuardDeaths = (state.migrationGuardDeaths || 0) + totalDeaths;
+  return { deaths: totalDeaths, injuries: artificialInjuries + normalInjuries };
 }
+
+function applyRaidCasualties(deaths, injuries) { return applyGuardCasualties(deaths, injuries); }
 
 function predictRaid(id, stageId = 'raid', guardCount = ableGuards()) {
   const entry = state.diplomacy && state.diplomacy[id];
@@ -4193,6 +4238,7 @@ function conquerTown(id) {
   if (!cultural) {
     state.jobs.guard = Math.max(0, (state.jobs.guard || 0) - 15);
     state.guardInjuries = Math.min(state.guardInjuries || 0, state.jobs.guard);
+    syncGuardInjuries();
     entry.culturalOccupation = false;
   } else {
     entry.culturalConquest = true;
@@ -4218,6 +4264,7 @@ function releaseTown(id) {
   if (returnedGuards) {
     state.jobs.guard = Math.min(guardCap(), (state.jobs.guard || 0) + returnedGuards);
     state.guardInjuries = Math.min(state.guardInjuries || 0, state.jobs.guard);
+    syncGuardInjuries();
   }
   if (state.commonalityGuardsReturned) delete state.commonalityGuardsReturned[id];
   addLog(`Emberhold releases the ${tribeDef(id).name}. The town is no longer conquered${returnedGuards ? `, and ${returnedGuards} occupation Guards return to the ranks` : ''}.`, 'log-good');
@@ -4249,6 +4296,7 @@ function uniteRegion() {
     ? 0 : Math.max(0, 15 - (state.commonalityGuardsReturned?.[id] ? 5 : 0))), 0);
   state.jobs.guard = (state.jobs.guard || 0) + returnedGuards;
   state.guardInjuries = Math.min(state.guardInjuries || 0, state.jobs.guard);
+  syncGuardInjuries();
   state.unifiedRegion = true;
   state.unifiedRegionLineages = unitedLineages;
   const lineageNames = unitedLineages.map(id => lineageDef(id).name);
@@ -5458,18 +5506,21 @@ function renderVillage() {
   if (bld('factory') > 0 || tinkererFactoryAvailable()) {
     h += '<h2 class="section">Factory production</h2><div class="res-note">' +
       (upg('dividedAttention') > 0 ? 'Divided Attention lets you select two outputs; factories and Tinkerers split their assigned workers evenly between them. ' : '') +
-      'All factories share one production line. After the World Anvil is silenced, Tinkerers can use this same recipe list at half the factory rate without needing Power. Production slows when supplies run short and pauses when output storage is full. The Industrialization trial requires Industrial Goods.</div>';
+      'All factories share one production line. After the World Anvil is silenced, Tinkerers can use this same recipe list at half the factory rate without needing Power. Production slows when supplies run short and pauses when output storage is full. Living Factories double factory speed while consuming Living Alloy. The Industrialization trial requires Industrial Goods.</div>';
     for (const recipe of FACTORY_RECIPES) {
       const unlocked = !recipe.tech || tech(recipe.tech);
       if (!unlocked) continue;
       const selected = factoryRecipes().includes(recipe.id);
       const recipeFactor = recipe.id === 'steel' && tech('lightningMetal') ? 1.5 : 1;
       const activeFactories = powerAllocation().factory;
-      const inputs = Object.entries(effectiveCoalInputs(Object.fromEntries(Object.entries(recipe.inputs).map(([r, n]) => [r, n * recipeFactor * activeFactories])), 'factory', activeFactories))
+      const livingFactorySpeed = tech('livingFactories') ? 2 : 1;
+      const displayedInputs = Object.fromEntries(Object.entries(recipe.inputs).map(([r, n]) => [r, n * recipeFactor * activeFactories * livingFactorySpeed]));
+      if (tech('livingFactories')) displayedInputs.livingAlloy = (displayedInputs.livingAlloy || 0) + LIVING_FACTORY_ALLOY_RATE * activeFactories;
+      const inputs = Object.entries(effectiveCoalInputs(displayedInputs, 'factory', activeFactories))
         .map(([r, n]) => `${fmt(activeFactories ? n / activeFactories : n)} ${resourceName(r)}/s`).join(', ');
       const powerText = `${factoryPowerRequirement()} Power capacity per factory`;
       h += `<div class="card"><div class="card-head"><span class="card-title">${recipe.name}</span><span class="card-count">${selected ? 'Active' : 'Available'}</span></div>` +
-        `<div class="card-desc">Produces ${fmt(recipe.rate * recipeFactor)}/s; requires ${powerText}${inputs ? ` and consumes ${inputs}` : ''}.</div>` +
+        `<div class="card-desc">Produces ${fmt(recipe.rate * recipeFactor * livingFactorySpeed)}/s; requires ${powerText}${inputs ? ` and consumes ${inputs}` : ''}.</div>` +
         `<div class="card-actions"><button data-action="factory-recipe" data-id="${recipe.id}" ${(selected && factoryRecipes().length === 1) || (!selected && factoryRecipes().length >= 2) ? 'disabled' : ''}>${selected ? 'Producing ' : 'Produce '}${recipe.name}</button></div>` +
         (selected ? woodFuelControls('factory', powerAllocation().factory) : '') + '</div>';
     }
@@ -5479,14 +5530,15 @@ function renderVillage() {
     const activeForges = buildingPowerCount('forge');
     const ironForges = Math.min(activeForges, Math.floor(state.forgeIron || 0));
     const steelForges = activeForges - ironForges;
-    const forgeInputs = effectiveCoalInputs({ iron: 0.6 * steelForges, coal: 0.4 * steelForges }, 'forge', steelForges);
+    const metalKnowledge = tech('metalKnowledge') ? 1.5 : 1;
+    const forgeInputs = effectiveCoalInputs({ iron: 0.6 * steelForges * metalKnowledge, coal: 0.4 * steelForges * metalKnowledge }, 'forge', steelForges);
     const ironControl = `<div class="card-actions"><span>Iron Forges: ${ironForges} (${fmt(15 * ironForges)}% bonus)</span>` +
       `<button data-action="forge-iron-dec" ${state.forgeIron > 0 ? '' : 'disabled'} aria-label="Assign one fewer Forge to Iron">−</button>` +
       `<button data-action="forge-iron-inc" ${state.forgeIron < bld('forge') ? '' : 'disabled'} aria-label="Assign one more Forge to Iron">+</button></div>`;
     h += `<div class="card"><div class="card-head"><span class="card-title">Iron</span><span class="card-count">${ironForges} active</span></div>` +
       `<div class="card-desc">Increases Iron production by ${fmt(15 * ironForges)}%; consumes ${fmt(0.4 * ironForges)} Coal/s as fuel.</div>${ironControl}</div>`;
     h += `<div class="card"><div class="card-head"><span class="card-title">Steel</span><span class="card-count">${steelForges} active</span></div>` +
-      `<div class="card-desc">Produces ${fmt(0.04 * steelForges)}/s; consumes ${fmt(forgeInputs.iron)} Iron/s and ${fmt(forgeInputs.wood || forgeInputs.coal)} ${forgeInputs.wood ? 'Wood' : 'Coal'}/s.</div>` +
+      `<div class="card-desc">Produces ${fmt(0.04 * steelForges * metalKnowledge)}/s; consumes ${fmt(forgeInputs.iron)} Iron/s and ${fmt(forgeInputs.wood || forgeInputs.coal)} ${forgeInputs.wood ? 'Wood' : 'Coal'}/s${metalKnowledge > 1 ? ' (Metal Knowledge: +50% output and inputs)' : ''}.</div>` +
       woodFuelControls('forge', steelForges) + '</div>';
   }
   h += renderWonderAssignment();
@@ -5558,6 +5610,13 @@ function renderVillage() {
     h += '<h2 class="section">Guards — independent watch</h2>' +
       `<div class="res-row"><span class="res-name">Guards</span><span class="res-amount">${guards} (${Math.floor(ableGuards())} able)</span><span class="res-rate">${recruitment}</span></div>` +
       `<div class="res-note">Barracks capacity: ${guardBarracksCapacity()} total; ${occupationReserve} reserved by conquered towns; ${availableCapacity} available for Guards. Each town reserves 15 capacity (10 under Commonality) until released or the region is united. Guards recruit automatically, one every ${fmt(1 / guardRecruitmentRate())} seconds when capacity is available, and replace battle losses up to available capacity. They use no villager assignments or population housing. Build Barracks to raise total capacity.</div>`;
+    if (tech('artificialSecurity')) {
+      const artificial = artificialGuardCount();
+      const canAssemble = guards < availableCapacity && canAfford(ARTIFICIAL_GUARD_COST);
+      h += `<div class="card"><div class="card-head"><span class="card-title">Artificial Guards</span><span class="card-count">${artificial} assembled</span></div>` +
+        `<div class="card-desc">Uses ${fmt(ARTIFICIAL_GUARD_POWER)} Power per able artificial Guard and no Food; shares Guard capacity. Assembly cost: ${costHtml(ARTIFICIAL_GUARD_COST)}.</div>` +
+        `<div class="card-actions"><button data-action="assemble-guard" ${canAssemble ? '' : 'disabled'}>Assemble Artificial Guard</button></div></div>`;
+    }
   }
   h += `<div class="res-note" style="margin-top:6px">Every villager eats ${fmt(FOOD_PER_POP)} food/s, working or not. Each Guard requires ${fmt(JOBS.guard.upkeep)} food/s, but their hunting is not reduced by winter. Weaponry, Leather Armor, and Chainmail research strengthen the watch; injuries heal over time. Every store has a ceiling — what flows in past a full store is wasted. Storehouses raise most material ceilings.</div>`;
 
@@ -6575,6 +6634,7 @@ function runAction(btn) {
     case 'forge-iron-dec': setIronForges((state.forgeIron || 0) - 1); render(); break;
     case 'forge-iron-inc': setIronForges((state.forgeIron || 0) + 1); render(); break;
     case 'research': attemptResearch(btn.dataset.id); render(); break;
+    case 'assemble-guard': assembleArtificialGuard(); render(); break;
     case 'queue-cancel': cancelQueue(btn.dataset.type, +btn.dataset.index); render(); break;
     case 'diplomacy-supply': supplyDiplomacyRequest(btn.dataset.tribe); render(); break;
     case 'diplomacy-tab': state.diplomacyTab = btn.dataset.diplomacyTab === 'trade' ? 'trade' : btn.dataset.diplomacyTab === 'distant' ? 'distant' : 'nearby'; render(); break;

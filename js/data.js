@@ -62,6 +62,9 @@ const OIL_PLANT_FUEL_RATE = 0.5;
 const POWER_PER_WIND_DEVICE = 1;
 const POWER_PER_SOLAR_ARRAY = 5;
 const FACTORY_POWER_REQUIREMENT = 1.5;
+const LIVING_FACTORY_ALLOY_RATE = 0.01;
+const ARTIFICIAL_GUARD_POWER = 0.1;
+const ARTIFICIAL_GUARD_COST = { steel: 80, aluminum: 40, livingAlloy: 10 };
 const LIVING_BLOCK_POWER_REQUIREMENT = 1;
 const INDUSTRIALIZATION_COAL_MULTIPLIER = 0.2;
 const INDUSTRIALIZATION_RIOT_CHANCE = 0.2;
@@ -442,6 +445,15 @@ const TECHS = [
   { id: 'livingManufacture', name: 'Living Manufacture', cost: 100000, materials: { steel: 220, machinery: 100, aluminum: 120 },
     desc: 'This metal feels alive, but can bend to the needs we propose to it. Unlocks Living Alloy production in Factories after the World Anvil’s instructions have been preserved with Hope.',
     req: () => tech('aluminum') && wonderUnlock('livingAlloy') },
+  { id: 'livingFactories', name: 'Living Factories', cost: 180000, materials: { livingAlloy: 40, steel: 300, machinery: 160 },
+    desc: 'The metal knows what we plan, and it is there before we ask. Each active Factory consumes 0.01 Living Alloy per second and produces twice as fast while supplied.',
+    req: () => state.res.livingAlloy > 0 },
+  { id: 'metalKnowledge', name: 'Metal Knowledge', cost: 220000, materials: { livingAlloy: 60, steel: 400, machinery: 200 },
+    desc: 'We understand our mistakes, and how metal wants to move. Forges produce 50% more Steel and consume 50% more Iron and Coal.',
+    req: () => tech('livingManufacture') && state.res.livingAlloy > 0 },
+  { id: 'artificialSecurity', name: 'Artificial Security', cost: 280000, materials: { livingAlloy: 80, steel: 500, aluminum: 300 },
+    desc: 'Why train a Guard when one can be assembled? Assemble artificial Guards from Steel, Aluminum, and Living Alloy. They count toward the usual Guard capacity, work like ordinary Guards, and use 0.1 Power each while active. They take injuries and losses before ordinary Guards.',
+    req: () => tech('metalKnowledge') },
   { id: 'airControl', name: 'Air Control', cost: 2600, materials: { aluminum: 80, steel: 200, machinery: 100 },
     desc: 'The sky is wide, but not empty. With enough Sky Metal and stone, we can make a place where machines may rise and return. Unlocks the multi-stage Air Control project.',
     req: () => tech('aluminum') },
