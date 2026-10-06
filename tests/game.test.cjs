@@ -51,6 +51,101 @@ test('temperature display follows the Celsius/Fahrenheit setting', () => {
   assert.equal(run('formatTemperature(20)'), '68°F');
 });
 
+function headerAnimationGame() {
+  const engine = game();
+  const frames = new Map();
+  const timers = new Map();
+  const rect = { width: 1920, height: 140, top: 0, bottom: 140 };
+  let nextId = 0;
+  let operations = 0;
+  const ctx = new Proxy({}, {
+    get: (_, key) => key.startsWith('create') ? () => ({ addColorStop() {} }) : () => { operations++; },
+    set: () => true,
+  });
+  const canvas = () => ({ width: 0, height: 0, getContext: () => ctx, getBoundingClientRect: () => rect });
+  const header = canvas();
+  engine.context.document.hidden = false;
+  engine.context.document.getElementById = () => header;
+  engine.context.document.createElement = canvas;
+  engine.context.window.innerHeight = 1080;
+  engine.context.window.devicePixelRatio = 2;
+  engine.context.requestAnimationFrame = fn => { frames.set(++nextId, fn); return nextId; };
+  engine.context.cancelAnimationFrame = id => frames.delete(id);
+  engine.context.setTimeout = (fn, delay) => { timers.set(++nextId, { fn, delay }); return nextId; };
+  engine.context.clearTimeout = id => timers.delete(id);
+  return { ...engine, frames, timers, rect, operations: () => operations };
+}
+
+test('header terrain is reused and invalidated by time, size, season, and landing', () => {
+  const { run, rect } = headerAnimationGame();
+  run('let terrainDraws = 0; drawSettlementGround = () => terrainDraws++');
+  run('renderLineageWanderers(100); renderLineageWanderers(150)');
+  assert.equal(run('terrainDraws'), 1);
+  run('renderLineageWanderers(350)');
+  assert.equal(run('terrainDraws'), 2);
+  rect.width = 1280;
+  run('renderLineageWanderers(400)');
+  assert.equal(run('terrainDraws'), 3);
+  run("state.landing = 'greenfold'; renderLineageWanderers(450)");
+  assert.equal(run('terrainDraws'), 4);
+  run('state.day = 100; renderLineageWanderers(500)');
+  assert.equal(run('terrainDraws'), 5);
+});
+
+test('header animation schedules a single capped loop and stops cleanly when hidden', () => {
+  const { run, context, frames, timers, operations } = headerAnimationGame();
+  run('startLineageAnimation(); startLineageAnimation()');
+  assert.equal(frames.size, 1);
+  const [frameId, draw] = [...frames][0];
+  frames.delete(frameId);
+  draw(100);
+  assert.equal(frames.size, 0);
+  assert.equal(timers.size, 1);
+  assert.equal([...timers.values()][0].delay, 50);
+  context.document.hidden = true;
+  run('stopLineageAnimation(); startLineageAnimation()');
+  assert.equal(timers.size, 0);
+  assert.equal(frames.size, 0);
+  const before = operations();
+  run('renderLineageWanderers(200)');
+  assert.equal(operations(), before);
+  context.document.hidden = false;
+  run('startLineageAnimation(); stopLineageAnimation()');
+  assert.equal(frames.size, 0);
+});
+
+test('offscreen and migration-covered headers skip drawing and reset motion time', () => {
+  const { run, rect, operations } = headerAnimationGame();
+  rect.top = -200; rect.bottom = -60;
+  run('lineageWandererLastFrame = 100; renderLineageWanderers(200)');
+  assert.equal(operations(), 0);
+  assert.equal(run('lineageWandererLastFrame'), 0);
+  rect.top = 0; rect.bottom = 140;
+  run('activeMigrationTransition = {}; renderLineageWanderers(300)');
+  assert.equal(operations(), 0);
+  run('activeMigrationTransition = null; renderLineageWanderers(400)');
+  assert.ok(operations() > 0);
+});
+
+test('hidden worker pulses keep advancing gameplay without updating the DOM', () => {
+  const { run, context } = game();
+  let pulse;
+  context.Worker = class {
+    addEventListener(type, callback) { pulse = callback; }
+    postMessage() {}
+  };
+  context.document.hidden = true;
+  run('let now = 1000; Date.now = () => now; lastGameAt = now; state.bonusTime = 2; startGameClock(); now = 2000');
+  pulse();
+  assert.equal(run('state.day'), 4 / 3);
+  assert.equal(run('state.bonusTime'), 1);
+  run('let timerRenders = 0; renderBonusTimer = () => timerRenders++; now = 3000');
+  context.document.hidden = false;
+  pulse();
+  assert.equal(run('state.bonusTime'), 0);
+  assert.equal(run('timerRenders'), 1);
+});
+
 test('paused real-time clock does not advance or bank time', () => {
   const { run } = game();
   run(`let now = 1000; Date.now = () => now;

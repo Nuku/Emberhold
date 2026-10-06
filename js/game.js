@@ -3739,7 +3739,7 @@ function startGameClock() {
       gameClockWorker = new Worker('js/game-clock.worker.js?v=publish-20261004u0004');
       gameClockWorker.addEventListener('message', () => {
         updateGameClock(true);
-        renderBonusTimer();
+        if (!document.hidden) renderBonusTimer();
       });
       gameClockWorker.postMessage({ type: 'start', interval: 250 });
       return;
@@ -3749,7 +3749,7 @@ function startGameClock() {
   }
   setInterval(() => {
     updateGameClock();
-    renderBonusTimer();
+    if (!document.hidden) renderBonusTimer();
   }, 250);
 }
 
@@ -4987,6 +4987,11 @@ let lineageWandererSize = { width: 0, height: 0 };
 let lineageWandererSpecies = '';
 let lineageWandererTotal = -1;
 let lineageWandererLastFrame = 0;
+const HEADER_FRAME_INTERVAL = 1000 / 20;
+const HEADER_GROUND_INTERVAL = 250;
+let lineageWandererTimer = null;
+let lineageWandererFrame = null;
+let lineageGroundCache = null;
 let activeMigrationTransition = null;
 const migrationMoonSprite = new Image();
 migrationMoonSprite.src = new URL('assets/migration-broken-moon.png', document.baseURI).href;
@@ -5351,10 +5356,37 @@ function drawHeaderWeather(ctx, width, height, weather, now) {
   ctx.restore();
 }
 
+// Schedule only the frames we draw, regardless of the display's refresh rate.
+// The simulation clock remains independent of this decorative animation.
+function stopLineageAnimation() {
+  clearTimeout(lineageWandererTimer);
+  if (lineageWandererFrame !== null) cancelAnimationFrame(lineageWandererFrame);
+  lineageWandererTimer = lineageWandererFrame = null;
+  lineageWandererLastFrame = 0;
+}
+
+function startLineageAnimation() {
+  if (document.hidden || lineageWandererTimer !== null || lineageWandererFrame !== null) return;
+  lineageWandererFrame = requestAnimationFrame(now => {
+    lineageWandererFrame = null;
+    if (document.hidden) return;
+    const drawn = renderLineageWanderers(now);
+    lineageWandererTimer = setTimeout(() => {
+      lineageWandererTimer = null;
+      startLineageAnimation();
+    }, drawn === false ? 500 : HEADER_FRAME_INTERVAL);
+  });
+}
+
 function renderLineageWanderers(now = 0) {
+  if (document.hidden) return false;
   const canvas = document.getElementById('lineage-wanderers');
-  if (!canvas || !state) return;
+  if (!canvas || !state) return false;
   const rect = canvas.getBoundingClientRect();
+  if (activeMigrationTransition || rect.bottom <= 0 || rect.top >= window.innerHeight || rect.width <= 0 || rect.height <= 0) {
+    lineageWandererLastFrame = 0;
+    return false;
+  }
   const dpr = Math.min(window.devicePixelRatio || 1, 2);
   const width = Math.max(1, Math.round(rect.width));
   const height = Math.max(1, Math.round(rect.height));
@@ -5399,7 +5431,22 @@ function renderLineageWanderers(now = 0) {
   if (!ctx) return;
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   ctx.clearRect(0, 0, width, height);
-  drawSettlementGround(ctx, width, height, state.landing, now);
+  // Terrain is a dense field of tiny marks. Reuse it between slow terrain
+  // updates while villagers and weather continue at the animation cadence.
+  const groundKey = `${width}:${height}:${dpr}:${state.landing}:${seasonIndex()}`;
+  if (!lineageGroundCache) lineageGroundCache = { canvas: document.createElement('canvas'), key: '', at: -Infinity };
+  const ground = lineageGroundCache;
+  if (ground.key !== groundKey || now - ground.at >= HEADER_GROUND_INTERVAL) {
+    if (ground.canvas.width !== canvas.width) ground.canvas.width = canvas.width;
+    if (ground.canvas.height !== canvas.height) ground.canvas.height = canvas.height;
+    const groundContext = ground.canvas.getContext('2d');
+    groundContext.setTransform(dpr, 0, 0, dpr, 0, 0);
+    groundContext.clearRect(0, 0, width, height);
+    drawSettlementGround(groundContext, width, height, state.landing, now);
+    ground.key = groundKey;
+    ground.at = now;
+  }
+  ctx.drawImage(ground.canvas, 0, 0, width, height);
   const seconds = now && lineageWandererLastFrame
     ? Math.min(0.08, Math.max(0, (now - lineageWandererLastFrame) / 1000))
     : 1 / 60;
@@ -5438,7 +5485,6 @@ function renderLineageWanderers(now = 0) {
     }
   }
   drawHeaderWeather(ctx, width, height, weather, now);
-  requestAnimationFrame(renderLineageWanderers);
 }
 
 function renderHeader() {
@@ -6366,7 +6412,7 @@ function renderSidePanel() {
 function loadLatestUpdatesTooltip() {
   const button = document.getElementById('btn-updates');
   if (!button || typeof fetch !== 'function' || typeof DOMParser !== 'function') return;
-      fetch('changelog.html?v=publish-20261004u0004')
+      fetch('changelog.html?v=publish-20261005u0003')
     .then(response => response.ok ? response.text() : Promise.reject(new Error('changelog unavailable')))
     .then(source => {
       const doc = new DOMParser().parseFromString(source, 'text/html');
@@ -7058,7 +7104,15 @@ function boot() {
   lastGameAt = Date.now();
   saveGame(true);
   startGameClock();
-  setInterval(() => { if (!tooltipHover && !pointerDown && !document.activeElement?.closest('.has-tooltip')) render(); }, 500);
+  setInterval(() => { if (!document.hidden && !tooltipHover && !pointerDown && !document.activeElement?.closest('.has-tooltip')) render(); }, 500);
+  document.addEventListener('visibilitychange', () => {
+    stopLineageAnimation();
+    if (!document.hidden) {
+      updateGameClock(!!gameClockWorker);
+      render();
+      startLineageAnimation();
+    }
+  });
   setInterval(() => { if (state.settings.autosave) saveGame(true); }, 15000);
   window.addEventListener('beforeunload', () => saveGame(true));
   window.addEventListener('storage', event => {
@@ -7067,7 +7121,7 @@ function boot() {
     }
   });
   render();
-  renderLineageWanderers();
+  startLineageAnimation();
   if (state.migrationTransition) startMigrationTransition(state.migrationTransition);
 }
 

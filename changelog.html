@@ -27,6 +27,8 @@ code { color:var(--amber); }
 <section>
 <h2>2026-10-05</h2>
 <ul>
+<li>Reduced header animation work by capping its frame rate, reusing terrain between updates, and pausing decorative and DOM updates while the page is hidden or the header is offscreen.</li>
+<li>Refreshed published stylesheet and script cache versions (<code>publish-20261005u0003</code>).</li>
 <li>Strict-order queues now wait at the first unaffordable project instead of completing later entries out of order.</li>
 <li>Queued projects that exceed storage capacity now remain queued and show why they cannot be completed.</li>
 <li>Villagers gather at an active Wonder before kneeling to worship, and keep seeking weather shelter while it remains active.</li>
