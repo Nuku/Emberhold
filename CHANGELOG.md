@@ -4,8 +4,9 @@ All notable changes to Emberhold are recorded here, with the newest changes firs
 
 ## 2026-10-06
 
+- Increased Worldroot Conservatory food calamity losses to match the intended difficulty scaling.
 - Factory storage now caps Industrial Goods at 100 per Factory.
-- Refreshed published stylesheet, data, game script, and changelog cache versions (`publish-20261006u0001`).
+- Refreshed published stylesheet, data, game script, and changelog cache versions (`publish-20261006u0002`).
 
 ## 2026-10-05
 

@@ -1397,7 +1397,7 @@ const WONDERS = [
   { id: 'greenfold', name: 'The Worldroot Conservatory', short: 'A forest grown around a buried intelligence',
     findCost: { survey: 320, wood: 1500, tools: 100, knowledge: 1800 },
     findText: 'The oldest trees of the Greenfold grow in a perfect ring. Beneath their roots lies a door of living bark, breathing slowly in time with the forest.',
-    calamity: { resource: 'food', name: 'The roots grow hungry', values: [0.18, 0.4, 0.75, 1.2, 1.8],
+    calamity: { resource: 'food', name: 'The roots grow hungry', values: [2.7, 6, 11.25, 18, 27],
       text: 'As the Conservatory wakes, roots seek the settlement’s stores. The forest remembers feeding something much larger than a village.' },
     sections: [
       ['The Breathing Door', 'The bark parts around the expedition like lips around a remembered word. Sap runs upward along the walls, against gravity.'],
