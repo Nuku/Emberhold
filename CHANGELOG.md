@@ -2,6 +2,11 @@
 
 All notable changes to Emberhold are recorded here, with the newest changes first.
 
+## 2026-10-06
+
+- Factory storage now caps Industrial Goods at 100 per Factory.
+- Refreshed published stylesheet, data, game script, and changelog cache versions (`publish-20261006u0001`).
+
 ## 2026-10-05
 
 - Cached the header rain texture and exposed live animation frame timing diagnostics.
