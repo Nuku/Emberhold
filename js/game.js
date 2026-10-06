@@ -789,6 +789,15 @@ const WONDER_OBSTACLES = [
   { name: 'Silence Device', text: 'The defenses wake at every sound. Researchers must build a device that teaches the chamber not to hear.', cost: { machinery: 500, knowledge: 5000, aether: 70 } },
   { name: 'Heart-Seal Key', text: 'The final seal recognizes no human hand. It will require a key built from materials that have remembered stranger owners.', cost: { steel: 1200, machinery: 650, aether: 120 } },
 ];
+const LATE_WONDER_OBSTACLES = [
+  { name: 'Sky-Metal Lattice', text: 'A featherweight framework must be fitted through the fractured arch without bending. The Sky Metal Forge can shape the aluminum braces.', cost: { aluminum: 1260, steel: 900, machinery: 320 } },
+  { name: 'Fur-Sealed Vent', text: 'The passage exhales freezing air that unravels every binding. Layered fur must seal the vents before the expedition can proceed.', cost: { fur: 1400, steel: 700, tools: 180 } },
+  { name: 'Living Alloy Heart', text: 'The mechanism rejects every rigid key. A living alloy core may learn the shape of its lock.', cost: { livingAlloy: 540, aluminum: 780, machinery: 500 } },
+  { name: 'Black-Gold Pressure Seal', text: 'The final door is held shut by a pressure system older than the settlement. Oil-fired pumps can force it open.', cost: { oil: 1080, machinery: 700, steel: 1500 } },
+];
+function wonderObstacles(id = state.landing) {
+  return LANDING_BY_ID.get(id)?.postWaters ? [...WONDER_OBSTACLES, ...LATE_WONDER_OBSTACLES] : WONDER_OBSTACLES;
+}
 
 function wonderResearchCost(research) {
   return Object.fromEntries(Object.entries(research.cost).map(([id, amount]) =>
@@ -798,11 +807,12 @@ function currentWonderObstacle(record = wonderRecord()) {
   const sectionIndex = wonderSectionIndex(record);
   if (sectionIndex < 0) return null;
   const built = record.obstacles || {};
-  for (let index = 0; index < WONDER_OBSTACLES.length; index++) {
-    const threshold = Math.ceil(WONDER_SECTION_PROGRESS * (index + 1) / WONDER_OBSTACLES.length);
+  const obstacles = wonderObstacles();
+  for (let index = 0; index < obstacles.length; index++) {
+    const threshold = Math.ceil(WONDER_SECTION_PROGRESS * (index + 1) / obstacles.length);
     const key = `${sectionIndex}:${index}`;
     if (record.progress >= threshold && !built[key])
-      return { ...WONDER_OBSTACLES[index], index, sectionIndex, threshold, key };
+      return { ...obstacles[index], index, sectionIndex, threshold, key };
   }
   return null;
 }
@@ -1400,7 +1410,7 @@ function queueDef(entry) {
     if (entry.id === 'greatMigrationStage') return BUILDING_BY_ID.get('greatMigration');
     if (isWonderObstacleQueueId(entry.id)) {
       const parts = entry.id.split(':');
-      const obstacle = WONDER_OBSTACLES[Number(parts[3])];
+      const obstacle = wonderObstacles()[Number(parts[3])];
       return parts.length === 4 && Number.isInteger(Number(parts[2])) && obstacle ? obstacle : null;
     }
     return BUILDING_BY_ID.get(entry.id);

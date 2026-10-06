@@ -4,6 +4,9 @@ All notable changes to Emberhold are recorded here, with the newest changes firs
 
 ## 2026-10-06
 
+- Added four late-game Wonder obstacles to post-Waters landings, using Aluminum, Fur, Living Alloy, and Oil.
+- Reduced Solar Array power output from 5 to 2 per array.
+- Refreshed published stylesheet, data, game script, and changelog cache versions (`publish-20261006u0003`).
 - Increased Worldroot Conservatory food calamity losses to match the intended difficulty scaling.
 - Factory storage now caps Industrial Goods at 100 per Factory.
 - Refreshed published stylesheet, data, game script, and changelog cache versions (`publish-20261006u0002`).
