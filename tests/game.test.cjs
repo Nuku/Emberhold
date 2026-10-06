@@ -113,7 +113,7 @@ test('header animation schedules a single capped loop and stops cleanly when hid
   assert.equal(frames.size, 0);
 });
 
-test('header draws thirty frames per second on both standard and fast displays', () => {
+test('header draws sixty frames per second on both standard and fast displays', () => {
   for (const refreshRate of [60, 144]) {
     const { run, frames } = headerAnimationGame();
     run('let draws = 0; renderLineageWanderers = () => { draws++; }; startLineageAnimation()');
@@ -122,8 +122,33 @@ test('header draws thirty frames per second on both standard and fast displays',
       frames.delete(id);
       callback(i * 1000 / refreshRate);
     }
-    assert.equal(run('draws'), 30);
+    assert.equal(run('draws'), 60);
   }
+});
+
+test('rain batches independent streaks into one stroke without changing their motion', () => {
+  const { run, context } = game();
+  const starts = [];
+  const ends = [];
+  let strokes = 0;
+  context.weatherContext = {
+    save() {}, restore() {}, beginPath() {}, rect() {}, clip() {},
+    moveTo(x, y) { starts.push([x, y]); },
+    lineTo(x, y) { ends.push([x, y]); },
+    stroke() { strokes++; },
+  };
+  run("drawHeaderWeather(weatherContext, 1920, 147, { id: 'rain', temperature: 12 }, 1000)");
+  assert.equal(strokes, 1);
+  assert.equal(starts.length, 128);
+  assert.equal(ends.length, 128);
+  for (let i = 0; i < starts.length; i++) {
+    assert.equal(starts[i][0] - ends[i][0], 4);
+    assert.equal(ends[i][1] - starts[i][1], 9);
+  }
+  const firstY = starts[0][1];
+  run("drawHeaderWeather(weatherContext, 1920, 147, { id: 'rain', temperature: 12 }, 1010)");
+  const wrappedTravel = (starts[128][1] - firstY + 182) % 182;
+  assert.ok(Math.abs(wrappedTravel - 1.32) < 1e-9);
 });
 
 test('villager sprites reuse pixels across positions and distinguish poses and DPI', () => {

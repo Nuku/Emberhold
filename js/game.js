@@ -4987,13 +4987,14 @@ let lineageWandererSize = { width: 0, height: 0 };
 let lineageWandererSpecies = '';
 let lineageWandererTotal = -1;
 let lineageWandererLastFrame = 0;
-const HEADER_FRAME_INTERVAL = 1000 / 30;
-const HEADER_GROUND_INTERVAL = 125;
+const HEADER_FRAME_INTERVAL = 1000 / 60;
+const HEADER_GROUND_INTERVAL = 1000 / 12;
 let lineageWandererTimer = null;
 let lineageWandererFrame = null;
 let lineageAnimationNextFrame = null;
 let lineageGroundCache = null;
 const lineagePersonSprites = new Map();
+const headerWeatherNoise = [];
 let activeMigrationTransition = null;
 const migrationMoonSprite = new Image();
 migrationMoonSprite.src = new URL('assets/migration-broken-moon.png', document.baseURI).href;
@@ -5264,8 +5265,9 @@ function drawHeaderWeather(ctx, width, height, weather, now) {
   if (!weather) return;
   const seconds = now / 1000;
   const noise = index => {
+    if (headerWeatherNoise[index] !== undefined) return headerWeatherNoise[index];
     const value = Math.sin(index * 127.1 + 311.7) * 43758.5453;
-    return value - Math.floor(value);
+    return headerWeatherNoise[index] = value - Math.floor(value);
   };
   ctx.save();
   ctx.beginPath(); ctx.rect(0, 0, width, height); ctx.clip();
@@ -5295,6 +5297,7 @@ function drawHeaderWeather(ctx, width, height, weather, now) {
     ctx.strokeStyle = storm ? 'rgba(177,205,235,.54)' : 'rgba(146,195,224,.44)';
     ctx.lineWidth = storm ? 1.4 : 1;
     ctx.globalAlpha = storm ? 0.88 : 0.72;
+    ctx.beginPath();
     for (let i = 0; i < count; i++) {
       const slant = storm ? 8 : 4;
       const dropLength = storm ? 13 : 9;
@@ -5302,8 +5305,9 @@ function drawHeaderWeather(ctx, width, height, weather, now) {
       const y = (fallDistance % (height + 35)) - 18;
       // Carry each streak sideways at the same slope as its drawn trail.
       const x = ((noise(i + 201) * width - fallDistance * slant / dropLength) % width + width) % width;
-      ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x - slant, y + dropLength); ctx.stroke();
+      ctx.moveTo(x, y); ctx.lineTo(x - slant, y + dropLength);
     }
+    ctx.stroke();
     ctx.globalAlpha = 1;
     if (storm) {
       const flash = Math.max(0, Math.sin(seconds * 0.41 + 1.2) - 0.985) * 18;
@@ -5323,7 +5327,7 @@ function drawHeaderWeather(ctx, width, height, weather, now) {
     for (let band = 0; band < colors.length; band++) {
       ctx.strokeStyle = colors[band]; ctx.lineWidth = 3 + band;
       ctx.beginPath();
-      for (let x = -8; x <= width + 8; x += 8) {
+      for (let x = -8; x <= width + 16; x += 16) {
         const y = height * (0.16 + band * 0.13) + Math.sin(x * 0.013 + seconds * (0.6 + band * 0.16)) * (8 + band * 3) + Math.sin(x * 0.031 - seconds * 0.3) * 3;
         if (x === -8) ctx.moveTo(x, y); else ctx.lineTo(x, y);
       }
@@ -5337,7 +5341,9 @@ function drawHeaderWeather(ctx, width, height, weather, now) {
     for (let band = 0; band < (weather.temperature >= 30 ? 7 : 3); band++) {
       const baseY = height * (0.56 + band * 0.075) + Math.sin(seconds * 0.75 + band) * 2;
       ctx.beginPath();
-      for (let x = -4; x <= width + 4; x += 7) {
+      // Twenty-pixel sampling keeps the shallow shimmer's curve error below
+      // a tenth of a pixel, with far fewer path segments on wide displays.
+      for (let x = -4; x <= width + 20; x += 20) {
         const y = baseY + Math.sin(x * 0.026 + seconds * 1.3 + band * 1.7) * (weather.temperature >= 30 ? 2.4 : 1.2);
         if (x === -4) ctx.moveTo(x, y); else ctx.lineTo(x, y);
       }
