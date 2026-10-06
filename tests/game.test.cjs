@@ -62,7 +62,7 @@ function headerAnimationGame() {
     get: (_, key) => key.startsWith('create') ? () => ({ addColorStop() {} }) : () => { operations++; },
     set: () => true,
   });
-  const canvas = () => ({ width: 0, height: 0, getContext: () => ctx, getBoundingClientRect: () => rect });
+  const canvas = () => ({ width: 0, height: 0, dataset: {}, getContext: () => ctx, getBoundingClientRect: () => rect });
   const header = canvas();
   engine.context.document.hidden = false;
   engine.context.document.getElementById = () => header;
@@ -126,29 +126,49 @@ test('header draws sixty frames per second on both standard and fast displays', 
   }
 });
 
-test('rain batches independent streaks into one stroke without changing their motion', () => {
-  const { run, context } = game();
-  const starts = [];
-  const ends = [];
-  let strokes = 0;
+test('rain reuses its raster texture and preserves diagonal travel at high DPI', () => {
+  const { run, context, operations } = headerAnimationGame();
+  const offsets = [];
+  const scales = [];
+  const rectangles = [];
+  let patterns = 0;
   context.weatherContext = {
     save() {}, restore() {}, beginPath() {}, rect() {}, clip() {},
-    moveTo(x, y) { starts.push([x, y]); },
-    lineTo(x, y) { ends.push([x, y]); },
-    stroke() { strokes++; },
+    translate(x, y) { offsets.push([x, y]); },
+    scale(x, y) { scales.push([x, y]); },
+    fillRect(...args) { rectangles.push(args); },
+    createPattern(tile, repeat) {
+      patterns++;
+      assert.equal(tile.width, 1536);
+      assert.equal(tile.height, 512);
+      assert.equal(repeat, 'repeat');
+      return {};
+    },
   };
   run("drawHeaderWeather(weatherContext, 1920, 147, { id: 'rain', temperature: 12 }, 1000)");
-  assert.equal(strokes, 1);
-  assert.equal(starts.length, 128);
-  assert.equal(ends.length, 128);
-  for (let i = 0; i < starts.length; i++) {
-    assert.equal(starts[i][0] - ends[i][0], 4);
-    assert.equal(ends[i][1] - starts[i][1], 9);
-  }
-  const firstY = starts[0][1];
+  const rasterOperations = operations();
+  assert.ok(rasterOperations > 0);
   run("drawHeaderWeather(weatherContext, 1920, 147, { id: 'rain', temperature: 12 }, 1010)");
-  const wrappedTravel = (starts[128][1] - firstY + 182) % 182;
-  assert.ok(Math.abs(wrappedTravel - 1.32) < 1e-9);
+  assert.equal(patterns, 1);
+  assert.equal(operations(), rasterOperations);
+  assert.ok(Math.abs(offsets[1][1] - offsets[0][1] - 1.32) < 1e-9);
+  assert.ok(Math.abs(offsets[1][0] - offsets[0][0] + 1.32 * 4 / 9) < 1e-9);
+  assert.deepEqual(scales[0], [0.5, 0.5]);
+  assert.deepEqual(rectangles[0].slice(2), [3840, 294]);
+  run("drawHeaderWeather(weatherContext, 1920, 147, { id: 'storm', temperature: 12 }, 1010)");
+  assert.equal(patterns, 2);
+  assert.ok(operations() > rasterOperations);
+});
+
+test('header diagnostics report actual frame gaps rather than the movement clamp', () => {
+  const { run, context } = headerAnimationGame();
+  run('for (let i = 1; i <= 25; i++) renderLineageWanderers(i * 100)');
+  const metrics = context.document.getElementById('lineage-wanderers').dataset;
+  assert.equal(metrics.animationFps, '10.0');
+  assert.equal(metrics.animationP95Ms, '100.0');
+  assert.equal(metrics.animationMaxGapMs, '100.0');
+  run('stopLineageAnimation()');
+  assert.equal(run('headerFrameIntervals.length'), 0);
 });
 
 test('villager sprites reuse pixels across positions and distinguish poses and DPI', () => {

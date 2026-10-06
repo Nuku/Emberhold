@@ -4995,6 +4995,9 @@ let lineageAnimationNextFrame = null;
 let lineageGroundCache = null;
 const lineagePersonSprites = new Map();
 const headerWeatherNoise = [];
+let headerRainCache = null;
+const headerFrameIntervals = [];
+let headerFrameReportedAt = 0;
 let activeMigrationTransition = null;
 const migrationMoonSprite = new Image();
 migrationMoonSprite.src = new URL('assets/migration-broken-moon.png', document.baseURI).href;
@@ -5261,14 +5264,60 @@ function drawSettlementGround(ctx, width, height, landing, now) {
   }
 }
 
-function drawHeaderWeather(ctx, width, height, weather, now) {
+function headerWeatherRandom(index) {
+  if (headerWeatherNoise[index] !== undefined) return headerWeatherNoise[index];
+  const value = Math.sin(index * 127.1 + 311.7) * 43758.5453;
+  return headerWeatherNoise[index] = value - Math.floor(value);
+}
+
+function drawHeaderRain(ctx, width, height, storm, seconds, dpr) {
+  const tileWidth = 768;
+  const tileHeight = 256;
+  const slant = storm ? 8 : 4;
+  const dropLength = storm ? 13 : 9;
+  const count = Math.max(1, Math.round(tileWidth / (storm ? 9 : 15) * tileHeight / (height + 35)));
+  if (!headerRainCache || headerRainCache.storm !== storm || headerRainCache.dpr !== dpr || headerRainCache.count !== count || headerRainCache.context !== ctx) {
+    const tile = document.createElement('canvas');
+    tile.width = Math.round(tileWidth * dpr);
+    tile.height = Math.round(tileHeight * dpr);
+    const tileContext = tile.getContext('2d');
+    tileContext.setTransform(dpr, 0, 0, dpr, 0, 0);
+    tileContext.strokeStyle = storm ? 'rgba(177,205,235,.54)' : 'rgba(146,195,224,.44)';
+    tileContext.lineWidth = storm ? 1.4 : 1;
+    tileContext.globalAlpha = storm ? 0.88 : 0.72;
+    tileContext.beginPath();
+    for (let i = 0; i < count; i++) {
+      const x = headerWeatherRandom(i + 201) * tileWidth;
+      const y = headerWeatherRandom(i + 401) * tileHeight;
+      // Wrap trails across both edges so scrolling the repeat has no seams.
+      for (let dx = -1; dx <= 1; dx++) {
+        for (let dy = -1; dy <= 1; dy++) {
+          const px = x + dx * tileWidth;
+          const py = y + dy * tileHeight;
+          tileContext.moveTo(px, py);
+          tileContext.lineTo(px - slant, py + dropLength);
+        }
+      }
+    }
+    tileContext.stroke();
+    headerRainCache = { storm, dpr, count, context: ctx, pattern: ctx.createPattern(tile, 'repeat') };
+  }
+  const fall = seconds * (storm ? 205 : 132);
+  const offsetX = (-fall * slant / dropLength) % tileWidth;
+  const offsetY = fall % tileHeight;
+  ctx.save();
+  // Patterns use backing pixels; scale them back to CSS pixels.
+  ctx.translate(offsetX, offsetY);
+  ctx.scale(1 / dpr, 1 / dpr);
+  ctx.fillStyle = headerRainCache.pattern;
+  ctx.fillRect(-offsetX * dpr, -offsetY * dpr, width * dpr, height * dpr);
+  ctx.restore();
+}
+
+function drawHeaderWeather(ctx, width, height, weather, now, dpr = Math.min(window.devicePixelRatio || 1, 2)) {
   if (!weather) return;
   const seconds = now / 1000;
-  const noise = index => {
-    if (headerWeatherNoise[index] !== undefined) return headerWeatherNoise[index];
-    const value = Math.sin(index * 127.1 + 311.7) * 43758.5453;
-    return headerWeatherNoise[index] = value - Math.floor(value);
-  };
+  const noise = headerWeatherRandom;
   ctx.save();
   ctx.beginPath(); ctx.rect(0, 0, width, height); ctx.clip();
 
@@ -5293,22 +5342,7 @@ function drawHeaderWeather(ctx, width, height, weather, now) {
     }
   } else if (weather.id === 'rain' || weather.id === 'storm') {
     const storm = weather.id === 'storm';
-    const count = Math.max(24, Math.floor(width / (storm ? 9 : 15)));
-    ctx.strokeStyle = storm ? 'rgba(177,205,235,.54)' : 'rgba(146,195,224,.44)';
-    ctx.lineWidth = storm ? 1.4 : 1;
-    ctx.globalAlpha = storm ? 0.88 : 0.72;
-    ctx.beginPath();
-    for (let i = 0; i < count; i++) {
-      const slant = storm ? 8 : 4;
-      const dropLength = storm ? 13 : 9;
-      const fallDistance = seconds * (storm ? 205 : 132) + noise(i + 401) * (height + 35);
-      const y = (fallDistance % (height + 35)) - 18;
-      // Carry each streak sideways at the same slope as its drawn trail.
-      const x = ((noise(i + 201) * width - fallDistance * slant / dropLength) % width + width) % width;
-      ctx.moveTo(x, y); ctx.lineTo(x - slant, y + dropLength);
-    }
-    ctx.stroke();
-    ctx.globalAlpha = 1;
+    drawHeaderRain(ctx, width, height, storm, seconds, dpr);
     if (storm) {
       const flash = Math.max(0, Math.sin(seconds * 0.41 + 1.2) - 0.985) * 18;
       if (flash > 0) { ctx.fillStyle = `rgba(202,220,255,${flash})`; ctx.fillRect(0, 0, width, height); }
@@ -5372,6 +5406,8 @@ function stopLineageAnimation() {
   lineageWandererTimer = lineageWandererFrame = null;
   lineageAnimationNextFrame = null;
   lineageWandererLastFrame = 0;
+  headerFrameIntervals.length = 0;
+  headerFrameReportedAt = 0;
 }
 
 function startLineageAnimation() {
@@ -5423,6 +5459,8 @@ function renderLineageWanderers(now = 0) {
   const rect = canvas.getBoundingClientRect();
   if (activeMigrationTransition || rect.bottom <= 0 || rect.top >= window.innerHeight || rect.width <= 0 || rect.height <= 0) {
     lineageWandererLastFrame = 0;
+    headerFrameIntervals.length = 0;
+    headerFrameReportedAt = 0;
     return false;
   }
   const dpr = Math.min(window.devicePixelRatio || 1, 2);
@@ -5490,6 +5528,20 @@ function renderLineageWanderers(now = 0) {
   const seconds = now && lineageWandererLastFrame
     ? Math.min(0.08, Math.max(0, (now - lineageWandererLastFrame) / 1000))
     : 1 / 60;
+  // Report actual drawing cadence through DOM attributes for live inspection.
+  // Frame gaps are measured before the movement safety clamp above.
+  if (lineageWandererLastFrame && now > lineageWandererLastFrame) {
+    headerFrameIntervals.push(now - lineageWandererLastFrame);
+    if (headerFrameIntervals.length > 120) headerFrameIntervals.shift();
+    if (now - headerFrameReportedAt >= 1000) {
+      const sorted = [...headerFrameIntervals].sort((a, b) => a - b);
+      const average = headerFrameIntervals.reduce((sum, interval) => sum + interval, 0) / sorted.length;
+      canvas.dataset.animationFps = (1000 / average).toFixed(1);
+      canvas.dataset.animationP95Ms = sorted[Math.floor((sorted.length - 1) * 0.95)].toFixed(1);
+      canvas.dataset.animationMaxGapMs = sorted[sorted.length - 1].toFixed(1);
+      headerFrameReportedAt = now;
+    }
+  }
   lineageWandererLastFrame = now || lineageWandererLastFrame;
   for (let i = 0; i < lineageWanderers.length; i++) {
     const walker = lineageWanderers[i];
@@ -5524,7 +5576,7 @@ function renderLineageWanderers(now = 0) {
       drawCachedLineagePerson(ctx, walker.x, walker.y + bob, walkerLineage, Math.floor(walker.walkCycle) % 2, (lineageSpriteHue(walkerAppearance) + i * 7) % 360, worshipping, dpr);
     }
   }
-  drawHeaderWeather(ctx, width, height, weather, now);
+  drawHeaderWeather(ctx, width, height, weather, now, dpr);
 }
 
 function renderHeader() {

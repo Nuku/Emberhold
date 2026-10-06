@@ -4,6 +4,8 @@ All notable changes to Emberhold are recorded here, with the newest changes firs
 
 ## 2026-10-05
 
+- Cached the header rain texture and exposed live animation frame timing diagnostics.
+- Refreshed the published game script cache version (`publish-20261005u0007`).
 - Improved header animation performance with 60 FPS updates, more efficient weather rendering, and cached weather noise.
 - Refreshed the published game script cache version (`publish-20261005u0006`).
 - Reduced header animation work by capping its frame rate, reusing terrain between updates, and pausing decorative and DOM updates while the page is hidden or the header is offscreen.
