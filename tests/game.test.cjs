@@ -81,7 +81,7 @@ test('header terrain is reused and invalidated by time, size, season, and landin
   run('let terrainDraws = 0; drawSettlementGround = () => terrainDraws++');
   run('renderLineageWanderers(100); renderLineageWanderers(150)');
   assert.equal(run('terrainDraws'), 1);
-  run('renderLineageWanderers(350)');
+  run('renderLineageWanderers(225)');
   assert.equal(run('terrainDraws'), 2);
   rect.width = 1280;
   run('renderLineageWanderers(400)');
@@ -99,9 +99,8 @@ test('header animation schedules a single capped loop and stops cleanly when hid
   const [frameId, draw] = [...frames][0];
   frames.delete(frameId);
   draw(100);
-  assert.equal(frames.size, 0);
-  assert.equal(timers.size, 1);
-  assert.equal([...timers.values()][0].delay, 50);
+  assert.equal(frames.size, 1);
+  assert.equal(timers.size, 0);
   context.document.hidden = true;
   run('stopLineageAnimation(); startLineageAnimation()');
   assert.equal(timers.size, 0);
@@ -112,6 +111,32 @@ test('header animation schedules a single capped loop and stops cleanly when hid
   context.document.hidden = false;
   run('startLineageAnimation(); stopLineageAnimation()');
   assert.equal(frames.size, 0);
+});
+
+test('header draws thirty frames per second on both standard and fast displays', () => {
+  for (const refreshRate of [60, 144]) {
+    const { run, frames } = headerAnimationGame();
+    run('let draws = 0; renderLineageWanderers = () => { draws++; }; startLineageAnimation()');
+    for (let i = 0; i < refreshRate; i++) {
+      const [id, callback] = [...frames][0];
+      frames.delete(id);
+      callback(i * 1000 / refreshRate);
+    }
+    assert.equal(run('draws'), 30);
+  }
+});
+
+test('villager sprites reuse pixels across positions and distinguish poses and DPI', () => {
+  const { run } = headerAnimationGame();
+  run(`let spriteDraws = 0; drawLineagePixelPerson = () => spriteDraws++;
+    const ctx = document.getElementById('lineage-wanderers').getContext('2d');
+    drawCachedLineagePerson(ctx, 10, 20, 'human', 0, 12, false, 2);
+    drawCachedLineagePerson(ctx, 11, 21, 'human', 0, 12, false, 2);`);
+  assert.equal(run('spriteDraws'), 1);
+  run(`drawCachedLineagePerson(ctx, 11, 21, 'human', 1, 12, false, 2);
+    drawCachedLineagePerson(ctx, 11, 21, 'human', 0, 12, true, 2);
+    drawCachedLineagePerson(ctx, 11, 21, 'human', 0, 12, false, 1);`);
+  assert.equal(run('spriteDraws'), 4);
 });
 
 test('offscreen and migration-covered headers skip drawing and reset motion time', () => {

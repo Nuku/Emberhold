@@ -4987,11 +4987,13 @@ let lineageWandererSize = { width: 0, height: 0 };
 let lineageWandererSpecies = '';
 let lineageWandererTotal = -1;
 let lineageWandererLastFrame = 0;
-const HEADER_FRAME_INTERVAL = 1000 / 20;
-const HEADER_GROUND_INTERVAL = 250;
+const HEADER_FRAME_INTERVAL = 1000 / 30;
+const HEADER_GROUND_INTERVAL = 125;
 let lineageWandererTimer = null;
 let lineageWandererFrame = null;
+let lineageAnimationNextFrame = null;
 let lineageGroundCache = null;
+const lineagePersonSprites = new Map();
 let activeMigrationTransition = null;
 const migrationMoonSprite = new Image();
 migrationMoonSprite.src = new URL('assets/migration-broken-moon.png', document.baseURI).href;
@@ -5362,6 +5364,7 @@ function stopLineageAnimation() {
   clearTimeout(lineageWandererTimer);
   if (lineageWandererFrame !== null) cancelAnimationFrame(lineageWandererFrame);
   lineageWandererTimer = lineageWandererFrame = null;
+  lineageAnimationNextFrame = null;
   lineageWandererLastFrame = 0;
 }
 
@@ -5370,12 +5373,41 @@ function startLineageAnimation() {
   lineageWandererFrame = requestAnimationFrame(now => {
     lineageWandererFrame = null;
     if (document.hidden) return;
-    const drawn = renderLineageWanderers(now);
-    lineageWandererTimer = setTimeout(() => {
-      lineageWandererTimer = null;
+    // Gate drawing on the display timeline. A timer followed by rAF adds an
+    // extra frame's delay and can undershoot the requested frame rate.
+    if (lineageAnimationNextFrame !== null && now + 0.5 < lineageAnimationNextFrame) {
       startLineageAnimation();
-    }, drawn === false ? 500 : HEADER_FRAME_INTERVAL);
+      return;
+    }
+    if (lineageAnimationNextFrame === null) lineageAnimationNextFrame = now;
+    lineageAnimationNextFrame += HEADER_FRAME_INTERVAL * Math.max(1,
+      Math.floor((now - lineageAnimationNextFrame) / HEADER_FRAME_INTERVAL) + 1);
+    const drawn = renderLineageWanderers(now);
+    if (drawn === false) {
+      lineageAnimationNextFrame = null;
+      lineageWandererTimer = setTimeout(() => {
+        lineageWandererTimer = null;
+        startLineageAnimation();
+      }, 500);
+    } else {
+      startLineageAnimation();
+    }
   });
+}
+
+function drawCachedLineagePerson(ctx, x, y, id, step, hue, worshipping, dpr) {
+  const key = `${id}:${step}:${hue}:${worshipping}:${dpr}`;
+  let sprite = lineagePersonSprites.get(key);
+  if (!sprite) {
+    sprite = document.createElement('canvas');
+    sprite.width = sprite.height = 64 * dpr;
+    const spriteContext = sprite.getContext('2d');
+    spriteContext.setTransform(dpr, 0, 0, dpr, 0, 0);
+    // Padding includes tall ears, long tails, and the kneeling pose.
+    drawLineagePixelPerson(spriteContext, 24, 16, id, step, hue, worshipping);
+    lineagePersonSprites.set(key, sprite);
+  }
+  ctx.drawImage(sprite, Math.round(x) - 24, Math.round(y) - 16, 64, 64);
 }
 
 function renderLineageWanderers(now = 0) {
@@ -5402,6 +5434,7 @@ function renderLineageWanderers(now = 0) {
   const weather = dailyWeather();
   const activeWonder = !!state.wonders?.[state.landing]?.found;
   if (appearance !== lineageWandererSpecies || count !== lineageWandererTotal) {
+    lineagePersonSprites.clear();
     lineageWandererSpecies = appearance;
     lineageWandererTotal = count;
     while (lineageWanderers.length < count) {
@@ -5430,6 +5463,7 @@ function renderLineageWanderers(now = 0) {
   const ctx = canvas.getContext('2d');
   if (!ctx) return;
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.imageSmoothingEnabled = false;
   ctx.clearRect(0, 0, width, height);
   // Terrain is a dense field of tiny marks. Reuse it between slow terrain
   // updates while villagers and weather continue at the animation cadence.
@@ -5476,12 +5510,12 @@ function renderLineageWanderers(now = 0) {
       ctx.scale(-1, 1);
       const walkerLineage = compositions[i];
       const walkerAppearance = walkerLineage === 'custom' ? (state.customLineage?.name || 'custom') : walkerLineage;
-      drawLineagePixelPerson(ctx, walker.x, walker.y + bob, walkerLineage, Math.floor(walker.walkCycle) % 2, (lineageSpriteHue(walkerAppearance) + i * 7) % 360, worshipping);
+      drawCachedLineagePerson(ctx, walker.x, walker.y + bob, walkerLineage, Math.floor(walker.walkCycle) % 2, (lineageSpriteHue(walkerAppearance) + i * 7) % 360, worshipping, dpr);
       ctx.restore();
     } else {
       const walkerLineage = compositions[i];
       const walkerAppearance = walkerLineage === 'custom' ? (state.customLineage?.name || 'custom') : walkerLineage;
-      drawLineagePixelPerson(ctx, walker.x, walker.y + bob, walkerLineage, Math.floor(walker.walkCycle) % 2, (lineageSpriteHue(walkerAppearance) + i * 7) % 360, worshipping);
+      drawCachedLineagePerson(ctx, walker.x, walker.y + bob, walkerLineage, Math.floor(walker.walkCycle) % 2, (lineageSpriteHue(walkerAppearance) + i * 7) % 360, worshipping, dpr);
     }
   }
   drawHeaderWeather(ctx, width, height, weather, now);

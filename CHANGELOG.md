@@ -4,6 +4,8 @@ All notable changes to Emberhold are recorded here, with the newest changes firs
 
 ## 2026-10-05
 
+- Improved header animation performance by caching villager sprites, rendering at 30 FPS, and refreshing terrain more often without adding an extra frame of delay.
+- Refreshed the published game script cache version (`publish-20261005u0004`).
 - Reduced header animation work by capping its frame rate, reusing terrain between updates, and pausing decorative and DOM updates while the page is hidden or the header is offscreen.
 - Refreshed published stylesheet and script cache versions (`publish-20261005u0003`).
 - Strict-order queues now wait at the first unaffordable project instead of completing later entries out of order.
