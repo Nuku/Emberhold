@@ -4994,7 +4994,7 @@ function renderBonusTimer() {
   const seconds = Math.ceil(state.bonusTime);
   const hours = Math.floor(seconds / 3600);
   const minutes = Math.floor(seconds % 3600 / 60);
-  timer.textContent = `2× speed · ${[hours, minutes, seconds % 60].map(n => String(n).padStart(2, '0')).join(':')}`;
+  updateText(timer, `2× speed · ${[hours, minutes, seconds % 60].map(n => String(n).padStart(2, '0')).join(':')}`);
 }
 
 // Tiny lineage-colored villagers drift through the header behind its text.
@@ -5004,12 +5004,10 @@ let lineageCanvasGeometry = null;
 let lineageWandererSpecies = '';
 let lineageWandererTotal = -1;
 let lineageWandererLastFrame = 0;
-const HEADER_FRAME_INTERVAL = 1000 / 60;
 const HEADER_GROUND_INTERVAL = 1000 / 12;
 const headerPerformance = { simulationMs: 0, renderMs: 0, drawMs: 0 };
 let lineageWandererTimer = null;
 let lineageWandererFrame = null;
-let lineageAnimationNextFrame = null;
 let lineageGroundCache = null;
 const lineagePersonSprites = new Map();
 const headerWeatherNoise = [];
@@ -5416,13 +5414,13 @@ function drawHeaderWeather(ctx, width, height, weather, now, dpr = Math.min(wind
   ctx.restore();
 }
 
-// Schedule only the frames we draw, regardless of the display's refresh rate.
+// Draw on each display frame. A fixed 60 Hz gate creates uneven frame spacing
+// on displays whose refresh rate is not a multiple of 60 (for example 75 Hz).
 // The simulation clock remains independent of this decorative animation.
 function stopLineageAnimation() {
   clearTimeout(lineageWandererTimer);
   if (lineageWandererFrame !== null) cancelAnimationFrame(lineageWandererFrame);
   lineageWandererTimer = lineageWandererFrame = null;
-  lineageAnimationNextFrame = null;
   lineageWandererLastFrame = 0;
   headerFrameIntervals.length = 0;
   headerFrameReportedAt = 0;
@@ -5433,20 +5431,10 @@ function startLineageAnimation() {
   lineageWandererFrame = requestAnimationFrame(now => {
     lineageWandererFrame = null;
     if (document.hidden) return;
-    // Gate drawing on the display timeline. A timer followed by rAF adds an
-    // extra frame's delay and can undershoot the requested frame rate.
-    if (lineageAnimationNextFrame !== null && now + 0.5 < lineageAnimationNextFrame) {
-      startLineageAnimation();
-      return;
-    }
-    if (lineageAnimationNextFrame === null) lineageAnimationNextFrame = now;
-    lineageAnimationNextFrame += HEADER_FRAME_INTERVAL * Math.max(1,
-      Math.floor((now - lineageAnimationNextFrame) / HEADER_FRAME_INTERVAL) + 1);
     const started = typeof performance !== 'undefined' ? performance.now() : 0;
     const drawn = renderLineageWanderers(now);
     if (started) headerPerformance.drawMs = performance.now() - started;
     if (drawn === false) {
-      lineageAnimationNextFrame = null;
       lineageWandererTimer = setTimeout(() => {
         lineageWandererTimer = null;
         startLineageAnimation();
@@ -5631,12 +5619,18 @@ function renderLineageWanderers(now = 0) {
   drawHeaderWeather(ctx, width, height, weather, now, dpr);
 }
 
+function updateText(element, text) {
+  if (element.textContent !== text) element.textContent = text;
+}
+
 function renderHeader() {
   renderBonusTimer();
   const pauseButton = document.getElementById('btn-pause');
-  pauseButton.textContent = state.paused ? 'Resume' : 'Pause';
-  pauseButton.setAttribute('aria-pressed', String(state.paused));
-  pauseButton.setAttribute('aria-label', state.paused ? 'Resume the game' : 'Pause the game');
+  updateText(pauseButton, state.paused ? 'Resume' : 'Pause');
+  const pressed = String(state.paused);
+  const pauseLabel = state.paused ? 'Resume the game' : 'Pause the game';
+  if (pauseButton.getAttribute('aria-pressed') !== pressed) pauseButton.setAttribute('aria-pressed', pressed);
+  if (pauseButton.getAttribute('aria-label') !== pauseLabel) pauseButton.setAttribute('aria-label', pauseLabel);
   const doy = Math.floor(state.day % DAYS_PER_YEAR);
   const season = SEASONS[Math.floor(doy / DAYS_PER_SEASON)].name;
   const year = Math.floor(state.day / DAYS_PER_YEAR) + 1;
@@ -5644,34 +5638,37 @@ function renderHeader() {
     `<span class="has-tooltip" tabindex="0" data-tooltip="${attrText(placeTraitTooltip(trait))}">${esc(trait.name)}</span>`).join(', ');
   const challengeCount = (state.migrationChallenges || []).length;
   const locationEl = document.getElementById('location-line');
-  locationEl.textContent = `${landingDef().name}${challengeCount ? ` ★` : ''}`;
-  locationEl.className = challengeCount ? `challenge-star challenge-star-${challengeCount}` : '';
-  locationEl.title = challengeCount ? `${challengeCount} self-challenge${challengeCount === 1 ? '' : 's'} active` : '';
+  updateText(locationEl, `${landingDef().name}${challengeCount ? ` ★` : ''}`);
+  const locationClass = challengeCount ? `challenge-star challenge-star-${challengeCount}` : '';
+  const locationTitle = challengeCount ? `${challengeCount} self-challenge${challengeCount === 1 ? '' : 's'} active` : '';
+  if (locationEl.className !== locationClass) locationEl.className = locationClass;
+  if (locationEl.title !== locationTitle) locationEl.title = locationTitle;
   updateContent(document.getElementById('era-line'),
     `Year ${year} of the ${esc(ERAS[state.era - 1].name)}${traitLabels ? ` — ${traitLabels}` : ''} — ${esc(lineageDef(state.species).name)}`);
-  document.getElementById('time-line').textContent =
-    `${state.paused ? 'Paused · ' : ''}Day ${doy % DAYS_PER_SEASON + 1} of ${season} — chronicle day ${Math.floor(state.day)} — ${weatherSummary()}`;
-  document.getElementById('pop-line').textContent =
-    `${state.pop} villagers${unassigned() ? ` (${unassigned()} unassigned)` : ''} — housing for ${popCap()}`;
+  updateText(document.getElementById('time-line'),
+    `${state.paused ? 'Paused · ' : ''}Day ${doy % DAYS_PER_SEASON + 1} of ${season} — chronicle day ${Math.floor(state.day)} — ${weatherSummary()}`);
+  updateText(document.getElementById('pop-line'),
+    `${state.pop} villagers${unassigned() ? ` (${unassigned()} unassigned)` : ''} — housing for ${popCap()}`);
   const moraleEl = document.getElementById('morale-line');
-  moraleEl.textContent = `Morale ${Math.round(state.morale)} / ${moraleCap()} — ${moraleLabel()} (${moraleMult() >= 1 ? '+' : ''}${Math.round((moraleMult() - 1) * 100)}% production and population growth speed)`;
-  moraleEl.className = state.morale < 25 ? 'morale-low' : state.morale >= 80 ? 'morale-high' : '';
-  moraleEl.classList.add('has-tooltip');
-  moraleEl.tabIndex = 0;
-  moraleEl.dataset.tooltip = attrText(moraleTooltip());
+  updateText(moraleEl, `Morale ${Math.round(state.morale)} / ${moraleCap()} — ${moraleLabel()} (${moraleMult() >= 1 ? '+' : ''}${Math.round((moraleMult() - 1) * 100)}% production and population growth speed)`);
+  const moraleClass = `has-tooltip${state.morale < 25 ? ' morale-low' : state.morale >= 80 ? ' morale-high' : ''}`;
+  if (moraleEl.className !== moraleClass) moraleEl.className = moraleClass;
+  if (moraleEl.tabIndex !== 0) moraleEl.tabIndex = 0;
+  const tooltip = attrText(moraleTooltip());
+  if (moraleEl.dataset.tooltip !== tooltip) moraleEl.dataset.tooltip = tooltip;
   const echoEl = document.getElementById('echo-line');
   if (bld('monument') > 0 || state.echoes > 0 || state.migrating) {
     echoEl.classList.remove('hidden');
-    echoEl.textContent = state.migrating
+    updateText(echoEl, state.migrating
       ? `Migration prepared — ${fmtHeld(state.echoes)} Echoes in the pouch`
-      : `${fmtHeld(state.echoes)} Echo${Math.floor(state.echoes) === 1 ? '' : 'es'} in the pouch — next migration at this size: ${fmtHeld(echoesEarned())}`;
+      : `${fmtHeld(state.echoes)} Echo${Math.floor(state.echoes) === 1 ? '' : 'es'} in the pouch — next migration at this size: ${fmtHeld(echoesEarned())}`);
   } else {
     echoEl.classList.add('hidden');
   }
   const wonderEl = document.getElementById('wonder-line');
   if ((state.hope || 0) > 0 || (state.ancient || 0) > 0 || beaconsLitCount() > 0) {
     wonderEl.classList.remove('hidden');
-    wonderEl.textContent = `Beacons lit: ${beaconsLitCount()} · Hope: ${state.hope || 0} · Ancient: ${state.ancient || 0}`;
+    updateText(wonderEl, `Beacons lit: ${beaconsLitCount()} · Hope: ${state.hope || 0} · Ancient: ${state.ancient || 0}`);
   } else {
     wonderEl.classList.add('hidden');
   }
@@ -6521,6 +6518,9 @@ function updateContent(element, html) {
       } else if (current.nodeType !== next.nodeType || current.nodeName !== next.nodeName) {
         current.replaceWith(next.cloneNode(true));
       } else if (current.nodeType === 1) {
+        // Most siblings are static even when a resource count or queue timer
+        // changes. Let the browser compare and skip those complete subtrees.
+        if (current.isEqualNode(next)) continue;
         for (const attribute of [...current.attributes]) {
           if (!next.hasAttribute(attribute.name)) current.removeAttribute(attribute.name);
         }
@@ -6560,7 +6560,7 @@ function renderSidePanel() {
 function loadLatestUpdatesTooltip() {
   const button = document.getElementById('btn-updates');
   if (!button || typeof fetch !== 'function' || typeof DOMParser !== 'function') return;
-      fetch('changelog.html?v=publish-20261006u0006')
+      fetch('changelog.html?v=publish-20261006u0007')
     .then(response => response.ok ? response.text() : Promise.reject(new Error('changelog unavailable')))
     .then(source => {
       const doc = new DOMParser().parseFromString(source, 'text/html');
@@ -6602,12 +6602,17 @@ function render() {
 }
 
 function renderUI() {
+  // Capture scroll positions before header/store mutations dirty layout.
+  const main = document.getElementById('main');
+  const mainScrollTop = main.scrollTop;
+  const pageScrollY = window.scrollY;
   updateAchievements();
   renderHeader();
   document.querySelectorAll('#tabs .tab').forEach(button => {
     const unlocked = tabUnlocked(button.dataset.tab);
     button.classList.toggle('hidden', !unlocked);
-    button.setAttribute('aria-hidden', String(!unlocked));
+    const hidden = String(!unlocked);
+    if (button.getAttribute('aria-hidden') !== hidden) button.setAttribute('aria-hidden', hidden);
   });
   updateContent(document.getElementById('stores'), renderStores());
   const panels = {
@@ -6623,9 +6628,6 @@ function renderUI() {
     stats: renderStats,
     settings: renderSettings,
   };
-  const main = document.getElementById('main');
-  const mainScrollTop = main.scrollTop;
-  const pageScrollY = window.scrollY;
   updateContent(document.getElementById('panel-' + activeTab), panels[activeTab]());
   // The periodic render can mutate nodes above the viewport. Keep the user
   // anchored to the same place while patching a long panel such as Settings.

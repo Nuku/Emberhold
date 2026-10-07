@@ -4,6 +4,8 @@ All notable changes to Emberhold are recorded here, with the newest changes firs
 
 ## 2026-10-06
 
+- Synchronized header animation with every display frame to avoid uneven movement at refresh rates such as 75 and 144 Hz. Reduced unchanged header mutations, skipped identical DOM subtrees, and moved scroll measurements ahead of interface updates.
+- Refreshed published stylesheet, data, game script, and changelog cache versions (`publish-20261006u0007`).
 - Improved interface update performance by skipping unchanged panel content, grouping automation redraws, and avoiding repeated header layout reads; added live frame timing diagnostics.
 - Refreshed published stylesheet, data, game script, and changelog cache versions (`publish-20261006u0006`).
 - Leather Armor, Chainmail, Weaponry, and Weapon Efficiency now require a Barracks.

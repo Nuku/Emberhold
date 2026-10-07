@@ -27,6 +27,8 @@ code { color:var(--amber); }
 <section>
 <h2>2026-10-06</h2>
 <ul>
+<li>Synchronized header animation with every display frame to avoid uneven movement at refresh rates such as 75 and 144 Hz. Reduced unchanged header mutations, skipped identical DOM subtrees, and moved scroll measurements ahead of interface updates.</li>
+<li>Refreshed published stylesheet, data, game script, and changelog cache versions (<code>publish-20261006u0007</code>).</li>
 <li>Improved interface update performance by skipping unchanged panel content, grouping automation redraws, and avoiding repeated header layout reads; added live frame timing diagnostics.</li>
 <li>Refreshed published stylesheet, data, game script, and changelog cache versions (<code>publish-20261006u0006</code>).</li>
 <li>Leather Armor, Chainmail, Weaponry, and Weapon Efficiency now require a Barracks.</li>

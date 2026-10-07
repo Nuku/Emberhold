@@ -150,7 +150,7 @@ test('header terrain is reused and invalidated by time, size, season, and landin
   assert.equal(run('terrainDraws'), 5);
 });
 
-test('header animation schedules a single capped loop and stops cleanly when hidden', () => {
+test('header animation schedules a single display loop and stops cleanly when hidden', () => {
   const { run, context, frames, timers, operations } = headerAnimationGame();
   run('startLineageAnimation(); startLineageAnimation()');
   assert.equal(frames.size, 1);
@@ -171,8 +171,8 @@ test('header animation schedules a single capped loop and stops cleanly when hid
   assert.equal(frames.size, 0);
 });
 
-test('header draws sixty frames per second on both standard and fast displays', () => {
-  for (const refreshRate of [60, 144]) {
+test('header draws every display frame without uneven refresh-rate gating', () => {
+  for (const refreshRate of [60, 75, 120, 144, 240]) {
     const { run, frames } = headerAnimationGame();
     run('let draws = 0; renderLineageWanderers = () => { draws++; }; startLineageAnimation()');
     for (let i = 0; i < refreshRate; i++) {
@@ -180,7 +180,7 @@ test('header draws sixty frames per second on both standard and fast displays', 
       frames.delete(id);
       callback(i * 1000 / refreshRate);
     }
-    assert.equal(run('draws'), 60);
+    assert.equal(run('draws'), refreshRate);
   }
 });
 
