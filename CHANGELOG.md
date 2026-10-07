@@ -4,6 +4,8 @@ All notable changes to Emberhold are recorded here, with the newest changes firs
 
 ## 2026-10-06
 
+- Leather Armor, Chainmail, Weaponry, and Weapon Efficiency now require a Barracks.
+- Refreshed published stylesheet, data, game script, and changelog cache versions (`publish-20261006u0005`).
 - Forced Wonder migrations now choose a landing compatible with an unlocked lineage and found the new settlement with a viable lineage.
 - Refreshed published stylesheet, data, game script, and changelog cache versions (`publish-20261006u0004`).
 - Added four late-game Wonder obstacles to post-Waters landings, using Aluminum, Fur, Living Alloy, and Oil.
