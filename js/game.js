@@ -3778,6 +3778,7 @@ function togglePause() {
 
 function tick(dt) {
   if (saveConflict) return;
+  const started = typeof performance !== 'undefined' ? performance.now() : 0;
   // Integrate each day's conditions separately, including during double speed.
   while (dt > 0) {
     const untilTomorrow = (Math.floor(state.day) + 1 - state.day) / DAY_RATE;
@@ -3785,6 +3786,7 @@ function tick(dt) {
     tickStep(step);
     dt -= step;
   }
+  if (started) headerPerformance.simulationMs = performance.now() - started;
 }
 
 function tickStep(dt) {
@@ -4998,11 +5000,13 @@ function renderBonusTimer() {
 // Tiny lineage-colored villagers drift through the header behind its text.
 let lineageWanderers = [];
 let lineageWandererSize = { width: 0, height: 0 };
+let lineageCanvasGeometry = null;
 let lineageWandererSpecies = '';
 let lineageWandererTotal = -1;
 let lineageWandererLastFrame = 0;
 const HEADER_FRAME_INTERVAL = 1000 / 60;
 const HEADER_GROUND_INTERVAL = 1000 / 12;
+const headerPerformance = { simulationMs: 0, renderMs: 0, drawMs: 0 };
 let lineageWandererTimer = null;
 let lineageWandererFrame = null;
 let lineageAnimationNextFrame = null;
@@ -5438,7 +5442,9 @@ function startLineageAnimation() {
     if (lineageAnimationNextFrame === null) lineageAnimationNextFrame = now;
     lineageAnimationNextFrame += HEADER_FRAME_INTERVAL * Math.max(1,
       Math.floor((now - lineageAnimationNextFrame) / HEADER_FRAME_INTERVAL) + 1);
+    const started = typeof performance !== 'undefined' ? performance.now() : 0;
     const drawn = renderLineageWanderers(now);
+    if (started) headerPerformance.drawMs = performance.now() - started;
     if (drawn === false) {
       lineageAnimationNextFrame = null;
       lineageWandererTimer = setTimeout(() => {
@@ -5466,11 +5472,40 @@ function drawCachedLineagePerson(ctx, x, y, id, step, hue, worshipping, dpr) {
   ctx.drawImage(sprite, Math.round(x) - 24, Math.round(y) - 16, 64, 64);
 }
 
+function lineageCanvasBounds(canvas) {
+  // Read layout once, then let observers report size and visibility changes.
+  // Reading bounds every frame forces pending UI mutations through layout.
+  if (typeof ResizeObserver !== 'function' || typeof IntersectionObserver !== 'function') {
+    return canvas.getBoundingClientRect();
+  }
+  if (lineageCanvasGeometry?.canvas !== canvas) {
+    lineageCanvasGeometry?.resize.disconnect();
+    lineageCanvasGeometry?.intersection.disconnect();
+    const initial = canvas.getBoundingClientRect();
+    const geometry = { canvas, width: initial.width, height: initial.height,
+      visible: initial.bottom > 0 && initial.top < window.innerHeight };
+    geometry.resize = new ResizeObserver(entries => {
+      for (const entry of entries) if (entry.target === canvas) {
+        geometry.width = entry.contentRect.width;
+        geometry.height = entry.contentRect.height;
+      }
+    });
+    geometry.intersection = new IntersectionObserver(entries => {
+      for (const entry of entries) if (entry.target === canvas) geometry.visible = entry.isIntersecting;
+    });
+    geometry.resize.observe(canvas);
+    geometry.intersection.observe(canvas);
+    lineageCanvasGeometry = geometry;
+  }
+  return { width: lineageCanvasGeometry.width, height: lineageCanvasGeometry.height,
+    top: lineageCanvasGeometry.visible ? 0 : window.innerHeight, bottom: lineageCanvasGeometry.visible ? 1 : 0 };
+}
+
 function renderLineageWanderers(now = 0) {
   if (document.hidden) return false;
   const canvas = document.getElementById('lineage-wanderers');
   if (!canvas || !state) return false;
-  const rect = canvas.getBoundingClientRect();
+  const rect = lineageCanvasBounds(canvas);
   if (activeMigrationTransition || rect.bottom <= 0 || rect.top >= window.innerHeight || rect.width <= 0 || rect.height <= 0) {
     lineageWandererLastFrame = 0;
     headerFrameIntervals.length = 0;
@@ -5553,6 +5588,9 @@ function renderLineageWanderers(now = 0) {
       canvas.dataset.animationFps = (1000 / average).toFixed(1);
       canvas.dataset.animationP95Ms = sorted[Math.floor((sorted.length - 1) * 0.95)].toFixed(1);
       canvas.dataset.animationMaxGapMs = sorted[sorted.length - 1].toFixed(1);
+      canvas.dataset.simulationMs = headerPerformance.simulationMs.toFixed(2);
+      canvas.dataset.uiRenderMs = headerPerformance.renderMs.toFixed(2);
+      canvas.dataset.animationDrawMs = headerPerformance.drawMs.toFixed(2);
       headerFrameReportedAt = now;
     }
   }
@@ -5609,8 +5647,8 @@ function renderHeader() {
   locationEl.textContent = `${landingDef().name}${challengeCount ? ` ★` : ''}`;
   locationEl.className = challengeCount ? `challenge-star challenge-star-${challengeCount}` : '';
   locationEl.title = challengeCount ? `${challengeCount} self-challenge${challengeCount === 1 ? '' : 's'} active` : '';
-  document.getElementById('era-line').innerHTML =
-    `Year ${year} of the ${esc(ERAS[state.era - 1].name)}${traitLabels ? ` — ${traitLabels}` : ''} — ${esc(lineageDef(state.species).name)}`;
+  updateContent(document.getElementById('era-line'),
+    `Year ${year} of the ${esc(ERAS[state.era - 1].name)}${traitLabels ? ` — ${traitLabels}` : ''} — ${esc(lineageDef(state.species).name)}`);
   document.getElementById('time-line').textContent =
     `${state.paused ? 'Paused · ' : ''}Day ${doy % DAYS_PER_SEASON + 1} of ${season} — chronicle day ${Math.floor(state.day)} — ${weatherSummary()}`;
   document.getElementById('pop-line').textContent =
@@ -6464,10 +6502,13 @@ function renderSettings() {
 }
 
 // Patch existing nodes instead of replacing panels, preserving focus and hover.
+const renderedContent = new WeakMap();
 function updateContent(element, html) {
   // Native dropdowns must retain both their node and options while open.
   const focused = document.activeElement;
   if (focused && element.contains(focused) && focused.matches('select, input, textarea, [contenteditable="true"]')) return;
+  // Logs, empty queues, and many panels stay identical across clock updates.
+  if (renderedContent.get(element) === html) return;
   const template = document.createElement('template');
   template.innerHTML = html;
   function patch(parent, desired) {
@@ -6494,6 +6535,7 @@ function updateContent(element, html) {
     while (parent.childNodes.length > nextNodes.length) parent.lastChild.remove();
   }
   patch(element, template.content);
+  renderedContent.set(element, html);
 }
 
 function renderLog() {
@@ -6518,7 +6560,7 @@ function renderSidePanel() {
 function loadLatestUpdatesTooltip() {
   const button = document.getElementById('btn-updates');
   if (!button || typeof fetch !== 'function' || typeof DOMParser !== 'function') return;
-      fetch('changelog.html?v=publish-20261006u0005')
+      fetch('changelog.html?v=publish-20261006u0006')
     .then(response => response.ok ? response.text() : Promise.reject(new Error('changelog unavailable')))
     .then(source => {
       const doc = new DOMParser().parseFromString(source, 'text/html');
@@ -6539,7 +6581,27 @@ function loadLatestUpdatesTooltip() {
     .catch(() => {});
 }
 
+let pendingRenderFrame = null;
+function scheduleRender() {
+  if (typeof requestAnimationFrame !== 'function') { render(); return; }
+  if (pendingRenderFrame !== null) return;
+  pendingRenderFrame = requestAnimationFrame(() => {
+    pendingRenderFrame = null;
+    render();
+  });
+}
+
 function render() {
+  if (pendingRenderFrame !== null) {
+    cancelAnimationFrame(pendingRenderFrame);
+    pendingRenderFrame = null;
+  }
+  const started = typeof performance !== 'undefined' ? performance.now() : 0;
+  renderUI();
+  if (started) headerPerformance.renderMs = performance.now() - started;
+}
+
+function renderUI() {
   updateAchievements();
   renderHeader();
   document.querySelectorAll('#tabs .tab').forEach(button => {
@@ -6708,7 +6770,9 @@ function runAutomationAction(name, ...args) {
   const action = automationActionFns[name];
   if (!action) throw new Error(`Unknown Emberhold action: ${name}`);
   const result = action(...args);
-  render();
+  // Automation commonly assigns several workers in one pass. State and events
+  // remain synchronous; paint the resulting UI once at the next frame.
+  scheduleRender();
   emitAutomationEvent('action', { action: name, args });
   return result;
 }

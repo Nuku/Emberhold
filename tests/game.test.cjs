@@ -76,6 +76,64 @@ function headerAnimationGame() {
   return { ...engine, frames, timers, rect, operations: () => operations };
 }
 
+test('unchanged panel content skips parsing and focused input updates are retried', () => {
+  const { run, context } = game();
+  let parses = 0;
+  const element = { contains: node => node === context.document.activeElement, childNodes: [] };
+  context.element = element;
+  context.document.createElement = () => ({
+    set innerHTML(value) { parses++; }, content: { childNodes: [] },
+  });
+  run("updateContent(element, 'first'); updateContent(element, 'first')");
+  assert.equal(parses, 1);
+  context.document.activeElement = { matches: () => true };
+  run("updateContent(element, 'second')");
+  assert.equal(parses, 1);
+  context.document.activeElement = null;
+  run("updateContent(element, 'second')");
+  assert.equal(parses, 2);
+});
+
+test('automation actions update state immediately and coalesce UI renders', () => {
+  const { run, context, frames } = headerAnimationGame();
+  run('let uiRenders = 0; renderUI = () => uiRenders++;');
+  run("runAutomationAction('assign', 'woodcutter', 1); runAutomationAction('assign', 'woodcutter', 1)");
+  assert.equal(run('state.jobs.woodcutter'), 2);
+  assert.equal(run('uiRenders'), 0);
+  assert.equal(frames.size, 1);
+  const [id, callback] = [...frames][0];
+  frames.delete(id);
+  callback();
+  assert.equal(run('uiRenders'), 1);
+  run('scheduleRender(); render()');
+  assert.equal(frames.size, 0);
+  assert.equal(run('uiRenders'), 2);
+});
+
+test('header observers avoid frame-by-frame layout reads and track resize and visibility', () => {
+  const { run, context, operations } = headerAnimationGame();
+  const header = context.document.getElementById();
+  let reads = 0;
+  header.getBoundingClientRect = () => { reads++; return { width: 1920, height: 140, top: 0, bottom: 140 }; };
+  let resize, intersection;
+  context.ResizeObserver = class { constructor(fn) { resize = fn; } observe() {} disconnect() {} };
+  context.IntersectionObserver = class { constructor(fn) { intersection = fn; } observe() {} disconnect() {} };
+  run('renderLineageWanderers(100); renderLineageWanderers(150)');
+  assert.equal(reads, 1);
+  resize([{ target: header, contentRect: { width: 1280, height: 160 } }]);
+  run('renderLineageWanderers(200)');
+  assert.equal(header.width, 2560);
+  assert.equal(header.height, 320);
+  const before = operations();
+  intersection([{ target: header, isIntersecting: false }]);
+  run('renderLineageWanderers(250)');
+  assert.equal(operations(), before);
+  intersection([{ target: header, isIntersecting: true }]);
+  run('renderLineageWanderers(300)');
+  assert.ok(operations() > before);
+  assert.equal(reads, 1);
+});
+
 test('header terrain is reused and invalidated by time, size, season, and landing', () => {
   const { run, rect } = headerAnimationGame();
   run('let terrainDraws = 0; drawSettlementGround = () => terrainDraws++');
