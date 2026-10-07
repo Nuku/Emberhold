@@ -4,6 +4,8 @@ All notable changes to Emberhold are recorded here, with the newest changes firs
 
 ## 2026-10-06
 
+- Forced Wonder migrations now choose a landing compatible with an unlocked lineage and found the new settlement with a viable lineage.
+- Refreshed published stylesheet, data, game script, and changelog cache versions (`publish-20261006u0004`).
 - Added four late-game Wonder obstacles to post-Waters landings, using Aluminum, Fur, Living Alloy, and Oil.
 - Reduced Solar Array power output from 5 to 2 per array.
 - Refreshed published stylesheet, data, game script, and changelog cache versions (`publish-20261006u0003`).
