@@ -2095,6 +2095,52 @@ test('guards remain separate from a fully assigned population and cannot be assi
   assert.equal(run('assignedWorkers()'), 1);
 });
 
+test('Mental Will unlocks from research and actual second-stage visits, and preserves both milestones', () => {
+  const { run } = game();
+  assert.equal(run("TRIAL_BY_ID.get('mentalWill').req()"), false);
+  run(`state.techs.metalKnowledge = true;
+    for (const id of ['knowledge', 'livingAlloy', 'steel', 'aluminum']) state.res[id] = 10000000;
+    doResearch('artificialSecurity'); state.landingsSeen.pallidExpanse = true`);
+  assert.equal(run('state.artificialSecurityEver'), true);
+  assert.equal(run("TRIAL_BY_ID.get('mentalWill').req()"), false);
+  run(`state.landing = 'pallidExpanse'; setOut('mentalWill')`);
+  assert.equal(run('state.secondStageEver'), true);
+  assert.equal(run("tech('artificialSecurity') && tech('guards')"), true);
+  run('saveGame(true); state = loadGame(); endTrial(false); state.landing = "emberplain"; setOut("frugality")');
+  assert.equal(run("TRIAL_BY_ID.get('mentalWill').req()"), true);
+  assert.equal(run("tech('artificialSecurity')"), false);
+});
+
+test('Mental Will blocks recruitment, scales danger, completes at 20, and caps additive discounts at five', () => {
+  const { run } = game();
+  run(`setOut('mentalWill'); state.bld.barracks = 10; state.guardRecruitment = 0.9;
+    updateGuardRecruitment(10000)`);
+  assert.equal(run('state.jobs.guard || 0'), 0);
+  assert.equal(run('state.guardRecruitment'), 0);
+  assert.match(run('trialProgressText()'), /0 \/ 20 artificial Guards/);
+  for (let completed = 0; completed < 5; completed++) {
+    run(`state.trialDone.mentalWill = ${completed}; state.malformedDanger = 0;
+      state.malformedAttackNext = 100000; updateMalformedThreat(10)`);
+    assert.ok(Math.abs(run('state.malformedDanger / (MALFORMED_DANGER_RATE * 10)') - (1.1 + completed * 0.1)) < 1e-12);
+    assert.ok(Math.abs(run('artificialGuardCost().steel') - 800 * (1 - completed * 0.1)) < 1e-10);
+  }
+  run(`state.jobs.guard = 19; state.artificialGuards = 19;
+    state.res.steel = 480; state.res.aluminum = 240; state.res.livingAlloy = 6; updateTrial(0)`);
+  assert.equal(run('state.trial.id'), 'mentalWill');
+  assert.equal(run('assembleArtificialGuard()'), true);
+  assert.ok(Math.abs(run('state.res.steel')) < 1e-10);
+  run('updateTrial(0)');
+  assert.equal(run('state.trial'), null);
+  assert.equal(run('trialCount("mentalWill")'), 5);
+  assert.equal(run('artificialGuardCost().steel'), 400);
+  assert.equal(run('artificialGuardCost().aluminum'), 200);
+  assert.equal(run('artificialGuardCost().livingAlloy'), 5);
+  run('state.upgrades.oathkeepers = 1');
+  assert.equal(run("trialMax(TRIAL_BY_ID.get('mentalWill'))"), 5);
+  assert.equal(run('malformedBiomeActive()'), false);
+  assert.ok(run('guardRecruitmentRate()') > 0);
+});
+
 test('guards recruit slowly through ticks, cap without banking recruits, and replace losses', () => {
   const { run } = game();
   run('updateGuardRecruitment(120)');

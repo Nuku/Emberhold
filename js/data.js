@@ -64,7 +64,7 @@ const POWER_PER_SOLAR_ARRAY = 2;
 const FACTORY_POWER_REQUIREMENT = 1.5;
 const LIVING_FACTORY_ALLOY_RATE = 0.01;
 const ARTIFICIAL_GUARD_POWER = 0.1;
-const ARTIFICIAL_GUARD_COST = { steel: 80, aluminum: 40, livingAlloy: 10 };
+const ARTIFICIAL_GUARD_COST = { steel: 800, aluminum: 400, livingAlloy: 10 };
 const LIVING_BLOCK_POWER_REQUIREMENT = 1;
 const INDUSTRIALIZATION_COAL_MULTIPLIER = 0.2;
 const INDUSTRIALIZATION_RIOT_CHANCE = 0.2;
@@ -734,6 +734,14 @@ const CRAFTS = [
 
 // --- trials: challenge modes. repeat = 0 means once-only. ---
 const TRIALS = [
+  { id: 'mentalWill', name: 'Trial of Mental Will', repeat: 5,
+    text: "Nobody dares face the dark. We'll have to construct those with that mental will.",
+    mod: 'Artificial Guards start unlocked. No ordinary Guards recruit. Malformed creatures haunt the settlement, with danger rising 10% faster per attempt tier.',
+    goal: 'Have 20 artificial Guards at the same time.',
+    reward: 'Artificial Guards cost 10% less of every assembly material per completion, additively, up to 50%.',
+    req: () => (state.artificialSecurityEver || tech('artificialSecurity')) &&
+      (state.secondStageEver || !!LANDING_BY_ID.get(state.landing)?.postWaters) },
+
   { id: 'scarcity', name: 'Trial of Scarcity', repeat: 5,
     text: 'The ancestors remember the years when the storehouse was an empty promise. Take the oath, and every meal must be earned twice.',
     mod: 'The entire trial is stormy; food and wood production are reduced to 90%.',

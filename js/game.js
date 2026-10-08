@@ -92,6 +92,8 @@ function defaultState() {
     forgeIron: 0,
     buildingPower: {},
     techs: {},
+    artificialSecurityEver: false,
+    secondStageEver: false,
     trialDone: {},
     trial: null,
     trialDifficultySettings: null,
@@ -478,18 +480,25 @@ function syncGuardInjuries() {
   const normal = total - artificial;
   state.guardInjuries = state.artificialGuardInjuries + Math.min(normal, Math.max(0, (state.guardInjuries || 0) - state.artificialGuardInjuries));
 }
+function artificialGuardCost() {
+  const multiplier = 1 - 0.1 * Math.min(5, trialCount('mentalWill'));
+  return Object.fromEntries(Object.entries(ARTIFICIAL_GUARD_COST).map(([id, amount]) => [id, amount * multiplier]));
+}
 function assembleArtificialGuard() {
-  if (!tech('artificialSecurity') || (state.jobs.guard || 0) >= guardCap() || !canAfford(ARTIFICIAL_GUARD_COST)) return false;
-  payCost(ARTIFICIAL_GUARD_COST);
+  const cost = artificialGuardCost();
+  if (!tech('artificialSecurity') || (state.jobs.guard || 0) >= guardCap() || !canAfford(cost)) return false;
+  payCost(cost);
   state.jobs.guard = (state.jobs.guard || 0) + 1;
   state.artificialGuards = artificialGuardCount() + 1;
   return true;
 }
 function guardRecruitmentRate() {
+  if (trialActive('mentalWill')) return 0;
   return lineageSpecialValue('guardRecruitment') / (120 * Math.pow(0.9, bld('trainingYard')) * lineageSpecialValue('guardRecruitmentTime')) * Math.pow(1.1, trialCount('conquest')) *
     currentPlaceTraits().reduce((rate, trait) => rate * (trait.guardRecruitment || 1), 1);
 }
 function updateGuardRecruitment(dt) {
+  if (trialActive('mentalWill')) { state.guardRecruitment = 0; return; }
   const total = state.jobs.guard || 0;
   const cap = guardCap();
   if (!JOBS.guard.unlock() || total >= cap) {
@@ -731,11 +740,13 @@ function guardLimits() {
   return { minimum: 1, maximum: healthy, healthy };
 }
 function trialMax(def) {
+  if (def.id === 'mentalWill') return 5;
   return def.repeat > 0 ? def.repeat + (upg('oathkeepers') ? 1 : 0) : 0;
 }
 function trialDifficulty(id) {
   const completed = trialCount(id);
   switch (id) {
+    case 'mentalWill': return 1 + 0.1 * (Math.min(4, completed) + 1);
     case 'scarcity': return 0.5 / Math.pow(1.25, completed);
     case 'frugality': return 1.5 * Math.pow(1.5, completed);
     case 'overflow': return Math.pow(1.25, completed);
@@ -751,6 +762,7 @@ function scarcityMiningLossChance() {
 function trialModifierText(def) {
   const multiplier = trialDifficulty(def.id);
   switch (def.id) {
+    case 'mentalWill': return `Artificial Guards start unlocked; ordinary Guards never recruit. Malformed creature danger rises ${Math.round((multiplier - 1) * 100)}% faster, even at first-stage landings.`;
     case 'scarcity': return `Stormy weather reduces food to ${+(multiplier * 100).toFixed(2)}% and wood to ${+(scarcityWoodMultiplier() * 100).toFixed(2)}%; mining workers have a ${(scarcityMiningLossChance() * 100).toFixed(3)}% loss chance per tick.`;
     case 'frugality': return `All building costs are multiplied by ${+multiplier.toFixed(3)}.`;
     case 'overflow': return `${def.mod} Storage ceilings are multiplied by ${+multiplier.toFixed(3)} while sworn.`;
@@ -1126,7 +1138,7 @@ function beginForcedWonderMigration(waitForCustomLineage = false, difficultySett
 function landingDef() { return LANDING_BY_ID.get(state.landing) || LANDINGS[0]; }
 function landingAvailable(landing) { return !landing.postWaters || trialCount('newLands') > 0; }
 function availableLandings() { return LANDINGS.filter(landingAvailable); }
-function malformedBiomeActive(landing = state.landing) { return !!LANDING_BY_ID.get(landing)?.postWaters; }
+function malformedBiomeActive(landing = state.landing) { return trialActive('mentalWill') || !!LANDING_BY_ID.get(landing)?.postWaters; }
 function malformedDangerForTraits(traits = state.placeTraits) {
   return Math.max(0, Math.min(MALFORMED_DANGER_MAX, (traits || []).reduce((danger, id) =>
     danger + (placeTraitDef(id)?.danger || 0), 0)));
@@ -2226,7 +2238,7 @@ function resolveMalformedCreatureAttack() {
 
 function updateMalformedThreat(dt) {
   if (!malformedBiomeActive()) return;
-  state.malformedDanger = Math.min(MALFORMED_DANGER_MAX, (state.malformedDanger || 0) + MALFORMED_DANGER_RATE * dt);
+  state.malformedDanger = Math.min(MALFORMED_DANGER_MAX, (state.malformedDanger || 0) + MALFORMED_DANGER_RATE * dt * (trialActive('mentalWill') ? trialDifficulty('mentalWill') : 1));
   state.malformedAttackT = (state.malformedAttackT || 0) + dt;
   if (state.malformedAttackT < (state.malformedAttackNext || MALFORMED_ATTACK_INTERVAL[0])) return;
   state.malformedAttackT = 0;
@@ -2899,6 +2911,9 @@ function updateTrial(dt) {
   const tr = state.trial;
   tr.daysActive += dt * DAY_RATE;
   switch (tr.id) {
+    case 'mentalWill':
+      if (artificialGuardCount() >= 20) { endTrial(true); return; }
+      break;
     case 'scarcity':
       if (state.res.food <= 0) { endTrial(false); return; }
       if (tr.daysActive >= 240) { endTrial(true); return; }
@@ -3042,6 +3057,7 @@ function trialProgressText() {
   if (!state.trial) return '';
   const tr = state.trial;
   switch (tr.id) {
+    case 'mentalWill': return `${artificialGuardCount()} / 20 artificial Guards assembled`;
     case 'scarcity': case 'longnight':
       return `${Math.floor(tr.daysActive)} / ${tr.id === 'scarcity' ? 240 : tr.id === 'longnight' ? LONG_NIGHT_DURATION : DAYS_PER_YEAR} days endured`;
     case 'frugality': return `${tr.buildings} / 12 buildings raised`;
@@ -3501,6 +3517,8 @@ function setOut(trialId = null) {
   addLog('The village sets out. The old Emberhold is left to the wind; a new one rises where the ground is kinder.', 'log-important');
 
   const keep = {
+    artificialSecurityEver: state.artificialSecurityEver || tech('artificialSecurity'),
+    secondStageEver: state.secondStageEver || !!LANDING_BY_ID.get(state.landing)?.postWaters,
     echoes: state.echoes, upgrades: state.upgrades,
     trialDone: state.trialDone, expeditions: state.expeditions, expeditionRatings: state.expeditionRatings,
     trialDifficultySettings: trialId ? state.trialDifficultySettings : null,
@@ -3524,6 +3542,8 @@ function setOut(trialId = null) {
     logs: state.logs, logSequence: state.logSequence,
   };
   state = defaultState();
+  state.artificialSecurityEver = keep.artificialSecurityEver;
+  state.secondStageEver = keep.secondStageEver;
   state.echoes = keep.echoes;
   state.upgrades = keep.upgrades;
   state.trialDone = keep.trialDone;
@@ -3572,6 +3592,12 @@ function setOut(trialId = null) {
   state.malformedAttackNext = MALFORMED_ATTACK_INTERVAL[0] + Math.random() * (MALFORMED_ATTACK_INTERVAL[1] - MALFORMED_ATTACK_INTERVAL[0]);
   if (settings) Object.assign(state, settings);
   if (trialId) state.trial = { id: trialId, startDay: state.day, daysActive: 0, buildings: 0 };
+  if (LANDING_BY_ID.get(landing.id)?.postWaters) state.secondStageEver = true;
+  if (trialId === 'mentalWill') {
+    state.techs.guards = true;
+    state.techs.artificialSecurity = true;
+    state.malformedDanger = malformedDangerForTraits(state.placeTraits);
+  }
   if (trialId === 'conquest') {
     const targets = TRIBES.filter(tribe => habitatAllows(tribe, state.landing)).slice(0, 3);
     state.tradePartners = targets.map(tribe => tribe.id);
@@ -4007,6 +4033,7 @@ function doResearch(id) {
   if (!canAfford(cost)) return false;
   payCost(cost);
   state.techs[id] = true;
+  if (id === 'artificialSecurity') state.artificialSecurityEver = true;
   if (state.trial && state.trial.id === 'scholarship') state.trial.researches = (state.trial.researches || 0) + 1;
   if (id === 'leatherArmor') state.armor = Math.max(armorLevel(), 1);
   if (id === 'chainmail') state.armor = Math.max(armorLevel(), 2);
@@ -4413,6 +4440,8 @@ function normalizeSave(s) {
   // Saves created before the pause control should continue running when loaded.
   if (!Object.prototype.hasOwnProperty.call(s, 'paused')) s.paused = false;
   const d = defaultState();
+  s.artificialSecurityEver = !!(s.artificialSecurityEver || s.techs?.artificialSecurity || s.artificialGuards > 0);
+  s.secondStageEver = !!(s.secondStageEver || LANDING_BY_ID.get(s.landing)?.postWaters);
   for (const key of Object.keys(d)) {
     if (s[key] === undefined) s[key] = d[key];
     else if (d[key] !== null && (typeof s[key] !== typeof d[key] ||
@@ -5862,7 +5891,7 @@ function renderVillage() {
     const guards = state.jobs.guard || 0;
     const availableCapacity = guardCap();
     const occupationReserve = guardOccupationReserve();
-    const recruitment = guards < availableCapacity
+    const recruitment = trialActive('mentalWill') ? 'Ordinary Guards will not recruit' : guards < availableCapacity
       ? `Next Guard in ${Math.ceil((1 - state.guardRecruitment) / guardRecruitmentRate())}s`
       : availableCapacity > 0 ? 'At capacity' : 'No capacity available';
     h += '<h2 class="section">Guards — independent watch</h2>' +
@@ -5870,9 +5899,10 @@ function renderVillage() {
       `<div class="res-note">Barracks capacity: ${guardBarracksCapacity()} total; ${occupationReserve} reserved by conquered towns; ${availableCapacity} available for Guards. Each town reserves 15 capacity (10 under Commonality) until released or the region is united. Guards recruit automatically, one every ${fmt(1 / guardRecruitmentRate())} seconds when capacity is available, and replace battle losses up to available capacity. They use no villager assignments or population housing. Build Barracks to raise total capacity.</div>`;
     if (tech('artificialSecurity')) {
       const artificial = artificialGuardCount();
-      const canAssemble = guards < availableCapacity && canAfford(ARTIFICIAL_GUARD_COST);
+      const cost = artificialGuardCost();
+      const canAssemble = guards < availableCapacity && canAfford(cost);
       h += `<div class="card"><div class="card-head"><span class="card-title">Artificial Guards</span><span class="card-count">${artificial} assembled</span></div>` +
-        `<div class="card-desc">Uses ${fmt(ARTIFICIAL_GUARD_POWER)} Power per able artificial Guard and no Food; shares Guard capacity. Assembly cost: ${costHtml(ARTIFICIAL_GUARD_COST)}.</div>` +
+        `<div class="card-desc">Uses ${fmt(ARTIFICIAL_GUARD_POWER)} Power per able artificial Guard and no Food; shares Guard capacity. Assembly cost: ${costHtml(cost)}.</div>` +
         `<div class="card-actions"><button data-action="assemble-guard" ${canAssemble ? '' : 'disabled'}>Assemble Artificial Guard</button></div></div>`;
     }
   }
@@ -6605,7 +6635,7 @@ function renderSidePanel() {
 function loadLatestUpdatesTooltip() {
   const button = document.getElementById('btn-updates');
   if (!button || typeof fetch !== 'function' || typeof DOMParser !== 'function') return;
-      fetch('changelog.html?v=publish-20261008u0003')
+      fetch('changelog.html?v=publish-20261008u0005')
     .then(response => response.ok ? response.text() : Promise.reject(new Error('changelog unavailable')))
     .then(source => {
       const doc = new DOMParser().parseFromString(source, 'text/html');

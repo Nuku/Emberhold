@@ -4,6 +4,9 @@ All notable changes to Emberhold are recorded here, with the newest changes firs
 
 ## 2026-10-08
 
+- Added the repeatable Trial of Mental Will. Malformed creatures haunt any landing during the trial, danger rises 10% faster per attempt tier, ordinary Guards cannot recruit, and assembling 20 Artificial Guards completes it. Completing the trial up to five times reduces Artificial Guard assembly costs by 10% per completion.
+- Increased the base Artificial Guard assembly cost tenfold, to 800 Steel, 400 Aluminum, and 10 Living Alloy.
+- Refreshed published stylesheet, data, game script, and changelog cache versions (`publish-20261008u0005`).
 - Added all remaining native signature traits to the Custom lineage lab, including Clockling queue planning, Cinderforged fuel efficiency, Marshfolk caches, Glimmerfolk happenings, Thornkin growth, and Mephit respite/reprisals. Base prices are 2 points, or 3 for Banked Heat and Exact Schedules; existing prices and complexity surcharges remain unchanged.
 - Every lineage now has a thematic signature beyond resource income. Added 20 signatures covering construction materials, storage, housing, morale, healing, diplomacy, pack raids, expedition access, cargo handling, mining power, and manual crafting.
 - Clocklings gain two construction/research queue slots, Marshfolk Huts add Food storage, Cinderforged Forges use less Coal, and Glimmerfolk experience more frequent happenings. Signatures scale with Atavistic Aura and regional inheritance; the 20 new signatures are available in the Custom lineage lab after their donor lineage is unlocked.
