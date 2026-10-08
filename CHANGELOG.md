@@ -4,6 +4,8 @@ All notable changes to Emberhold are recorded here, with the newest changes firs
 
 ## 2026-10-07
 
+- Added relaxed, swinging arms to walking villagers and lowered aquatic lineage markings.
+- Refreshed published stylesheet, data, game script, and changelog cache versions (`publish-20261007u0002`).
 - Villagers pray only while workers are actively engaging with the Wonder at the current settlement.
 - Refreshed published stylesheet, data, game script, and changelog cache versions (`publish-20261007u0001`).
 

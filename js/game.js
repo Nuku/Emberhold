@@ -5160,7 +5160,7 @@ function drawLineagePixelPerson(ctx, x, y, id, step, hue, worshipping = false) {
     put(-5, 3, shade, 2); put(-5, 2, dark); put(-6, 3, dark); put(-5, 4, dark);
   }
   if (bird) { put(1, 3, shade, 2); put(0, 2, coat); put(7, 3, shade, 2); put(9, 2, coat); }
-  if (aquatic) { put(1, 3, `hsl(${(hue + 175) % 360} 55% 62%)`); put(8, 4, `hsl(${(hue + 175) % 360} 55% 62%)`); }
+  if (aquatic) { put(1, 7, `hsl(${(hue + 175) % 360} 55% 62%)`); put(8, 8, `hsl(${(hue + 175) % 360} 55% 62%)`); }
   if (id.includes('axolotl')) { put(1, 1, '#f28aa0'); put(2, 0, '#f28aa0'); put(8, 1, '#f28aa0'); put(7, 0, '#f28aa0'); }
   if (id.includes('frog')) { put(3, 0, skin); put(6, 0, skin); put(3, 1, dark); put(6, 1, dark); }
   if (id.includes('turtle')) { put(3, 5, shade, 4, 4); put(4, 4, coat, 2); }
@@ -5188,6 +5188,10 @@ function drawLineagePixelPerson(ctx, x, y, id, step, hue, worshipping = false) {
     put(2, 10, dark, 3, 2); put(6, 10, dark, 3, 2);
     put(1, 12, dark, 4); put(6, 12, dark, 4);
   } else {
+    // Relaxed arms hang beside the torso, with a small walking swing.
+    // Keep hands well below the face so this cannot read as the prayer pose.
+    put(2, 6, shade, 1, 3 - walking); put(7, 6, shade, 1, 2 + walking);
+    put(2, 9 - walking, skin); put(7, 8 + walking, skin);
     put(3, 10, dark, 2, 3 - walking); put(6, 10 + walking, dark, 2, 3 - walking);
   }
   if (id.includes('clock')) { put(4, 5, '#edc65d'); put(5, 6, '#edc65d'); }
@@ -6560,7 +6564,7 @@ function renderSidePanel() {
 function loadLatestUpdatesTooltip() {
   const button = document.getElementById('btn-updates');
   if (!button || typeof fetch !== 'function' || typeof DOMParser !== 'function') return;
-      fetch('changelog.html?v=publish-20261006u0007')
+      fetch('changelog.html?v=publish-20261007u0002')
     .then(response => response.ok ? response.text() : Promise.reject(new Error('changelog unavailable')))
     .then(source => {
       const doc = new DOMParser().parseFromString(source, 'text/html');
