@@ -242,6 +242,30 @@ test('villager sprites reuse pixels across positions and distinguish poses and D
   assert.equal(run('spriteDraws'), 4);
 });
 
+test('header villagers pray only while workers engage with the current Wonder', () => {
+  const { run } = headerAnimationGame();
+  run(`state.landing = 'emberplain'; state.pop = 10;
+    dailyWeather = () => ({ id: 'clear', temperature: 20 });
+    const record = wonderRecord(); record.found = true;
+    renderLineageWanderers(100);`);
+  assert.equal(run('lineageWanderers[0].wonderMode'), null);
+  run(`state.rapture = { landing: state.landing, workers: 1 };
+    renderLineageWanderers(200);
+    const walker = lineageWanderers[0];
+    walker.x = walker.targetX; walker.y = walker.targetY;
+    renderLineageWanderers(300);`);
+  assert.equal(run('walker.wonderMode'), 'settled');
+  run('state.rapture.workers = 0; renderLineageWanderers(400)');
+  assert.equal(run('walker.wonderMode'), null);
+  run(`state.rapture.workers = 1; state.rapture.landing = 'grayrocks';
+    renderLineageWanderers(500);`);
+  assert.equal(run('walker.wonderMode'), null);
+  run(`state.rapture.landing = state.landing;
+    record.sections = [true, true, true, true, true];
+    renderLineageWanderers(600);`);
+  assert.equal(run('walker.wonderMode'), null);
+});
+
 test('offscreen and migration-covered headers skip drawing and reset motion time', () => {
   const { run, rect, operations } = headerAnimationGame();
   rect.top = -200; rect.bottom = -60;

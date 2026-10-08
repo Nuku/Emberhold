@@ -2,6 +2,11 @@
 
 All notable changes to Emberhold are recorded here, with the newest changes first.
 
+## 2026-10-07
+
+- Villagers pray only while workers are actively engaging with the Wonder at the current settlement.
+- Refreshed published stylesheet, data, game script, and changelog cache versions (`publish-20261007u0001`).
+
 ## 2026-10-06
 
 - Synchronized header animation with every display frame to avoid uneven movement at refresh rates such as 75 and 144 Hz. Reduced unchanged header mutations, skipped identical DOM subtrees, and moved scroll measurements ahead of interface updates.

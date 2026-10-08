@@ -5513,7 +5513,7 @@ function renderLineageWanderers(now = 0) {
   const compositions = Array.from({ length: count }, (_, i) => lineageWandererLineage(i, count));
   const appearance = `${id}:${compositions.join(',')}`;
   const weather = dailyWeather();
-  const activeWonder = !!state.wonders?.[state.landing]?.found;
+  const activeWonder = raptureActiveHere() && raptureWorkers() > 0;
   if (appearance !== lineageWandererSpecies || count !== lineageWandererTotal) {
     lineagePersonSprites.clear();
     lineageWandererSpecies = appearance;
