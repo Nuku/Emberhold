@@ -2,6 +2,20 @@
 
 All notable changes to Emberhold are recorded here, with the newest changes first.
 
+## 2026-10-08
+
+- Added all remaining native signature traits to the Custom lineage lab, including Clockling queue planning, Cinderforged fuel efficiency, Marshfolk caches, Glimmerfolk happenings, Thornkin growth, and Mephit respite/reprisals. Base prices are 2 points, or 3 for Banked Heat and Exact Schedules; existing prices and complexity surcharges remain unchanged.
+- Every lineage now has a thematic signature beyond resource income. Added 20 signatures covering construction materials, storage, housing, morale, healing, diplomacy, pack raids, expedition access, cargo handling, mining power, and manual crafting.
+- Clocklings gain two construction/research queue slots, Marshfolk Huts add Food storage, Cinderforged Forges use less Coal, and Glimmerfolk experience more frequent happenings. Signatures scale with Atavistic Aura and regional inheritance; the 20 new signatures are available in the Custom lineage lab after their donor lineage is unlocked.
+- Eaglefolk Guards now generate Survey before Explorers, with a matching visible Survey rate. Crafting costs, expedition requirements, forge fuel, and diplomacy logs reflect active signatures.
+- Replaced inactive Emberborn and Clockling queue-speed perks with 10% and 15% lower building costs, including queued construction and inherited/custom traits.
+- Reduced Rabbitfolk growth-time reduction from 50% to 25%, including Custom lineages; Atavistic Aura now gives a 37.5% reduction instead of 75%.
+- Improved Eaglefolk to +22% Knowledge and only −5% Food; softened Thornkin Steel/Goods and Glimmerfolk Stone/Iron penalties to −10%.
+- Glimmerfolk resource-event rewards now apply to an Aether reward in their native happenings. Mephit reprisals now weaken incoming raids by 15%; inherited Mephit defense and respite traits now work.
+- Inherited Quick Litters now affects population growth. Growth tooltips include Living Renewal and inherited growth modifiers; lineage summaries include signature perks.
+- Lineage and Commonality production modifiers no longer change job input consumption.
+- Refreshed published stylesheet, data, and game script cache versions (`publish-20261008u0004`).
+
 ## 2026-10-07
 
 - Added relaxed, swinging arms to walking villagers and lowered aquatic lineage markings.

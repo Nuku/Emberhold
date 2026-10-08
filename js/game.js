@@ -262,15 +262,24 @@ function governanceDefenseMod() {
 }
 function tribeDef(id) { return TRIBE_BY_ID.get(id) || TRIBES[0]; }
 const CUSTOM_LINEAGE_RESOURCES = ['food', 'wood', 'stone', 'tools', 'knowledge', 'currency', 'iron', 'coal', 'steel', 'machinery', 'aether', 'goods'];
+// Keep the original Custom trait ID valid in existing saves.
+const CUSTOM_LINEAGE_SPECIAL_ALIASES = { sulfurWalls: 'sulfurWards' };
 const CUSTOM_LINEAGE_TRAITS = [
   ...CUSTOM_LINEAGE_RESOURCES.map(resource => ({ id: `gift-${resource}`, name: `Gifted ${resourceName(resource)}`, effect: `+15% ${resourceName(resource)}`, cost: 1, resource, mod: 1.15, group: 'Production' })),
   ...CUSTOM_LINEAGE_RESOURCES.map(resource => ({ id: `frailty-${resource}`, name: `Frailty: ${resourceName(resource)}`, effect: `−15% ${resourceName(resource)}`, cost: -1, resource, mod: 0.85, group: 'Trade-off' })),
   { id: 'sulfurWards', name: 'Sulfur Wards', effect: '+35% raid defense', cost: 3, special: { key: 'raidDefense', value: 1.35 }, lineage: 'mephit', group: 'Adaptation' },
-  { id: 'quickLitters', name: 'Quick Litters', effect: '50% less population-growth time', cost: 3, growthTime: 0.5, lineage: 'rabbitfolk', group: 'Adaptation' },
+  { id: 'quickLitters', name: 'Quick Litters', effect: '25% less population-growth time', cost: 3, growthTime: 0.75, lineage: 'rabbitfolk', group: 'Adaptation' },
   { id: 'farSight', name: 'Far Sight', effect: '+25% Survey gain', cost: 2, special: { key: 'survey', value: 1.25 }, lineage: 'skyborn', group: 'Adaptation' },
   { id: 'stoneSentinels', name: 'Stone Sentinels', effect: '+20% Guard recruitment rate', cost: 2, special: { key: 'guardRecruitment', value: 1.20 }, lineage: 'stonekin', group: 'Adaptation' },
-  { id: 'practicalImprovisation', name: 'Practical Improvisation', effect: 'Queued work completes 10% faster', cost: 2, special: { key: 'queueTime', value: 0.90 }, lineage: 'human', group: 'Adaptation' },
+  { id: 'practicalImprovisation', name: 'Practical Improvisation', effect: '−10% building costs', cost: 2, special: { key: 'buildingCost', value: 0.90 }, lineage: 'human', group: 'Adaptation' },
   { id: 'timid', name: 'Timid', effect: '+10% time to recruit Guards', cost: -2, special: { key: 'guardRecruitmentTime', value: 1.10 }, group: 'Trade-off' },
+  ...LINEAGES.flatMap(lineage => Object.entries(lineage.specials)
+    .filter(([id]) => !['sulfurWalls', 'farSight', 'stoneSentinels', 'practicalImprovisation'].includes(id))
+    .map(([id, special]) => {
+      const trait = LINEAGE_TRAIT_BY_ID.get(id);
+      return { id, name: trait.name, effect: trait.effect, cost: ['bankedHeat', 'exactSchedules'].includes(id) ? 3 : 2,
+        special, lineage: lineage.id, group: 'Adaptation' };
+    })),
 ];
 const CUSTOM_LINEAGE_TRAIT_BY_ID = indexById(CUSTOM_LINEAGE_TRAITS);
 function customLineagePoints() { return achievementRating('wonder-glassMire-restore') * 3; }
@@ -358,14 +367,18 @@ function lineageTraitModifier(modifier, level = 1) {
 }
 function lineageSpecialValue(key, def = lineageDef(state.species)) {
   let value = 1;
+  const acquired = acquiredLineageTraitIds();
   for (const [traitId, special] of Object.entries(def?.specials || {})) {
-    if (special.key === key) value *= lineageTraitModifier(special.value, def.custom ? 1 : lineageTraitLevel(traitId, def));
+    const modifier = special.effects?.[key] ?? (special.key === key ? special.value : undefined);
+    if (modifier !== undefined) value *= lineageTraitModifier(modifier, def.custom ? 1 : lineageTraitLevel(traitId, def));
   }
-  if (def?.id === state.species) for (const lineage of LINEAGES) {
+  if (def?.id === state.species && acquired.length) for (const lineage of LINEAGES) {
     if (lineage.id === def.id) continue;
     for (const [traitId, special] of Object.entries(lineage.specials || {})) {
-      if (special.key === key && acquiredLineageTraitIds().includes(traitId))
-        value *= lineageTraitModifier(special.value, 0.5);
+      const modifier = special.effects?.[key] ?? (special.key === key ? special.value : undefined);
+      if (modifier !== undefined && !Object.hasOwn(def.specials || {}, traitId) &&
+          !Object.hasOwn(def.specials || {}, CUSTOM_LINEAGE_SPECIAL_ALIASES[traitId] || traitId) && acquired.includes(traitId))
+        value *= lineageTraitModifier(modifier, 0.5);
     }
   }
   return value;
@@ -419,17 +432,14 @@ function habitatText(def) {
   return def.habitats ? `Habitat: ${LANDINGS.filter(l => habitatAllows(def, l.id)).map(l => l.name).join(', ')}.` : 'Habitat: any landing.';
 }
 function isMephit() { return state.species === 'mephit'; }
-function mephitTraitScale(id) { return isMephit() ? lineageTraitScale(lineageTraitLevel(id, lineageDef('mephit'))) : 1; }
-function mephitDefenseMod() { return 1 + 0.35 * mephitTraitScale('sulfurWalls'); }
-function mephitRaidDelay() { return 120 * mephitTraitScale('slowProvocation'); }
-function mephitInjuryMod() { return 1 + 0.75 * mephitTraitScale('cruelReprisals'); }
-function lineageRaidDefenseMod() { return isMephit() ? mephitDefenseMod() : lineageSpecialValue('raidDefense'); }
+function mephitRaidDelay() { return 120 * (lineageSpecialValue('raidDelay') - 1); }
+function lineageRaidDefenseMod() { return lineageSpecialValue('raidDefense'); }
 function armorLevel() { return Math.max(0, Number(state.armor) || 0); }
 function tradeAvailable() { return tech('currency') && localTribeIds().length > 0; }
 const TRADE_GOODS = ['food', 'wood', 'stone', 'tools', 'copper', 'iron', 'coal', 'steel', 'machinery', 'goods', 'aluminum'];
 const TRADE_MODES = ['buy', 'sell'];
 function tradeGoodIndex(resource) { return TRADE_GOODS.indexOf(resource); }
-function tradeRate(resource) { return 1.2 ** Math.max(0, tradeGoodIndex(resource)); }
+function tradeRate(resource) { return 1.2 ** Math.max(0, tradeGoodIndex(resource)) * lineageSpecialValue('tradeThroughput'); }
 function tradeValue(resource) { return 4 * 1.35 ** Math.max(0, tradeGoodIndex(resource)); }
 function tradeBlimpOrders() {
   if (!Array.isArray(state.tradeBlimps)) state.tradeBlimps = [];
@@ -711,7 +721,7 @@ function ableGuards() { return Math.floor(Math.max(0, (state.jobs.guard || 0) - 
 function ableArtificialGuards() { return Math.max(0, artificialGuardCount() - artificialGuardWounds()); }
 function guardAttackPower(guardCount = ableGuards()) {
   const healthy = Math.max(0, Math.min(ableGuards(), Math.floor(Number(guardCount) || 0)));
-  return healthy * (tech('weaponry') ? 1.9 : 1);
+  return healthy * (tech('weaponry') ? 1.9 : 1) * (healthy >= 5 ? lineageSpecialValue('packAttack') : 1);
 }
 function guardSiegePower(guardCount = ableGuards()) {
   return guardAttackPower(guardCount) * governanceDefenseMod();
@@ -760,11 +770,11 @@ function canMigrate() {
   return bld('monument') > 0 && echoesEarned() >= 1 && !state.trial;
 }
 function expeditionCost(def) {
-  if (!upg('oldMaps')) return def.cost;
   const out = {};
-  for (const r in def.cost) out[r] = def.cost[r] * 0.75;
+  for (const r in def.cost) out[r] = def.cost[r] * (upg('oldMaps') ? 0.75 : 1) * lineageSpecialValue('expeditionCost');
   return out;
 }
+function expeditionPopulationRequirement(def) { return Math.max(1, Math.ceil(def.reqPop * lineageSpecialValue('expeditionPopulation') - 1e-12)); }
 function siteExpeditionsComplete() {
   return LANDINGS.filter(l => !l.postWaters).every(l => EXPEDITIONS.some(e => e.landing === l.id && expDone(e.id)));
 }
@@ -936,7 +946,7 @@ function resetWonderSection(message) {
   }
 }
 function wonderDefenseMultiplier() {
-  return governanceDefenseMod() * (tech('weaponry') ? 1.20 : 1) * (isMephit() ? mephitDefenseMod() : 1);
+  return governanceDefenseMod() * (tech('weaponry') ? 1.20 : 1) * lineageRaidDefenseMod();
 }
 function resolveWonderGuardOutcome(woundedOnly) {
   const armor = Math.pow(1.10, armorLevel());
@@ -1203,7 +1213,7 @@ function currencyCapacity(jobs = state?.jobs, source = state) {
 
 function capacityOf(id) {
   if (id === 'currency') return currencyCapacity();
-  if (id === 'knowledge') return Math.max(0, production(0).knowledge * 3000);
+  if (id === 'knowledge') return Math.max(0, production(0).knowledge * 3000 * lineageSpecialValue('knowledgeStorage'));
   if (id === 'goods') return bld('factory') * 100;
   const s = STORAGE[id];
   if (!s) return Infinity;
@@ -1212,7 +1222,9 @@ function capacityOf(id) {
   const runStorage = overflowActive ? 1 : 1 + 0.15 * upg('deepCellars');
   const governanceStorage = overflowActive ? 1 : governanceStorageMod();
   const bonusCapacity = s.bonus ? s.bonus.per * bld(s.bonus.bld) : 0;
-  return Math.ceil(((s.base + s.per * bld(s.bld) + bonusCapacity) *
+  const lineageStorage = id === 'food' ? lineageSpecialValue('foodStorage') : ['wood', 'tools'].includes(id) ? lineageSpecialValue('cacheStorage') : 1;
+  const hutFood = id === 'food' ? bld('hut') * 20 * (lineageSpecialValue('hutFoodStorage') - 1) : 0;
+  return Math.ceil(((s.base + s.per * bld(s.bld) + bonusCapacity + hutFood) * lineageStorage *
     permanentStorage * runStorage * governanceStorage *
     (overflowActive ? 1 : 1 + 0.01 * upg('cleverStorage')) *
     conqueredStorageMod() *
@@ -1224,6 +1236,7 @@ function popCap() {
   let cap = 6 + 2 * upg('wanderers');
   if (upg('practicedMigrator')) cap += 5;
   cap += bld('hut') * (1 + upg('grandHut') + (perm('twinSouls') ? 2 : 0));
+  cap += Math.floor(bld('hut') * (lineageSpecialValue('hutCapacity') - 1) + 1e-12);
   cap += bld('aqueduct') * 4;
   cap += powerAllocation().livingBlock * 5;
   if (trialActive('solitude')) cap = Math.min(cap, 10);
@@ -1307,12 +1320,14 @@ function buildingCost(def) {
   const mult = Math.pow(scale, bld(def.id)) *
     (trialActive('frugality') ? trialDifficulty('frugality') : 1) *
     Math.pow(0.9, trialCount('frugality')) *
-    (perm('blueprints') ? 0.85 : 1) * governanceCostMod();
+    (perm('blueprints') ? 0.85 : 1) * governanceCostMod() * lineageSpecialValue('buildingCost');
   const out = {};
   for (const r in def.cost) out[r] = def.cost[r] * mult;
   if (def.additionalCost) {
     for (const [r, amount] of Object.entries(def.additionalCost(bld(def.id)))) out[r] = (out[r] || 0) + amount * mult;
   }
+  if (out.wood) out.wood *= lineageSpecialValue('buildingWood');
+  if (out.stone) out.stone *= lineageSpecialValue('buildingStone');
   return out;
 }
 
@@ -1461,7 +1476,9 @@ function stagedBuildProject(entry) {
 function researchCost(def) {
   const knowledgeMultiplier = POST_STONE_AGE_RESEARCH.has(def.id)
     ? POST_STONE_AGE_KNOWLEDGE_COST_MULTIPLIER : 1;
-  return effectiveCoalCost({ knowledge: def.cost * knowledgeMultiplier, ...(def.materials || {}) });
+  const cost = { knowledge: def.cost * knowledgeMultiplier, ...(def.materials || {}) };
+  if (state.morale >= 80) cost.knowledge *= lineageSpecialValue('focusedResearch');
+  return effectiveCoalCost(cost);
 }
 
 function queueDemand() {
@@ -1482,7 +1499,7 @@ function queueCapacity(type) {
   if (type === 'expedition') return 1;
   const upgrade = type === 'build' ? 'buildingQueue' : 'researchQueue';
   const trial = type === 'build' ? 'expansion' : 'scholarship';
-  return 1 + upg(upgrade) + trialCount(trial);
+  return 1 + upg(upgrade) + trialCount(trial) + Math.floor(lineageSpecialValue('queueSlots') - 1 + 1e-12);
 }
 
 function queueCannotComplete(entry) {
@@ -1516,7 +1533,7 @@ function queueTime(entry, type = entry?.type, index = -1) {
     if ((rates[resource] || 0) <= 0) return Infinity;
     seconds = Math.max(seconds, missing / rates[resource]);
   }
-  return seconds * lineageSpecialValue('queueTime');
+  return seconds;
 }
 
 function queueLabel(seconds) {
@@ -1571,7 +1588,7 @@ function queueEntry(type, id) {
     if (tech(id) || state.queues.research.some(entry => entry.id === id) ||
         (def.req && !def.req())) return false;
   } else {
-    if ((expDone(id) && migrationChallengeCount() <= expeditionRating(id)) || (def.landing && def.landing !== state.landing) || state.pop < def.reqPop) return false;
+    if ((expDone(id) && migrationChallengeCount() <= expeditionRating(id)) || (def.landing && def.landing !== state.landing) || state.pop < expeditionPopulationRequirement(def)) return false;
   }
   const cost = queueCost({ type, id });
   if (canAfford(cost)) return false;
@@ -1943,7 +1960,8 @@ function globalProductionFactors(resource = null) {
 }
 
 function settlementProductionFactors(res, outgoing = false) {
-  const factors = [[landingDef().name, landingMod(res)], [lineageDef(state.species).name, baseLineageMod(res)]];
+  const factors = [[landingDef().name, landingMod(res)]];
+  if (!outgoing) factors.push([lineageDef(state.species).name, baseLineageMod(res)]);
   if (res === 'steel' && !outgoing && steelHearted()) factors.push(['Steel Hearted', 1 + 0.20 * achievementRating('steelHearted')]);
   const challenges = state.migrationChallenges || [];
   if (res === 'food' && !outgoing && challenges.includes('dryGround')) factors.push(['Dry Ground', 0.10]);
@@ -1957,7 +1975,7 @@ function settlementProductionFactors(res, outgoing = false) {
     if (modifier) factors.push([trait.name, modifier]);
   }
   const conquered = conqueredLineage();
-  if (conquered && conqueredLineageMod(res) > 1) factors.push([`${conquered.name} (Commonality)`, conqueredLineageMod(res)]);
+  if (!outgoing && conquered && conqueredLineageMod(res) > 1) factors.push([`${conquered.name} (Commonality)`, conqueredLineageMod(res)]);
   for (const e of EXPEDITIONS) {
     const modifier = outgoing ? e.mods?.outgoing?.[res] : e.mods?.[res];
     if (expDone(e.id) && modifier) factors.push([e.name, 1 + (modifier - 1) * expeditionRewardScale(e.id)]);
@@ -2003,7 +2021,7 @@ function moraleLabel() {
   return m < 25 ? 'despairing' : m < 50 ? 'uneasy' : m < 80 ? 'steady' : 'heartened';
 }
 function crowdMoralePenalty() {
-  return Math.max(0, state.pop - 20) * 0.01;
+  return Math.max(0, state.pop - 20) * 0.01 * lineageSpecialValue('crowdMoraleLoss');
 }
 function moralePressures(foodRate = production(0.25).food) {
   const weather = dailyWeather();
@@ -2014,7 +2032,7 @@ function moralePressures(foodRate = production(0.25).food) {
     if (count !== undefined) pressure.count = count;
     pressures.push(pressure);
   };
-  add('weather', `${weather.name} weather`, weather.morale);
+  add('weather', `${weather.name} weather`, weather.morale * (weather.morale < 0 ? Math.max(0, lineageSpecialValue('weatherMoraleLoss')) : 1));
   const foodRateValue = state.res.food <= 0.0001 ? -0.22 : foodRate < 0 ? -0.025 : state.res.food > 20 ? (state.morale < 70 ? 0.035 : 0) : 0;
   add('foodStores', state.res.food <= 0.0001 ? 'Empty food stores' : foodRate < 0 ? 'Food production falling short' : 'Secure food stores', foodRateValue);
   add('season', season, season === 'Winter' ? -0.006 : season === 'Summer' ? 0.006 : 0);
@@ -2086,12 +2104,16 @@ function updateMorale(dt, foodRate) {
   }
 }
 
-function updateExploration(dt) {
+function surveyRate() {
   const traitMultiplier = currentPlaceTraits().reduce((value, trait) => value * (trait.survey || 1), 1) * lineageSpecialValue('survey');
   const explorerSurvey = perm('explorers') ? explorerCount() * 0.025 * traitMultiplier : 0;
   const flightSurvey = state.surveyFlightRate || 0;
-  if (explorerSurvey || flightSurvey)
-    state.surveyPoints = (state.surveyPoints || 0) + (explorerSurvey + flightSurvey) * dt;
+  const guardSurvey = ableGuards() * 0.005 * (lineageSpecialValue('guardSurvey') - 1);
+  return explorerSurvey + flightSurvey + guardSurvey;
+}
+function updateExploration(dt) {
+  const rate = surveyRate();
+  if (rate) state.surveyPoints = (state.surveyPoints || 0) + rate * dt;
   if (!perm('explorers')) return;
   discoverTradePartners();
 }
@@ -2109,14 +2131,14 @@ function randomEventResourceAmount(resource, pair) {
 }
 function updateRandomEvents(dt) {
   state.randomEventT = (state.randomEventT || 0) + dt;
-  if (state.randomEventT < (state.randomEventNext || 60)) return;
+  if (state.randomEventT < (state.randomEventNext || 60) * lineageSpecialValue('eventInterval')) return;
   state.randomEventT = 0;
   state.randomEventNext = 55 + Math.random() * 75;
   if (trialActive('industrialization') && state.morale < 40 && state.res.coal > 0 &&
       Math.random() < INDUSTRIALIZATION_RIOT_CHANCE) {
     const lossFraction = INDUSTRIALIZATION_RIOT_LOSS[0] +
       Math.random() * (INDUSTRIALIZATION_RIOT_LOSS[1] - INDUSTRIALIZATION_RIOT_LOSS[0]);
-    const loss = Math.max(1, Math.round(state.res.coal * lossFraction));
+    const loss = Math.max(1, Math.round(state.res.coal * lossFraction * Math.max(0, lineageSpecialValue('eventLoss'))));
     state.res.coal = Math.max(0, state.res.coal - loss);
     addLog(`The hungry village riots at the coal stores. Coal −${fmt(loss)}.`, 'log-bad');
     return;
@@ -2154,9 +2176,10 @@ function updateRandomEvents(dt) {
   }
   for (const { id: resource, name } of RESOURCES) {
     if (!event[resource] || !state.seen[resource]) continue;
-    const amount = (event.timeReward
+    let amount = (event.timeReward
       ? Math.max(randomEventResourceAmount(resource, event[resource]), Math.round(Math.max(0, timeRates[resource] || 0) * timeSeconds))
       : randomEventResourceAmount(resource, event[resource])) * (local ? lineageSpecialValue('eventReward') : 1);
+    if (amount < 0) amount *= Math.max(0, lineageSpecialValue('eventLoss'));
     const before = state.res[resource];
     // Rewards never discard an existing over-cap stockpile.
     state.res[resource] = amount > 0 ? before + Math.min(amount, Math.max(0, capacityOf(resource) - before)) : Math.max(0, before + amount);
@@ -2263,10 +2286,11 @@ function chooseFactoryRecipe(id) {
 const DIG_SITE_RESOURCES = { quarry: 'stone', deepMine: 'iron', coalSeam: 'coal' };
 const DIG_SITE_WORKERS = { quarry: 'miner', deepMine: 'ironminer', coalSeam: 'digger' };
 const DIG_SITE_POWER = 0.2;
+function digSitePowerRequirement() { return DIG_SITE_POWER * Math.max(0.01, lineageSpecialValue('digPower')); }
 function factoryPowerRequirement() { return FACTORY_POWER_REQUIREMENT * (1 + 0.5 * upg('runningHot')); }
 const POWER_BUILDINGS = {
   livingBlock: { power: LIVING_BLOCK_POWER_REQUIREMENT, label: 'Living Blocks' },
-  ...Object.fromEntries(Object.keys(DIG_SITE_RESOURCES).map(id => [id, { power: DIG_SITE_POWER }])),
+  ...Object.fromEntries(Object.keys(DIG_SITE_RESOURCES).map(id => [id, { get power() { return digSitePowerRequirement(); } }])),
   factory: { get power() { return factoryPowerRequirement(); }, label: 'Factories' },
   aluminumWorks: { power: 1, label: 'Sky Metal Forges' },
   // Forges can be switched off, but do not draw from power capacity.
@@ -2610,7 +2634,7 @@ function production(dt = 0.25, breakdown = null) {
   const calamity = calamityDef && activeWonderCalamity(incomeRates[calamityDef.resource] || 0);
   if (calamity?.amount) add(calamity.resource, calamity.name, -calamity.amount);
   for (const [id, active] of Object.entries(poweredSites)) {
-    if (active) add('power', `${BUILDING_BY_ID.get(id).name}: ${active} × ${DIG_SITE_POWER} capacity`, -active * DIG_SITE_POWER);
+    if (active) add('power', `${BUILDING_BY_ID.get(id).name}: ${active} × ${digSitePowerRequirement()} capacity`, -active * digSitePowerRequirement());
   }
   if (tech('artificialSecurity') && ableArtificialGuards() > 0)
     add('power', `Artificial Guards: ${ableArtificialGuards()} × ${ARTIFICIAL_GUARD_POWER} capacity`, -ableArtificialGuards() * ARTIFICIAL_GUARD_POWER);
@@ -2622,11 +2646,12 @@ function production(dt = 0.25, breakdown = null) {
   const activeForges = power.forge;
   const assignedIronForges = Math.min(activeForges, Math.floor(state.forgeIron || 0));
   const steelForges = activeForges - assignedIronForges;
-  if (assignedIronForges > 0) add('coal', `Iron Forge fuel: ${assignedIronForges} × 0.4/s`, -0.4 * assignedIronForges);
+  const forgeCoal = Math.max(0, lineageSpecialValue('forgeCoal'));
+  if (assignedIronForges > 0) add('coal', `Iron Forge fuel: ${assignedIronForges} × ${0.4 * forgeCoal}/s`, -0.4 * forgeCoal * assignedIronForges);
   if (steelForges > 0 && dt > 0) {
     const rate = 0.04;
     const metalKnowledge = tech('metalKnowledge') ? 1.5 : 1;
-    const inputs = inputCosts({ iron: 0.6 * steelForges * metalKnowledge, coal: 0.4 * steelForges * metalKnowledge }, 'forge', steelForges);
+    const inputs = inputCosts({ iron: 0.6 * steelForges * metalKnowledge, coal: 0.4 * forgeCoal * steelForges * metalKnowledge }, 'forge', steelForges);
     const factors = forgeProductionFactors();
     if (metalKnowledge > 1) factors.push(['Metal Knowledge', metalKnowledge]);
     const output = factors.reduce((value, [, factor]) => value * factor, steelForges * rate);
@@ -2677,7 +2702,8 @@ function production(dt = 0.25, breakdown = null) {
         ...(lightningMetal ? [['Lightning Metal', recipeFactor]] : []), ['Running Hot', runningHot], [limitation, fraction]]);
     }
   }
-  if (state.pop) add('food', `Villager upkeep: ${state.pop} × ${FOOD_PER_POP}/s`, -state.pop * FOOD_PER_POP);
+  if (state.pop) add('food', `Villager upkeep: ${state.pop} × ${FOOD_PER_POP}/s`, -state.pop * FOOD_PER_POP,
+    state.res.food >= capacityOf('food') * 0.5 ? [['Shared Browsing', lineageSpecialValue('wellStockedAppetite')]] : []);
   return rates;
 }
 
@@ -2742,11 +2768,19 @@ function resourceRateTooltip(resource, rate, entries) {
 }
 
 function hospitalTimeMod() { return Math.pow(0.9, bld('hospital')); }
+function lineageGrowthMultiplier() {
+  const lineage = lineageDef(state.species);
+  const nativeGrowthTrait = lineage.growthTrait || (lineage.custom && state.customLineage.traits.includes('quickLitters') ? 'quickLitters' : null);
+  let multiplier = lineageTraitModifier(lineage.growthTime || 1, lineage.growthTrait ? lineageTraitLevel(lineage.growthTrait) : 1)
+    * lineageSpecialValue('growthTime');
+  for (const source of LINEAGES) {
+    if (source.growthTrait && source.growthTrait !== nativeGrowthTrait && acquiredLineageTraitIds().includes(source.growthTrait))
+      multiplier *= lineageTraitModifier(source.growthTime, 0.5);
+  }
+  return multiplier;
+}
 function popGrowthNeed() {
-  const lineageGrowth = lineageDef(state.species).growthTime || 1;
-  const growthTrait = lineageDef(state.species).growthTrait;
-  const atavisticGrowth = lineageTraitModifier(lineageGrowth, growthTrait ? lineageTraitLevel(growthTrait) : 1) * lineageSpecialValue('growthTime');
-  return (20 + state.pop * 4) * 0.67 * (tech('aphrodisiac') ? 0.75 : 1) * hospitalTimeMod() * atavisticGrowth / moraleMult();
+  return (20 + state.pop * 4) * 0.67 * (tech('aphrodisiac') ? 0.75 : 1) * hospitalTimeMod() * lineageGrowthMultiplier() / moraleMult();
 }
 function populationGrowthTime() {
   return popGrowthNeed() * currentPlaceTraits().reduce((time, trait) => time * (trait.growth || 1), 1);
@@ -2755,7 +2789,7 @@ function populationGrowthTooltip() {
   const base = 20 + state.pop * 4;
   const lineageGrowth = lineageDef(state.species).growthTime || 1;
   const growthTrait = lineageDef(state.species).growthTrait;
-  const effectiveLineageGrowth = lineageTraitModifier(lineageGrowth, growthTrait ? lineageTraitLevel(growthTrait) : 1);
+  const effectiveLineageGrowth = lineageGrowthMultiplier();
   const atavistic = growthTrait && effectiveLineageGrowth !== lineageGrowth;
   const growthTraits = currentPlaceTraits().filter(trait => trait.growth && trait.growth !== 1);
   const lines = [
@@ -2786,7 +2820,7 @@ function populationGrowthTooltip() {
   }
   return lines.join('\n');
 }
-function guardHealingNeed() { return 90 * hospitalTimeMod(); }
+function guardHealingNeed() { return 90 * hospitalTimeMod() * lineageSpecialValue('guardHealing'); }
 
 // ---------- log ----------
 function logCategory(text) {
@@ -2975,10 +3009,10 @@ function resolveTribeRaid(id) {
   // Incoming raids should create pressure without deleting a settlement's
   // entire military investment.  Hostility still matters, but the old power
   // curve made a merely adequate garrison pay an outsized price on a loss.
-  const raidPower = (militaryStrength(entry) / 20 + (50 - entry.disposition) / 20 + Math.random() * 4) * 0.8;
+  const raidPower = (militaryStrength(entry) / 20 + (50 - entry.disposition) / 20 + Math.random() * 4) * 0.8 * lineageSpecialValue('raidPower');
   if (defense >= raidPower) {
     if (!conquestTrialRelationsLocked()) entry.disposition = Math.max(-100, entry.disposition - 2);
-    if (isMephit()) state.diplomacyEventT = -mephitRaidDelay();
+    state.diplomacyEventT = -mephitRaidDelay();
     addLog(`The ${tribe.name} test Emberhold's walls, but ${able} able Guard${able === 1 ? '' : 's'} drive them off.`, 'log-good');
     return;
   }
@@ -3000,7 +3034,7 @@ function resolveTribeRaid(id) {
     loot.push(`${fmt(amount)} ${resourceName(pick)}`);
   }
   if (!conquestTrialRelationsLocked()) entry.disposition = Math.max(-100, entry.disposition - 6);
-  if (isMephit()) state.diplomacyEventT = -mephitRaidDelay();
+  state.diplomacyEventT = -mephitRaidDelay();
   addLog(`The ${tribe.name} raid Emberhold! ${casualties.deaths} Guard${casualties.deaths === 1 ? '' : 's'} die${casualties.deaths === 1 ? 's' : ''}, ${casualties.injuries} suffer injuries, and they make off with ${loot.join(' and ') || 'nothing'}.`, 'log-bad');
 }
 
@@ -3940,14 +3974,18 @@ function doBuild(id) {
   return true;
 }
 
+function craftCost(def) {
+  return Object.fromEntries(Object.entries(def.cost).map(([resource, amount]) => [resource, amount * lineageSpecialValue('craftCost')]));
+}
 function doCraft(id) {
   const def = CRAFT_BY_ID.get(id);
   if (!def || !def.req()) return;
   if ((state.migrationChallenges || []).includes('nothingManual')) return;
   if (id === 'tools' && trialActive('tinkering')) return;
-  if (!canAfford(def.cost)) return;
+  const cost = craftCost(def);
+  if (!canAfford(cost)) return;
   for (const r in def.give) if (isFull(r)) return; // no room in the store
-  payCost(def.cost);
+  payCost(cost);
   for (const r in def.give) {
     state.res[r] = Math.min(capacityOf(r), state.res[r] + def.give[r] * lineageMod(r));
     state.seen[r] = true;
@@ -4020,7 +4058,7 @@ function doExpedition(id) {
   const def = EXPEDITION_BY_ID.get(id);
   if (!def || (expDone(id) && migrationChallengeCount() <= expeditionRating(id))) return false;
   if ((def.landing || def.location) && (def.landing || def.location) !== state.landing) return false;
-  if (state.pop < def.reqPop) return false;
+  if (state.pop < expeditionPopulationRequirement(def)) return false;
   const cost = expeditionCost(def);
   if (!canAfford(cost)) return false;
   payCost(cost);
@@ -4239,11 +4277,12 @@ function supplyDiplomacyRequest(id) {
   const entry = state.diplomacy[id];
   if (!canAfford({ [entry.request.res]: entry.request.amount })) return;
   payCost({ [entry.request.res]: entry.request.amount });
-  improveDisposition(entry, 15);
+  const previousDisposition = entry.disposition;
+  improveDisposition(entry, 15 * lineageSpecialValue('requestGoodwill'));
   if (entry.disposition >= 80) updateAchievements(['diplomat']);
   state.morale = Math.min(moraleCap(), state.morale + 2);
   const tribe = tribeDef(id);
-  addLog(`The ${tribe.name} accept the requested goods. Relations improve by 15.`, 'log-good');
+  addLog(`The ${tribe.name} accept the requested goods. Relations improve by ${fmt(entry.disposition - previousDisposition)}.`, 'log-good');
   entry.request = randomDiplomacyRequest(id);
 }
 
@@ -5700,11 +5739,11 @@ function renderStores() {
       `<span class="res-rate has-tooltip ${cls}" tabindex="0" data-tooltip="${attrText(resourceRateTooltip(r, rate, breakdown[r.id]))}">${status}</span>` +
       `</div>`;
   }
-  if (perm('explorers') || bld('surveyFlights') > 0) {
-    const rate = explorerCount() * 0.025 + (state.surveyFlightRate || 0);
+  if (perm('explorers') || bld('surveyFlights') > 0 || lineageSpecialValue('guardSurvey') > 1 || state.surveyPoints > 0) {
+    const rate = surveyRate();
     const cls = rate > 0.0001 ? 'rate-pos' : '';
     h += `<div class="res-row">` +
-      `<span class="res-name has-tooltip" data-tooltip="Survey points gathered by Explorers and Survey Flights; spent to reveal additional landing choices during migration.">Survey</span>` +
+      `<span class="res-name has-tooltip" data-tooltip="Survey points gathered by Explorers, Survey Flights, and Aerie Watch Guards; spent to reveal additional landing choices during migration.">Survey</span>` +
       `<span class="res-amount">${fmtHeld(state.surveyPoints || 0)}</span>` +
       `<span class="res-rate ${cls}">${fmtRate(rate) || '0/s'}</span>` +
       `</div>`;
@@ -5764,13 +5803,14 @@ function renderVillage() {
   for (const c of CRAFTS) {
     if (!c.req()) continue;
     const forbidden = c.id === 'tools' && trialActive('tinkering');
-    const ok = !forbidden && canAfford(c.cost) && !Object.keys(c.give).some(r => isFull(r));
+    const cost = craftCost(c);
+    const ok = !forbidden && canAfford(cost) && !Object.keys(c.give).some(r => isFull(r));
     const fullNote = forbidden ? ' — forbidden by the Trial of Tinkering' :
       (Object.keys(c.give).some(r => isFull(r)) ? ' — store full' : '');
     h += `<div class="card"><div class="card-head">` +
       `<span class="card-title has-tooltip" data-tooltip="${attrText(c.desc)}">${c.name}</span>` +
       `<span class="card-effect">${fullNote.replace(/^ — /, '')}</span></div>` +
-      `<div class="card-cost">cost: ${costHtml(c.cost)}</div>` +
+      `<div class="card-cost">cost: ${costHtml(cost)}</div>` +
       `<div class="card-actions"><button data-action="craft" data-id="${c.id}" data-repeat title="Hold to repeat" ${ok ? '' : 'disabled'}>Craft ${fmt(c.give[Object.keys(c.give)[0]] * lineageMod(Object.keys(c.give)[0]))}</button></div>` +
       `</div>`;
   }
@@ -5836,7 +5876,7 @@ function renderVillage() {
         `<div class="card-actions"><button data-action="assemble-guard" ${canAssemble ? '' : 'disabled'}>Assemble Artificial Guard</button></div></div>`;
     }
   }
-  h += `<div class="res-note" style="margin-top:6px">Every villager eats ${fmt(FOOD_PER_POP)} food/s, working or not. Each Guard requires ${fmt(JOBS.guard.upkeep)} food/s, but their hunting is not reduced by winter. Weaponry, Leather Armor, and Chainmail research strengthen the watch; injuries heal over time. Every store has a ceiling — what flows in past a full store is wasted. Storehouses raise most material ceilings.</div>`;
+  h += `<div class="res-note" style="margin-top:6px">Every villager normally eats ${fmt(FOOD_PER_POP)} food/s, working or not. Shared Browsing reduces this while Food stores are at least half full. Each Guard requires ${fmt(JOBS.guard.upkeep)} food/s, but their hunting is not reduced by winter. Weaponry, Leather Armor, and Chainmail research strengthen the watch; injuries heal over time. Every store has a ceiling — what flows in past a full store is wasted. Storehouses raise most material ceilings.</div>`;
 
   return h;
 }
@@ -6033,7 +6073,7 @@ function renderDiplomacy() {
 
 function renderTradeBlimps() {
   let h = '<h2 class="section">Trade Blimps</h2>';
-  h += '<div class="res-note">Each blimp carries one good at a time. Buying starts at 1 unit/s and rises by ×1.2 for each higher good; selling returns half the purchase value. Orders pause automatically when storage or Currency is insufficient.</div>';
+  h += '<div class="res-note">Each blimp carries one good at a time. Cargo throughput follows lineage traits and rises by ×1.2 for each higher good; selling returns half the purchase value. Orders pause automatically when storage or Currency is insufficient.</div>';
   for (let index = 0; index < bld('tradeBlimp'); index++) {
     const order = tradeBlimpOrders()[index];
     const resource = order?.resource || TRADE_GOODS[0];
@@ -6253,7 +6293,8 @@ function renderExpeditions() {
     const cost = expeditionCost(e);
     if (!e.landing && !Object.entries(cost).every(([res, amount]) => capacityOf(res) >= amount && rates[res] > 0)) continue;
     any = true;
-    const popOk = state.pop >= e.reqPop;
+    const requiredPop = expeditionPopulationRequirement(e);
+    const popOk = state.pop >= requiredPop;
     const site = LANDING_BY_ID.get(expeditionLocation);
     const queued = state.queues.expedition.some(entry => entry.id === e.id);
     const ok = popOk && (canAfford(cost) || state.queues.expedition.length < queueCapacity('expedition'));
@@ -6261,7 +6302,7 @@ function renderExpeditions() {
       `<div class="card-desc">${e.text}</div>` +
       `<div class="card-effect">${done ? `Established (${CHALLENGE_RATING_NAMES[expeditionRating(e.id)]}); improve to ${CHALLENGE_RATING_NAMES[Math.min(4, migrationChallengeCount())]}` : `Grants: ${e.effect}`}</div>` +
       (site ? `<div class="res-note">Requires settlement at ${site.name} — you are here.</div>` : '') +
-      `<div class="card-cost">cost: ${costHtml(cost)} — needs ${e.reqPop} villagers</div>` +
+      `<div class="card-cost">cost: ${costHtml(cost)} — needs ${requiredPop} villagers</div>` +
       `<div class="card-actions"><button data-action="exp" data-id="${e.id}" ${ok ? '' : 'disabled'}>${queued ? 'Queued' : done ? canAfford(cost) ? 'Repeat at higher difficulty' : 'Queue higher-difficulty repeat' : canAfford(cost) ? 'Send the expedition' : 'Queue the expedition'}</button></div>` +
       `</div>`;
   }
@@ -6564,7 +6605,7 @@ function renderSidePanel() {
 function loadLatestUpdatesTooltip() {
   const button = document.getElementById('btn-updates');
   if (!button || typeof fetch !== 'function' || typeof DOMParser !== 'function') return;
-      fetch('changelog.html?v=publish-20261007u0002')
+      fetch('changelog.html?v=publish-20261008u0003')
     .then(response => response.ok ? response.text() : Promise.reject(new Error('changelog unavailable')))
     .then(source => {
       const doc = new DOMParser().parseFromString(source, 'text/html');

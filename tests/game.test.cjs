@@ -313,7 +313,7 @@ test('currency uses a 2000 base cap and does not accumulate past it', () => {
   run('state.jobs.banker = 2');
   assert.equal(run('capacityOf("currency")'), 2400);
   run('state.jobs.banker = 0');
-  run(`state.techs.currency = true; state.seen.currency = true;
+  run(`state.techs.currency = true; state.seen.currency = true; state.randomEventNext = 1000;
     state.res.currency = 1999; tickStep(100);`);
   assert.equal(run('state.res.currency'), 2000);
   run('tickStep(100)');
@@ -419,7 +419,7 @@ test('Atavistic Aura raises lineage traits to level 2', () => {
   assert.equal(run(`lineageTraitScale(2)`), 1.5);
   assert.equal(run(`lineageTraitModifier(1.2, -1)`), 0.8);
   assert.ok(Math.abs(run(`lineageTraitModifier(1.2, -2)`) - 0.7) < 1e-12);
-  assert.equal(run(`popGrowthNeed() / ((20 + state.pop * 4) * 0.67 / moraleMult())`), 0.25);
+  assert.equal(run(`popGrowthNeed() / ((20 + state.pop * 4) * 0.67 / moraleMult())`), 0.625);
   run(`state.randomEventT = 60; state.randomEventNext = 60; Math.random = () => 0.7; updateRandomEvents(0);`);
   assert.match(run('state.log[0].t'), /^Rabbitfolk:/);
   run(`state.placeTraits = []; lineageDef('rabbitfolk').traitLevels = { warrenGardens: 0 };`);
@@ -834,7 +834,7 @@ test('queue items show each missing resource with its own estimate', () => {
   assert.equal((html.match(/queue-waiting-item/g) || []).length, 5);
   assert.match(html, /queue-waiting-item[\s\S]*queue-time/);
   assert.match(html, /lumberCamp|Lumber/);
-  assert.match(html, /110 Wood/);
+  assert.match(html, /99 Wood/);
   assert.equal((html.match(/queue-needs/g) || []).length, 0);
 });
 
@@ -867,8 +867,8 @@ test('later queue items include earlier queued costs in their estimates', () => 
       { type: 'build', id: 'hut' }
     ];`);
   const html = run("renderQueue('build')");
-  assert.match(html, /30 Wood/);
-  assert.match(html, /20 Wood/);
+  assert.match(html, /27 Wood/);
+  assert.match(html, /14 Wood/);
 });
 
 test('queue items can be reordered before or after another item', () => {
@@ -1441,7 +1441,7 @@ test('morale speeds or slows population growth and stacks with fertility bonuses
   assert.ok(happy < neutral);
   assert.ok(Math.abs(neutral / happy - run("globalProductionFactors()[0][1]")) < 1e-10);
   run("state.species = 'rabbitfolk'; state.techs.aphrodisiac = true; state.bld.hospital = 2");
-  assert.ok(Math.abs(run('popGrowthNeed()') - happy * 0.5 * 0.75 * 0.9 ** 2) < 1e-10);
+  assert.ok(Math.abs(run('popGrowthNeed()') - happy * 0.75 * 0.75 * 0.9 ** 2) < 1e-10);
   assert.match(run('renderVillage()'), /Population growth:/);
 });
 
@@ -1455,11 +1455,11 @@ test('population growth timing tooltip explains every active modifier', () => {
   assert.match(run('renderVillage()'), /has-tooltip[^>]*Population growth|Population growth: <span class="has-tooltip"/);
 });
 
-test('Rabbitfolk population growth takes half the usual time', () => {
+test('Rabbitfolk population growth takes 25 percent less time', () => {
   const { run } = game();
   const humanGrowth = run('popGrowthNeed()');
   run("state.species = 'rabbitfolk'");
-  assert.equal(run('popGrowthNeed()'), humanGrowth * 0.5);
+  assert.equal(run('popGrowthNeed()'), humanGrowth * 0.75);
 });
 
 test('lineage wanderers scale to fifteen and use a distinct palette for each lineage', () => {
@@ -2354,10 +2354,247 @@ test('new tribes can be encountered, allied, inherited, and saved', () => {
   }
 });
 
-test('lineages group their existing effects into two to four shared traits', () => {
+test('construction perks reduce real direct and queued spending and scale with inheritance', () => {
+  for (const [species, cost] of [['human', 27], ['clocklings', 25.5]]) {
+    const { run } = game();
+    run(`state.species = '${species}'; state.res.wood = ${cost}; doBuild('hut')`);
+    assert.equal(run('state.bld.hut'), 1);
+    assert.equal(run('state.res.wood'), 0);
+    run(`state.bld.hut = 0; state.res.wood = ${cost}; state.queues.build = [{ type: 'build', id: 'hut' }]; updateQueues()`);
+    assert.equal(run('state.bld.hut'), 1);
+    assert.equal(run('state.res.wood'), 0);
+    assert.equal(run('state.queues.build.length'), 0);
+    assert.match(run(`lineageDef('${species}').effect`), /building costs/);
+  }
+  const { run } = game();
+  run(`state.species = 'skyborn'; state.conqueredLineageTraits = ['practicalImprovisation'];`);
+  assert.equal(run("buildingCost(BUILDING_BY_ID.get('hut')).wood"), 30 * 0.95);
+  run(`state.species = 'human'; state.placeTraits = ['atavisticAura'];`);
+  assert.ok(Math.abs(run("buildingCost(BUILDING_BY_ID.get('hut')).wood") - 30 * 0.85) < 1e-12);
+});
+
+test('growth includes inherited Quick Litters and Living Renewal once and explains their combined effect', () => {
+  const { run } = game();
+  run(`state.species = 'skyborn'; const neutral = popGrowthNeed(); state.conqueredLineageTraits = ['quickLitters', 'livingRenewal'];`);
+  assert.ok(Math.abs(run('popGrowthNeed() / neutral') - 0.875 * 0.925) < 1e-12);
+  assert.ok(run('populationGrowthTooltip().includes(fmt(lineageGrowthMultiplier()))'));
+  run(`state.species = 'rabbitfolk'; state.conqueredLineageTraits = ['quickLitters'];`);
+  assert.equal(run('lineageGrowthMultiplier()'), 0.75);
+  run(`state.species = 'thornkin'; state.conqueredLineageTraits = ['livingRenewal'];`);
+  assert.equal(run('lineageGrowthMultiplier()'), 0.85);
+  assert.match(run('populationGrowthTooltip()'), /Thornkin: ×0.85/);
+});
+
+test('Glimmerfolk signature increases an actual native resource happening', () => {
+  const { run } = game();
+  run(`state.species = 'glimmerfolk'; state.seen.aether = true; state.res.aether = 0;
+    state.randomEventT = 60; state.randomEventNext = 60;
+    let rolls = [0, 0, 0.9, 0]; Math.random = () => rolls.length ? rolls.shift() : 0;
+    updateRandomEvents(0);`);
+  assert.equal(run('state.res.aether'), 2.4);
+  assert.match(run('state.log[0].t'), /Aether \+2.4/);
+});
+
+test('Mephit defense, respite and reprisals function natively and after inheritance', () => {
+  const { run } = game();
+  run(`state.species = 'mephit'; state.placeTraits = ['atavisticAura'];`);
+  assert.ok(Math.abs(run('lineageRaidDefenseMod()') - 1.525) < 1e-12);
+  assert.equal(run('mephitRaidDelay()'), 180);
+  assert.ok(Math.abs(run("lineageSpecialValue('raidPower')") - 0.775) < 1e-12);
+  run(`state.species = 'skyborn'; state.placeTraits = []; state.conqueredLineageTraits = ['cruelReprisals', 'slowProvocation'];
+    state.jobs.guard = 4; state.techs.weaponry = true; ensureDiplomacyEntry('human');
+    state.diplomacy.human.disposition = -50; state.diplomacy.human.militaryStrength = 100;
+    Math.random = () => 0; resolveTribeRaid('human');`);
+  assert.match(run('state.log[0].t'), /drive them off/);
+  assert.equal(run('state.diplomacyEventT'), -60);
+  run(`state.conqueredLineageTraits = ['sulfurWalls'];`);
+  assert.equal(run('lineageRaidDefenseMod()'), 1.175);
+});
+
+test('lineage and Commonality output bonuses do not inflate Tinkerer inputs', () => {
+  const { run } = game();
+  run(`state.species = 'thornkin'; state.jobs = { tinkerer: 1, woodcutter: 1 }; state.bld.workbench = 1;
+    state.res.wood = 100; state.res.stone = 100;
+    const before = {}; production(1, before);
+    const input = before.wood.find(e => e.label.startsWith('Tinkerer inputs')).amount;
+    conqueredLineage = () => lineageDef('beaverkin');
+    const after = {}; production(1, after);`);
+  assert.equal(run('input'), -0.06);
+  assert.equal(run("after.wood.find(e => e.label.startsWith('Tinkerer inputs')).amount"), -0.06);
+  assert.ok(run("after.wood.filter(e => e.base > 0).every(e => e.factors.some(([label]) => label.includes('Commonality')))"));
+  assert.ok(run('after.wood.some(e => e.base > 0)'));
+});
+
+test('saved Custom lineages receive repaired construction and growth perks without duplicate inheritance', () => {
+  const { run } = game();
+  run(`state.achievements['wonder-glassMire-restore'] = 4; state.lineagesUnlocked.rabbitfolk = true;
+    beginCustomLineageDraft(); chooseCustomLineageTrait('practicalImprovisation'); chooseCustomLineageTrait('quickLitters');
+    createCustomLineage('Builders', 'Patient warren builders.'); state.species = 'custom';
+    state.conqueredLineageTraits = ['practicalImprovisation', 'quickLitters']; saveGame(true); state = loadGame();`);
+  assert.equal(run('state.species'), 'custom');
+  assert.equal(run("buildingCost(BUILDING_BY_ID.get('hut')).wood"), 27);
+  assert.equal(run('lineageGrowthMultiplier()'), 0.75);
+});
+
+test('every lineage has a signature beyond resource income and new signatures are selectable for Custom lineages', () => {
+  const { run } = game();
+  assert.equal(run(`LINEAGES.every(l => l.growthTime || Object.values(l.specials).some(s =>
+    !['weatherFood', 'forgeOutput', 'eventReward'].includes(s.key) || Object.keys(s.effects || {}).length))`), true);
+  assert.equal(run('LINEAGE_SIGNATURES.length'), 20);
+  assert.equal(run('LINEAGE_SIGNATURES.every(t => CUSTOM_LINEAGE_TRAIT_BY_ID.has(t.id))'), true);
+  run(`state.achievements['wonder-glassMire-restore'] = 1; state.lineagesUnlocked.bearfolk = true;
+    beginCustomLineageDraft(); chooseCustomLineageTrait('greatLodges'); createCustomLineage('Lodgefolk', 'Room for everyone.');
+    state.species = 'custom'; state.bld.hut = 2; saveGame(true); state = loadGame();`);
+  assert.equal(run('popCap()'), 10);
+});
+
+test('lineage construction specialties reduce actual material spending', () => {
+  for (const [species, building, resource, base] of [
+    ['beaverkin', 'hut', 'wood', 30], ['ibexkin', 'stoneWorks', 'stone', 90],
+  ]) {
+    const { run } = game();
+    run(`state.species = '${species}'; state.res.wood = 1000; state.res.stone = 1000;
+      state.techs.masonry = true; const spentBefore = state.res['${resource}']; doBuild('${building}');`);
+    assert.equal(run(`state.bld['${building}']`), 1);
+    assert.ok(Math.abs(run(`spentBefore - state.res['${resource}']`) - base * 0.8) < 1e-10);
+  }
+});
+
+test('lineage reserves change food, material and knowledge capacity without changing unrelated stores', () => {
+  const { run } = game();
+  run(`state.species = 'skyborn'; const foodCap = capacityOf('food'); const woodCap = capacityOf('wood');
+    const toolsCap = capacityOf('tools'); const stoneCap = capacityOf('stone');`);
+  run(`state.species = 'carpfolk'`);
+  assert.equal(run('capacityOf("food")'), run('foodCap * 1.5'));
+  assert.equal(run('capacityOf("stone")'), run('stoneCap'));
+  run(`state.species = 'marshfolk'; state.bld.hut = 2;`);
+  assert.equal(run('capacityOf("food")'), run('foodCap + 40'));
+  run(`state.species = 'squirrelfolk';`);
+  assert.equal(run('capacityOf("wood")'), run('Math.ceil(woodCap * 1.4 - 1e-12)'));
+  assert.equal(run('capacityOf("tools")'), run('Math.ceil(toolsCap * 1.4 - 1e-12)'));
+  run(`state.species = 'turtlefolk'; state.jobs.thinker = 1;`);
+  assert.ok(Math.abs(run('capacityOf("knowledge") / production(0).knowledge') - 4500) < 1e-10);
+});
+
+test('communal lodges and hearths change population constraints including inherited half-strength effects', () => {
+  const { run } = game();
+  run(`state.species = 'bearfolk'; state.bld.hut = 3; state.pop = 40;`);
+  assert.equal(run('popCap()'), 12);
+  run(`state.species = 'bisonkin';`);
+  assert.equal(run('crowdMoralePenalty()'), 0.1);
+  run(`state.species = 'skyborn'; state.conqueredLineageTraits = ['greatLodges', 'communalHearths'];`);
+  assert.equal(run('popCap()'), 10);
+  assert.ok(Math.abs(run('crowdMoralePenalty()') - 0.15) < 1e-12);
+});
+
+test('weather chorus and regenerative care alter morale loss and healing with existing modifiers', () => {
+  const { run } = game();
+  run(`state.species = 'frogfolk'; dailyWeather = () => ({ name: 'Stormy', morale: -0.06 });`);
+  assert.equal(run('moralePressures(0).find(p => p.id === "weather").rate'), -0.015);
+  run(`dailyWeather = () => ({ name: 'Clear', morale: 0.01 });`);
+  assert.equal(run('moralePressures(0).find(p => p.id === "weather").rate'), 0.01);
+  run(`state.species = 'axolotlkin'; state.bld.hospital = 2;`);
+  assert.ok(Math.abs(run('guardHealingNeed()') - 90 * 0.9 ** 2 * 0.65) < 1e-10);
+});
+
+test('patient preparation reduces real event losses and resonant omens changes event timing', () => {
+  const { run } = game();
+  run(`state.species = 'heronkin'; state.res.food = 100; state.seen.food = true;
+    LINEAGE_EVENTS.heronkin = [{ text: 'A spoiled basket.', food: [-10, -10] }];
+    state.randomEventNext = 60; Math.random = () => 0; updateRandomEvents(60);`);
+  assert.equal(run('state.res.food'), 95);
+  run(`state.species = 'glimmerfolk'; state.randomEventT = 0; state.randomEventNext = 100;
+    state.log = []; updateRandomEvents(79);`);
+  assert.equal(run('state.log.length'), 0);
+  run('updateRandomEvents(1)');
+  assert.equal(run('state.log.filter(entry => entry.t.startsWith("Glimmerfolk:")).length'), 1);
+});
+
+test('Foxfolk request goodwill changes real disposition and reports the actual gain', () => {
+  const { run } = game();
+  run(`state.species = 'foxfolk'; state.techs.currency = true; ensureDiplomacyEntry('human');
+    state.diplomacy.human.disposition = 0; state.diplomacy.human.request = { res: 'food', amount: 10 };
+    state.res.food = 100; supplyDiplomacyRequest('human');`);
+  assert.equal(run('state.diplomacy.human.disposition'), 22.5);
+  assert.match(run('state.log[0].t'), /Relations improve by 22.5/);
+});
+
+test('Wolfkin pack power requires five deployed healthy Guards and Eaglefolk watch generates visible Survey', () => {
+  const { run } = game();
+  run(`state.species = 'wolfkin'; state.jobs.guard = 8;`);
+  assert.equal(run('guardAttackPower(4)'), 4);
+  assert.equal(run('guardAttackPower(5)'), 6);
+  run(`state.species = 'eaglefolk'; state.jobs.guard = 4; state.surveyPoints = 0; updateExploration(100);`);
+  assert.equal(run('state.surveyPoints'), 2);
+  assert.equal(run('surveyRate()'), 0.02);
+  assert.match(run('renderStores()'), /Aerie Watch Guards/);
+});
+
+test('Dunewalkers pay reduced expedition supplies and Lynxfolk can queue and complete expeditions earlier', () => {
+  const { run } = game();
+  run(`state.species = 'dunewalkers'; state.landing = 'greenfold'; state.pop = 12;
+    state.res.wood = 320; state.res.tools = 8; doExpedition('oldForest');`);
+  assert.equal(run('state.expeditions.oldForest'), true);
+  assert.equal(run('state.res.wood'), 0);
+  assert.equal(run('state.res.tools'), 0);
+  run(`state.species = 'lynxfolk'; state.expeditions = {}; state.pop = 9;`);
+  assert.equal(run("queueEntry('expedition', 'oldForest')"), false);
+  run(`state.pop = 10; state.bld.storehouse = 1;`);
+  assert.equal(run("queueEntry('expedition', 'oldForest')"), true);
+  run(`state.res.wood = 400; state.res.tools = 10; updateQueues();`);
+  assert.equal(run('state.expeditions.oldForest'), true);
+});
+
+test('Clockling queue planning inherits usable slots and Owlkin research responds to morale', () => {
+  const { run } = game();
+  run(`state.species = 'clocklings';`);
+  assert.equal(run('queueCapacity("build")'), 3);
+  assert.equal(run('queueCapacity("research")'), 3);
+  assert.equal(run('queueCapacity("expedition")'), 1);
+  run(`state.species = 'skyborn'; state.conqueredLineageTraits = ['exactSchedules'];`);
+  assert.equal(run('queueCapacity("build")'), 2);
+  run(`state.species = 'owlkin'; state.conqueredLineageTraits = []; state.morale = 79;
+    const ordinary = researchCost(TECH_BY_ID.get('stoneWorking')).knowledge; state.morale = 80;`);
+  assert.equal(run('researchCost(TECH_BY_ID.get("stoneWorking")).knowledge'), run('ordinary * 0.85'));
+});
+
+test('Molekin mining power allocation and Cinderforged forge fuel reflect their specialties', () => {
+  const { run } = game();
+  run(`state.species = 'molekin'; state.techs.awakenAncients = true; state.bld.quarry = 1;
+    state.jobs.miner = 8; state.bld.windDevice = 1; const detail = {}; production(1, detail);`);
+  assert.equal(run('powerAllocation().quarry'), 6);
+  assert.ok(Math.abs(run('detail.power.find(e => e.base < 0).amount') + 0.9) < 1e-10);
+  run(`state.species = 'cinderforged'; state.bld = { forge: 1 }; state.jobs = {};
+    state.res.iron = 100; state.res.coal = 100; state.res.steel = 0; const forgeDetail = {}; production(1, forgeDetail);`);
+  assert.ok(Math.abs(run('forgeDetail.coal.find(e => e.label.startsWith("Forge inputs")).amount') + 0.3) < 1e-10);
+  assert.ok(Math.abs(run('forgeDetail.iron.find(e => e.label.startsWith("Forge inputs")).amount') + 0.6) < 1e-10);
+});
+
+test('Otterfolk freight speeds cargo and its payment while Raccoonfolk craft with less material', () => {
+  const { run } = game();
+  run(`state.species = 'otterfolk'; state.bld.tradeBlimp = 1; state.tradeBlimps = [{ mode: 'buy', resource: 'wood' }];
+    state.res.currency = 1000; state.res.wood = 0; const detail = {}; production(1, detail);`);
+  assert.equal(run('detail.wood.find(e => e.label.includes("buying")).base'), 1.5);
+  assert.ok(Math.abs(run('detail.currency.find(e => e.label.includes("purchase")).base') + 1.5 * run('tradeValue("wood")')) < 1e-10);
+  run(`state.species = 'raccoonfolk'; state.bld.workbench = 1; state.res.wood = 32; state.res.tools = 0; doCraft('tools');`);
+  assert.equal(run('state.res.wood'), 0);
+  assert.equal(run('state.res.tools'), 1.22);
+});
+
+test('Deerkin browsing reduces villager upkeep only while the pantry is half full', () => {
+  const { run } = game();
+  run(`state.species = 'deerkin'; state.res.food = capacityOf('food') / 2;
+    const stocked = {}; production(0.25, stocked); state.res.food -= 1;
+    const lean = {}; production(0.25, lean);`);
+  const actual = run('stocked.food.find(e => e.label.startsWith("Villager upkeep")).amount');
+  const ordinary = run('lean.food.find(e => e.label.startsWith("Villager upkeep")).amount');
+  assert.ok(Math.abs(actual - ordinary * 0.9) < 1e-12);
+});
+
+test('lineages group their effects and signatures into two to five traits', () => {
   const { run } = game();
   assert.equal(run('LINEAGE_TRAITS.length'), run('new Set(LINEAGE_TRAITS.map(t => t.id)).size'));
-  assert.equal(run('LINEAGES.every(l => l.traits.length >= 2 && l.traits.length <= 4)'), true);
+  assert.equal(run('LINEAGES.every(l => l.traits.length >= 2 && l.traits.length <= 5)'), true);
   assert.equal(run('LINEAGES.every(l => l.traits.every(id => LINEAGE_TRAIT_BY_ID.has(id)))'), true);
   assert.equal(run('LINEAGE_TRAITS.some(t => LINEAGES.filter(l => l.traits.includes(t.id)).length > 1)'), true);
   assert.match(run("lineageTraitsHtml(lineageDef('human'))"), /Way of life:/);
@@ -2420,9 +2657,9 @@ test('new lineages change actual income with both bonuses and tradeoffs', () => 
   const cases = [
     ['dunewalkers', 'currency', 1.30, 'wood', 0.88],
     ['cinderforged', 'iron', 1.20, 'knowledge', 0.88],
-    ['thornkin', 'wood', 1.25, 'goods', 0.85 / 1.20],
+    ['thornkin', 'wood', 1.25, 'goods', 0.90 / 1.20],
     ['clocklings', 'tools', 1.20, 'food', 0.88],
-    ['glimmerfolk', 'knowledge', 1.15, 'stone', 0.85],
+    ['glimmerfolk', 'knowledge', 1.15, 'stone', 0.90],
   ];
   for (const [id, bonus, gain, penalty, loss] of cases) {
     const { run } = game();
@@ -2430,12 +2667,13 @@ test('new lineages change actual income with both bonuses and tradeoffs', () => 
       state.res.wood = 100; state.res.stone = 100;
       state.bld.workbench = 1; state.bld.factory = 1; state.bld.steamPlant = 1; state.res.coal = 100;
       state.techs.currency = true; state.tradePartner = 'human';
-      const baseline = production(); state.species = '${id}'; const actual = production()`);
+      const baseline = {}; production(0.25, baseline);
+      state.species = '${id}'; const actual = {}; production(0.25, actual)`);
     for (const [res, multiplier] of [[bonus, gain], [penalty, loss]]) {
-      const upkeep = res === 'food' ? 'state.pop * FOOD_PER_POP' : '0';
-      const before = run(`baseline.${res} + ${upkeep}`);
+      const before = run(`baseline.${res}.filter(entry => entry.base > 0).reduce((sum, entry) => sum + entry.amount, 0)`);
       assert.ok(before > 0, `${id}: ${res} fixture produces output`);
-      assert.ok(Math.abs(run(`actual.${res} + ${upkeep}`) - before * multiplier) < 1e-10, `${id}: ${res}`);
+      const after = run(`actual.${res}.filter(entry => entry.base > 0).reduce((sum, entry) => sum + entry.amount, 0)`);
+      assert.ok(Math.abs(after - before * multiplier) < 1e-10, `${id}: ${res}`);
     }
   }
 });
@@ -2541,7 +2779,7 @@ test('Living Blocks provide uncapped housing, consume Power, and lower morale', 
   assert.equal(run('rates.power'), 1);
   assert.ok(Math.abs(run('noBlocks - withBlocks') - 0.2) < 1e-10);
   assert.equal(run('BUILDINGS.find(b => b.id === "livingBlock").max'), Infinity);
-  assert.equal(run('buildingCost(BUILDINGS.find(b => b.id === "livingBlock")).steel'), 250);
+  assert.equal(run('buildingCost(BUILDINGS.find(b => b.id === "livingBlock")).steel'), 225);
 });
 
 test('Hospitals gently support morale below 50', () => {
@@ -2774,7 +3012,7 @@ test('Distant Stores cost more Fur and the fifth Shrine adds a Fur cost', () => 
   assert.equal(run("BUILDING_BY_ID.get('removedStorage').cost.fur"), 200);
   assert.equal(run("buildingCost(BUILDING_BY_ID.get('shrine')).fur"), undefined);
   run('state.bld.shrine = 4');
-  assert.equal(run("buildingCost(BUILDING_BY_ID.get('shrine')).fur"), 100 * 1.8 ** 4);
+  assert.ok(Math.abs(run("buildingCost(BUILDING_BY_ID.get('shrine')).fur") - 100 * 1.8 ** 4 * 0.9) < 1e-10);
 });
 
 test('Lightning Metal boosts factory Steel output and input costs', () => {
@@ -2852,8 +3090,47 @@ test('Custom lineage points are three times the Prism Womb achievement rating an
     chooseCustomLineageTrait('farSight'); createCustomLineage('Brinekin', 'Made to endure the alien coast.');`);
   assert.equal(run('customLineagePoints()'), 12);
   assert.equal(run("lineageDef('custom').specials.sulfurWards.value"), 1.35);
-  assert.equal(run("lineageDef('custom').growthTime"), 0.5);
+  assert.equal(run("lineageDef('custom').growthTime"), 0.75);
   assert.equal(run("lineageDef('custom').specials.farSight.value"), 1.25);
+});
+
+test('Custom lineage lab offers every signature with prices and preserves combined special effects through saves', () => {
+  const { run } = game();
+  assert.equal(run(`LINEAGES.every(lineage => Object.keys(lineage.specials).every(id => {
+    const custom = CUSTOM_LINEAGE_TRAIT_BY_ID.get(CUSTOM_LINEAGE_SPECIAL_ALIASES[id] || id);
+    return custom && custom.cost > 0 && custom.lineage === lineage.id;
+  }))`), true);
+  assert.equal(run('CUSTOM_LINEAGE_TRAITS.length'), run('new Set(CUSTOM_LINEAGE_TRAITS.map(t => t.id)).size'));
+  for (const [id, price] of [['bankedHeat', 3], ['exactSchedules', 3], ['floodwise', 2],
+    ['resonantOmens', 2], ['livingRenewal', 2], ['slowProvocation', 2], ['cruelReprisals', 2]]) {
+    assert.equal(run(`CUSTOM_LINEAGE_TRAIT_BY_ID.get('${id}').cost`), price);
+  }
+  run(`state.achievements['wonder-glassMire-restore'] = 4;
+    state.lineagesUnlocked.clocklings = true; state.lineagesUnlocked.cinderforged = true;
+    beginCustomLineageDraft(); chooseCustomLineageTrait('exactSchedules'); chooseCustomLineageTrait('bankedHeat');`);
+  assert.equal(run('customLineageTraitCost(state.customLineageDraft.traits)'), 7);
+  assert.match(run('renderCustomLineageLab()'), /Exact Schedules/);
+  run(`createCustomLineage('Kilnkeepers', 'Patient engineers.'); state.species = 'custom'; saveGame(true); state = loadGame();`);
+  assert.equal(run('state.species'), 'custom');
+  assert.equal(run('queueCapacity("build")'), 3);
+  assert.equal(run('queueCapacity("research")'), 3);
+  assert.equal(run('lineageSpecialValue("buildingCost")'), 0.85);
+  assert.equal(run('lineageSpecialValue("forgeCoal")'), 0.75);
+  assert.equal(run('lineageSpecialValue("forgeOutput")'), 1.15);
+});
+
+test('new Custom signatures respect donor unlocks and budgets without duplicating legacy sulfur defense', () => {
+  const { run } = game();
+  run(`state.achievements['wonder-glassMire-restore'] = 1; beginCustomLineageDraft();
+    chooseCustomLineageTrait('exactSchedules');`);
+  assert.equal(run('state.customLineageDraft.traits.length'), 0);
+  run(`state.lineagesUnlocked.clocklings = true; state.lineagesUnlocked.cinderforged = true;
+    chooseCustomLineageTrait('exactSchedules'); chooseCustomLineageTrait('bankedHeat');`);
+  assert.equal(run('state.customLineageDraft.traits.join(",")'), 'exactSchedules');
+  run(`state.lineagesUnlocked.mephit = true; beginCustomLineageDraft(); chooseCustomLineageTrait('sulfurWards');
+    createCustomLineage('Sulfurkin', 'An old custom lineage.'); state.species = 'custom';
+    state.conqueredLineageTraits = ['sulfurWalls']; saveGame(true); state = loadGame();`);
+  assert.equal(run('lineageRaidDefenseMod()'), 1.35);
 });
 
 test('Custom lineage trait complexity raises positive costs and caps frailties before they become positive costs', () => {
@@ -3112,7 +3389,7 @@ test('silencing the Renewal Basin returns factory-made construction materials', 
     state.techs.metallurgy = true; state.res.stone = 1000; state.res.iron = 100; state.res.tools = 50; state.res.currency = 100;
     doBuild('forge');`);
   assert.equal(run('state.bld.forge'), 1);
-  assert.equal(run('state.res.tools'), 27.5);
+  assert.equal(run('state.res.tools'), 29.75);
 });
 
 test('silencing the World Anvil lets Tinkerers run factory recipes slowly', () => {

@@ -257,7 +257,7 @@ const BUILDINGS = [
 
   { id: 'forge', name: 'Forge', max: Infinity, scale: 1.8,
     cost: { stone: 380, iron: 90, tools: 25, currency: 40 },
-    effect: () => `smelts ${fmt(0.04 * bld('forge'))} Steel/s; consumes ${fmt(0.6 * bld('forge'))} Iron/s and ${fmt(0.4 * bld('forge'))} Coal/s`,
+    effect: () => `smelts ${fmt(0.04 * bld('forge'))} Steel/s; consumes ${fmt(0.6 * bld('forge'))} Iron/s and ${fmt(0.4 * bld('forge') * lineageSpecialValue('forgeCoal'))} Coal/s`,
     req: () => tech('metallurgy'), desc: 'iron and carbon, disciplined by fire' },
 
   { id: 'aqueduct', name: 'Aqueduct', max: Infinity, scale: 1.8,
@@ -631,7 +631,7 @@ const LINEAGE_EVENTS = {
   ],
   glimmerfolk: [
     { text: 'Glimmerfolk singers rehearse a lullaby for a crystal that refuses to stop glowing after bedtime.' },
-    { text: 'A Glimmerfolk choir finds a clear new harmony that leaves the whole village quietly smiling.', delta: [2, 5] },
+    { text: 'A Glimmerfolk choir finds a clear new harmony that leaves the whole village quietly smiling.', delta: [2, 5], aether: [2, 5], timeReward: [10, 20] },
   ],
   otterfolk: [
     { text: 'Otterfolk float hand in hand through an evening storytelling circle. The youngest keeps drifting ahead to the ending.' },
@@ -960,7 +960,7 @@ const ANIMAL_LINEAGES = [
     desc: 'Bear clans build stout woodland and mountain homes, hauling heavy materials with ease.' },
   { id: 'deerkin', name: 'Deerkin', habitats: ['forest', 'plains'], mods: { food: 1.20, wood: 1.15, iron: 0.88 },
     desc: 'Deer orchard keepers follow the edges of woodland and meadow, tending broad green commons.' },
-  { id: 'rabbitfolk', name: 'Rabbitfolk', habitats: ['plains'], growthTime: 0.5, mods: { food: 1.28, goods: 1.10, coal: 0.85 },
+  { id: 'rabbitfolk', name: 'Rabbitfolk', habitats: ['plains'], growthTime: 0.75, mods: { food: 1.28, goods: 1.10, coal: 0.85 },
     desc: 'Rabbit warrens spread beneath open fields, linking productive gardens with busy cottage workshops.' },
   { id: 'bisonkin', name: 'Bisonkin', habitats: ['plains'], mods: { food: 1.15, goods: 1.25, aether: 0.88 },
     desc: 'Bison herds settle the grasslands in great communal houses supplied by mills and grazing fields.' },
@@ -972,7 +972,7 @@ const ANIMAL_LINEAGES = [
     desc: 'Lynx trackers explore wooded slopes, finding game trails and overlooked copper seams.' },
   { id: 'ibexkin', name: 'Ibexkin', habitats: ['mountain'], mods: { stone: 1.25, iron: 1.18, wood: 0.88 },
     desc: 'Ibex cliff builders carry stone and ore along paths too steep for ordinary caravans.' },
-  { id: 'eaglefolk', name: 'Eaglefolk', habitats: ['mountain'], mods: { aether: 1.25, knowledge: 1.18, food: 0.88 },
+  { id: 'eaglefolk', name: 'Eaglefolk', habitats: ['mountain'], mods: { aether: 1.25, knowledge: 1.22, food: 0.95 },
     desc: 'Eagle aerie watchers survey the high peaks and harvest insights from clear mountain skies.' },
   { id: 'molekin', name: 'Molekin', mods: { stone: 1.22, coal: 1.22, aether: 0.85 },
     desc: 'Mole tunnel crews establish deep workshops wherever they settle, following stone and fuel underground.' },
@@ -1041,17 +1041,17 @@ const LINEAGES = [
     desc: 'Patient growers who turn wet ground and tangled roots into abundance.' },
   { id: 'skyborn', name: 'Skyborn', effect: '+22% knowledge and aether, −10% food', mods: { knowledge: 1.22, aether: 1.22, food: 0.90 },
     desc: 'Clear-eyed wanderers whose maps begin where the clouds end.' },
-  { id: 'mephit', name: 'Mephit', effect: '+35% raid defense; raids arrive 120 seconds slower; attackers suffer more injuries', mods: {},
+  { id: 'mephit', name: 'Mephit', effect: '+35% raid defense; 120-second respite after raids; −15% incoming raid strength', mods: {},
     desc: 'Their settlements stink of sulfur and strange alchemy. Invaders learn to respect the smell.' },
   { id: 'dunewalkers', name: 'Dunewalkers', effect: '+30% currency and +15% copper, −12% wood', mods: { currency: 1.30, copper: 1.15, wood: 0.88 },
     desc: 'A settlement of bustling markets and shaded courtyards. Trade pays for expansion, but scarce timber demands careful planning.' },
   { id: 'cinderforged', name: 'Cinderforged', effect: '+20% iron, coal, and steel, −12% knowledge', mods: { iron: 1.20, coal: 1.20, steel: 1.20, knowledge: 0.88 },
     desc: 'Furnaces are the heart of every home. Rich metalworking supports an industrial rush, while scholars struggle to be heard over the hammers.' },
-  { id: 'thornkin', name: 'Thornkin', effect: '+25% wood and +15% food, −15% steel and Industrial Goods', mods: { wood: 1.25, food: 1.15, steel: 0.85, goods: 0.85 },
+  { id: 'thornkin', name: 'Thornkin', effect: '+25% wood and +15% food, −10% steel and Industrial Goods', mods: { wood: 1.25, food: 1.15, steel: 0.90, goods: 0.90 },
     desc: 'Living villages spread beneath a generous canopy. Fast early growth comes naturally; bringing heavy industry into the grove takes patience.' },
   { id: 'clocklings', name: 'Clocklings', effect: '+20% tools and +25% machinery, −12% food', mods: { tools: 1.20, machinery: 1.25, food: 0.88 },
     desc: 'Every workshop is an experiment and every tool a prototype. Precision manufacturing flourishes, provided someone remembers to tend the fields.' },
-  { id: 'glimmerfolk', name: 'Glimmerfolk', effect: '+30% aether and +15% knowledge, −15% stone and iron', mods: { aether: 1.30, knowledge: 1.15, stone: 0.85, iron: 0.85 },
+  { id: 'glimmerfolk', name: 'Glimmerfolk', effect: '+30% aether and +15% knowledge, −10% stone and iron', mods: { aether: 1.30, knowledge: 1.15, stone: 0.90, iron: 0.90 },
     desc: 'Crystal gardens illuminate nights spent charting the heavens. Discovery leads the way, but the weight of ordinary construction slows their ascent.' },
   ...ANIMAL_LINEAGES,
 ];
@@ -1070,19 +1070,19 @@ const LINEAGE_TRAITS = [
   { id: 'highLore', name: 'High Lore', group: 'Learning', effect: '+22% Knowledge and Aether', desc: 'Clear air and long sightlines foster thought beyond the horizon.' },
   { id: 'lightAppetite', name: 'Light Appetite', group: 'Trade-off', effect: '−10% Food', desc: 'High wandering leaves little time for the patient work of feeding a town.' },
   { id: 'sulfurWalls', name: 'Sulfur Walls', group: 'Defense', effect: '+35% raid defense', desc: 'Strange alchemy makes their settlements fiercely difficult to storm.' },
-  { id: 'slowProvocation', name: 'Slow Provocation', group: 'Defense', effect: 'Raids arrive 120 seconds slower', desc: 'Invaders approach their reeking wards with unusual caution.' },
-  { id: 'cruelReprisals', name: 'Cruel Reprisals', group: 'Defense', effect: 'Attackers suffer more injuries', desc: 'Those who press an assault remember the cost.' },
+  { id: 'slowProvocation', name: 'Slow Provocation', group: 'Defense', effect: '120-second respite after raids', desc: 'After a raid, diplomacy and further raids pause for an additional 120 seconds.' },
+  { id: 'cruelReprisals', name: 'Cruel Reprisals', group: 'Defense', effect: '−15% incoming raid strength', desc: 'Sulfur reprisals weaken an assault before it reaches the defenders.' },
   { id: 'caravanMarkets', name: 'Caravan Markets', group: 'Trade', effect: '+30% Currency', desc: 'Every courtyard knows the value of a well-timed bargain.' },
   { id: 'copperBargaining', name: 'Copper Bargaining', group: 'Trade', effect: '+15% Copper', desc: 'Traders recognize a good vein and a good price.' },
   { id: 'scantTimber', name: 'Scant Timber', group: 'Trade-off', effect: '−12% Wood', desc: 'Fine timber is too scarce to waste.' },
   { id: 'furnaceMastery', name: 'Furnace Mastery', group: 'Craft', effect: '+20% Iron, Coal, and Steel', desc: 'Fuel, metal, and heat are the rhythm of daily life.' },
   { id: 'noisyScholarship', name: 'Noisy Scholarship', group: 'Trade-off', effect: '−12% Knowledge', desc: 'It is hard to hear a lecture over the hammer-song.' },
   { id: 'livingCanopy', name: 'Living Canopy', group: 'Way of life', effect: '+25% Wood and +15% Food', desc: 'Their homes and gardens grow together.' },
-  { id: 'rootsAgainstSteel', name: 'Roots Against Steel', group: 'Trade-off', effect: '−15% Steel and Industrial Goods', desc: 'Heavy industry is an awkward guest in a living grove.' },
+  { id: 'rootsAgainstSteel', name: 'Roots Against Steel', group: 'Trade-off', effect: '−10% Steel and Industrial Goods', desc: 'Heavy industry is an awkward guest in a living grove.' },
   { id: 'precisionWorks', name: 'Precision Works', group: 'Craft', effect: '+20% Tools and +25% Machinery', desc: 'Every device is a prototype worth improving.' },
   { id: 'neglectedFields', name: 'Neglected Fields', group: 'Trade-off', effect: '−12% Food', desc: 'A careful gear still cannot tend a field by itself.' },
   { id: 'crystalLore', name: 'Crystal Lore', group: 'Learning', effect: '+30% Aether and +15% Knowledge', desc: 'Crystal gardens turn starlight into insight.' },
-  { id: 'fragileFoundations', name: 'Fragile Foundations', group: 'Trade-off', effect: '−15% Stone and Iron', desc: 'Ordinary building materials yield reluctantly to delicate hands.' },
+  { id: 'fragileFoundations', name: 'Fragile Foundations', group: 'Trade-off', effect: '−10% Stone and Iron', desc: 'Ordinary building materials yield reluctantly to delicate hands.' },
   { id: 'waterHome', name: 'Water Home', group: 'Habitat', effect: 'Requires water habitats', desc: 'Their settlements are made for broad channels, lakes, and shorelines.' },
   { id: 'wetlandHome', name: 'Wetland Home', group: 'Habitat', effect: 'Requires wetland habitats', desc: 'They thrive among reeds, shallows, and saturated ground.' },
   { id: 'plainsHome', name: 'Open-Country Home', group: 'Habitat', effect: 'Requires plains habitats', desc: 'Open fields and broad skies are part of their way of life.' },
@@ -1112,7 +1112,7 @@ const LINEAGE_TRAITS = [
   { id: 'commonGardens', name: 'Common Gardens', group: 'Way of life', effect: '+20% Food and +15% Wood', desc: 'Orchards and woodland edges are kept as shared ground.' },
   { id: 'scantIron', name: 'Scant Iron', group: 'Trade-off', effect: '−12% Iron', desc: 'Their green commons hide few useful metal seams.' },
   { id: 'warrenGardens', name: 'Warren Gardens', group: 'Way of life', effect: '+28% Food and +10% Industrial Goods', desc: 'Busy gardens and cottage workshops spread through the warrens.' },
-  { id: 'quickLitters', name: 'Quick Litters', group: 'Growth', effect: '50% less population-growth time', desc: 'New families grow quickly wherever the warrens are secure.' },
+  { id: 'quickLitters', name: 'Quick Litters', group: 'Growth', effect: '25% less population-growth time', desc: 'New families grow quickly wherever the warrens are secure.' },
   { id: 'grasslandMills', name: 'Grassland Mills', group: 'Way of life', effect: '+15% Food and +25% Industrial Goods', desc: 'Communal houses keep mills, grazing, and production close together.' },
   { id: 'canopyWorkshops', name: 'Canopy Workshops', group: 'Craft', effect: '+28% Wood and +15% Tools', desc: 'Ropeways link well-stocked stores to nimble workshops.' },
   { id: 'delicateSteel', name: 'Delicate Steel', group: 'Trade-off', effect: '−15% Steel', desc: 'High-work tools and fine mechanisms do not favor heavy steel.' },
@@ -1121,19 +1121,19 @@ const LINEAGE_TRAITS = [
   { id: 'trackersEye', name: "Tracker's Eye", group: 'Way of life', effect: '+18% Food and +22% Copper', desc: 'Game trails and overlooked copper seams reveal themselves to patient trackers.' },
   { id: 'poorCurrency', name: 'Poor Currency', group: 'Trade-off', effect: '−12% Currency', desc: 'The best paths do not always pass a market.' },
   { id: 'cliffWorks', name: 'Cliff Works', group: 'Craft', effect: '+25% Stone and +18% Iron', desc: 'Steep paths and sure footing make high seams usable.' },
-  { id: 'thinHarvest', name: 'Thin Harvest', group: 'Trade-off', effect: '−12% Food', desc: 'Aeries stand above much of the country that could feed them.' },
-  { id: 'highWatchers', name: 'High Watchers', group: 'Learning', effect: '+25% Aether and +18% Knowledge', desc: 'Clear mountain skies offer both warning and inspiration.' },
+  { id: 'thinHarvest', name: 'Thin Harvest', group: 'Trade-off', effect: '−5% Food', desc: 'Aeries stand above much of the country that could feed them.' },
+  { id: 'highWatchers', name: 'High Watchers', group: 'Learning', effect: '+25% Aether and +22% Knowledge', desc: 'Clear mountain skies offer both warning and inspiration.' },
   { id: 'deepCrews', name: 'Deep Crews', group: 'Craft', effect: '+22% Stone and Coal', desc: 'Tunnel crews follow useful rock wherever it leads.' },
   { id: 'salvageCraft', name: 'Salvage Craft', group: 'Craft', effect: '+22% Tools and +18% Machinery', desc: 'Discarded parts become clever machines in practiced hands.' },
   { id: 'irregularPantry', name: 'Irregular Pantry', group: 'Trade-off', effect: '−10% Food', desc: 'A salvager’s eye is not always on the pantry.' },
-  { id: 'practicalImprovisation', name: 'Practical Improvisation', group: 'Way of life', effect: 'Queued work completes 10% faster', desc: 'Emberborn turn whatever is at hand into a workable next step.' },
+  { id: 'practicalImprovisation', name: 'Practical Improvisation', group: 'Way of life', effect: '−10% building costs', desc: 'Emberborn turn whatever is at hand into a workable next step.' },
   { id: 'stoneSentinels', name: 'Stone Sentinels', group: 'Defense', effect: '+20% Guard recruitment rate', desc: 'Stonekin raise watch posts before they raise monuments.' },
-  { id: 'floodwise', name: 'Floodwise', group: 'Way of life', effect: '+15% Food production during rain and fog', desc: 'Marshfolk know exactly when the wet country is ready to give.' },
+  { id: 'floodwise', name: 'Floodwise', group: 'Way of life', effect: '+15% Food during rain/fog; each Hut stores 20 extra Food', desc: 'Marshfolk raise dry food caches beneath every home, ready for changing waters.' },
   { id: 'farSight', name: 'Far Sight', group: 'Exploration', effect: '+25% Survey gain', desc: 'Skyborn read distant landmarks as easily as nearby paths.' },
-  { id: 'bankedHeat', name: 'Banked Heat', group: 'Craft', effect: '+15% Forge output', desc: 'Cinderforged furnaces hold their heat through every shift.' },
+  { id: 'bankedHeat', name: 'Banked Heat', group: 'Craft', effect: '+15% Forge output; Forges use 25% less Coal', desc: 'Cinderforged furnaces hold their heat through every shift, leaving more fuel for the rest of the settlement.' },
   { id: 'livingRenewal', name: 'Living Renewal', group: 'Growth', effect: '15% less population-growth time', desc: 'Thornkin homes put down new roots whenever the village needs them.' },
-  { id: 'exactSchedules', name: 'Exact Schedules', group: 'Way of life', effect: 'Queued work completes 15% faster', desc: 'Clocklings waste neither a motion nor a moment between tasks.' },
-  { id: 'resonantOmens', name: 'Resonant Omens', group: 'Learning', effect: '+20% resources from lineage happenings', desc: 'Glimmerfolk hear useful possibilities in every strange vibration.' },
+  { id: 'exactSchedules', name: 'Exact Schedules', group: 'Way of life', effect: '−15% building costs; +2 construction and research queue slots', desc: 'Clocklings plan a longer chain of work without losing a single instruction.' },
+  { id: 'resonantOmens', name: 'Resonant Omens', group: 'Learning', effect: '+20% resources from lineage happenings; happenings arrive 20% sooner', desc: 'Glimmerfolk notice the world stirring before anyone else, for good or ill.' },
 ];
 
 const LINEAGE_TRAIT_IDS = {
@@ -1168,21 +1168,57 @@ const LINEAGE_TRAIT_EFFECTS = {
 };
 const LINEAGE_GROWTH_TRAITS = { rabbitfolk: 'quickLitters' };
 const LINEAGE_SPECIALS = {
-  human: { practicalImprovisation: { key: 'queueTime', value: 0.90 } },
+  human: { practicalImprovisation: { key: 'buildingCost', value: 0.90 } },
+  mephit: { sulfurWalls: { key: 'raidDefense', value: 1.35 }, slowProvocation: { key: 'raidDelay', value: 2 }, cruelReprisals: { key: 'raidPower', value: 0.85 } },
   stonekin: { stoneSentinels: { key: 'guardRecruitment', value: 1.20 } },
-  marshfolk: { floodwise: { key: 'weatherFood', value: 1.15 } },
+  marshfolk: { floodwise: { key: 'weatherFood', value: 1.15, effects: { hutFoodStorage: 2 } } },
   skyborn: { farSight: { key: 'survey', value: 1.25 } },
-  cinderforged: { bankedHeat: { key: 'forgeOutput', value: 1.15 } },
+  cinderforged: { bankedHeat: { key: 'forgeOutput', value: 1.15, effects: { forgeCoal: 0.75 } } },
   thornkin: { livingRenewal: { key: 'growthTime', value: 0.85 } },
-  clocklings: { exactSchedules: { key: 'queueTime', value: 0.85 } },
-  glimmerfolk: { resonantOmens: { key: 'eventReward', value: 1.20 } },
+  clocklings: { exactSchedules: { key: 'buildingCost', value: 0.85, effects: { queueSlots: 3 } } },
+  glimmerfolk: { resonantOmens: { key: 'eventReward', value: 1.20, effects: { eventInterval: 0.80 } } },
 };
+
+// A signature changes a constraint, risk, or decision instead of adding another
+// resource-output percentage. These traits also work at inherited half strength.
+const LINEAGE_SIGNATURES = [
+  { lineage: 'dunewalkers', id: 'caravanProvisions', name: 'Caravan Provisions', key: 'expeditionCost', value: 0.80, effect: '−20% expedition supply costs', desc: 'Experienced caravan quartermasters make long journeys affordable before the settlement grows rich.' },
+  { lineage: 'otterfolk', id: 'riverFreight', name: 'River Freight', key: 'tradeThroughput', value: 1.25, effect: 'Trade Blimps carry 25% more goods per second', desc: 'Raft families load and unload cargo quickly; faster trade also needs more Currency or stock.' },
+  { lineage: 'beaverkin', id: 'fittedTimber', name: 'Fitted Timber', key: 'buildingWood', value: 0.80, effect: 'Buildings require 20% less Wood', desc: 'Precise joinery stretches timber further in every lodge and workshop.' },
+  { lineage: 'turtlefolk', id: 'generationalArchives', name: 'Generational Archives', key: 'knowledgeStorage', value: 1.50, effect: '+50% Knowledge capacity', desc: 'Patient elders preserve enough research to prepare expensive breakthroughs without a frantic scholarly rush.' },
+  { lineage: 'axolotlkin', id: 'regenerativeRest', name: 'Regenerative Rest', key: 'guardHealing', value: 0.65, effect: 'Guard injuries heal in 35% less time', desc: 'Regenerative care returns wounded defenders to the watch more quickly.' },
+  { lineage: 'carpfolk', id: 'siltGranaries', name: 'Silt Granaries', key: 'foodStorage', value: 1.50, effect: '+50% Food capacity', desc: 'Cool submerged granaries let a rich harvest carry the settlement through a lean season.' },
+  { lineage: 'frogfolk', id: 'stormChorus', name: 'Storm Chorus', key: 'weatherMoraleLoss', value: 0.25, effect: 'Bad-weather morale loss reduced by 75%', desc: 'The chorus grows louder when the weather turns foul, keeping the village working through storms.' },
+  { lineage: 'heronkin', id: 'patientPreparation', name: 'Patient Preparation', key: 'eventLoss', value: 0.50, effect: 'Resource losses from happenings reduced by 50%', desc: 'Careful watchers spot small disasters before they consume the stores.' },
+  { lineage: 'foxfolk', id: 'rememberedFavors', name: 'Remembered Favors', key: 'requestGoodwill', value: 1.50, effect: 'Supplying tribal requests grants 50% more goodwill', desc: 'Foxfolk turn a well-chosen gift into a story their neighbors remember.' },
+  { lineage: 'wolfkin', id: 'packTactics', name: 'Pack Tactics', key: 'packAttack', value: 1.20, effect: '+20% attack power when deploying at least 5 healthy Guards', desc: 'A full pack fights as one; scattered raiders cannot use its coordinated maneuvers.' },
+  { lineage: 'bearfolk', id: 'greatLodges', name: 'Great Lodges', key: 'hutCapacity', value: 2, effect: 'Each Hut houses 1 extra villager', desc: 'Broad communal lodges trade plentiful building materials for room to grow.' },
+  { lineage: 'deerkin', id: 'sharedBrowsing', name: 'Shared Browsing', key: 'wellStockedAppetite', value: 0.90, effect: 'Villagers eat 10% less while Food stores are at least half full', desc: 'Well-kept common gardens supplement meals while the pantry remains secure.' },
+  { lineage: 'bisonkin', id: 'communalHearths', name: 'Communal Hearths', key: 'crowdMoraleLoss', value: 0.50, effect: 'Crowding morale loss reduced by 50%', desc: 'Large households share space comfortably, making a populous settlement easier to keep content.' },
+  { lineage: 'squirrelfolk', id: 'hiddenCaches', name: 'Hidden Caches', key: 'cacheStorage', value: 1.40, effect: '+40% Wood and Tools capacity', desc: 'Small caches throughout the canopy hold reserves for the next ambitious building project.' },
+  { lineage: 'owlkin', id: 'quietContemplation', name: 'Quiet Contemplation', key: 'focusedResearch', value: 0.85, effect: 'Research needs 15% less Knowledge while morale is at least 80', desc: 'A heartened, quiet settlement lets scholars connect ideas with less wasted study.' },
+  { lineage: 'lynxfolk', id: 'trailblazers', name: 'Trailblazers', key: 'expeditionPopulation', value: 0.80, effect: 'Expeditions need 20% fewer villagers (rounded up)', desc: 'Small scouting parties can safely open routes that larger settlements have yet to attempt.' },
+  { lineage: 'ibexkin', id: 'dryStoneMasonry', name: 'Dry-Stone Masonry', key: 'buildingStone', value: 0.80, effect: 'Buildings require 20% less Stone', desc: 'Interlocking stonework raises sturdy structures with less quarrying.' },
+  { lineage: 'eaglefolk', id: 'aerieWatch', name: 'Aerie Watch', key: 'guardSurvey', value: 2, effect: 'Each healthy Guard generates 0.005 Survey/s, even before Explorers', desc: 'The watch maps distant landmarks between patrols, preparing discoveries before dedicated explorers arrive.' },
+  { lineage: 'molekin', id: 'tunnelEngineering', name: 'Tunnel Engineering', key: 'digPower', value: 0.75, effect: 'Awakened mining workers need 25% less Power', desc: 'Compact tunnels and well-laid workings let the same generators support a larger mining crew.' },
+  { lineage: 'raccoonfolk', id: 'scrapAssemblies', name: 'Scrap Assemblies', key: 'craftCost', value: 0.80, effect: 'Manual crafting uses 20% fewer materials', desc: 'Salvagers reuse odd scraps at the workbench, making hands-on crafting a useful alternative to factories.' },
+];
+for (const signature of LINEAGE_SIGNATURES) {
+  LINEAGE_TRAITS.push({ ...signature, group: 'Signature' });
+  LINEAGE_TRAIT_IDS[signature.lineage].push(signature.id);
+  LINEAGE_SPECIALS[signature.lineage] = { ...(LINEAGE_SPECIALS[signature.lineage] || {}),
+    [signature.id]: { key: signature.key, value: signature.value } };
+}
 
 for (const lineage of LINEAGES) lineage.traits = LINEAGE_TRAIT_IDS[lineage.id] || [];
 for (const lineage of LINEAGES) {
   lineage.traitEffects = LINEAGE_TRAIT_EFFECTS[lineage.id] || {};
   lineage.specials = LINEAGE_SPECIALS[lineage.id] || {};
   if (LINEAGE_GROWTH_TRAITS[lineage.id]) lineage.growthTrait = LINEAGE_GROWTH_TRAITS[lineage.id];
+  if (lineage.id !== 'mephit') {
+    const signatureEffects = LINEAGE_TRAITS.filter(trait => Object.hasOwn(lineage.specials, trait.id)).map(trait => trait.effect);
+    if (signatureEffects.length) lineage.effect += ', ' + signatureEffects.join(', ');
+  }
 }
 
 // --- migration (loop) rewards: Echoes, spent in the ancestral shop.
