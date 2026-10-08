@@ -5214,7 +5214,8 @@ function drawLineagePixelPerson(ctx, x, y, id, step, hue, worshipping = false) {
   };
   const coat = `hsl(${hue} 54% 57%)`;
   const shade = `hsl(${hue} 48% 34%)`;
-  const skin = `hsl(${(hue + 26) % 360} 48% 72%)`;
+  const beaver = id.includes('beaver');
+  const skin = beaver ? '#93613e' : `hsl(${(hue + 26) % 360} 48% 72%)`;
   const dark = `hsl(${(hue + 12) % 360} 32% 20%)`;
   const ear = id.includes('owl') || id.includes('lynx') || id.includes('rabbit') || id.includes('fox') || id.includes('wolf') || id.includes('cat') || id.includes('squirrel');
   const bird = id.includes('sky') || id.includes('eagle') || id.includes('heron') || id.includes('owl');
@@ -5222,7 +5223,15 @@ function drawLineagePixelPerson(ctx, x, y, id, step, hue, worshipping = false) {
   const bulky = id.includes('bear') || id.includes('bison') || id.includes('stonekin');
   const tail = id.includes('fox') || id.includes('wolf') || id.includes('squirrel') || id.includes('otter') || id.includes('lynx') || id.includes('raccoon') || id.includes('beaver');
   // Every lineage gets its own palette, with silhouette details for its kind.
-  if (tail) { put(-1, 7, shade); put(-2, 6, shade); put(-2, 5, coat); }
+  if (beaver) {
+    // A broad, low paddle stays visible beside the body in either pose.
+    put(-1, 8, '#68452f', 4, 2);
+    put(-4, 7, '#442f26', 3, 5);
+    put(-5, 8, '#442f26', 5, 3);
+    put(-4, 8, '#795438', 3, 3);
+    detail(-5, 12, '#ac8050'); detail(-3, 14, '#ac8050');
+    detail(-5, 15, '#ac8050'); detail(-3, 12, '#ac8050');
+  } else if (tail) { put(-1, 7, shade); put(-2, 6, shade); put(-2, 5, coat); }
   if (id.includes('mephit')) {
     put(-1, 7, shade); put(-2, 6, shade); put(-3, 5, shade); put(-4, 4, shade);
     put(-5, 3, shade, 2); put(-5, 2, dark); put(-6, 3, dark); put(-5, 4, dark);
@@ -5239,6 +5248,11 @@ function drawLineagePixelPerson(ctx, x, y, id, step, hue, worshipping = false) {
   if (id.includes('raccoon')) { put(3, 2, dark, 4); put(-3, 4, shade); }
   if (id.includes('wolf') || id.includes('fox') || id.includes('lynx')) { put(6, 3, skin, 2); put(8, 3, skin); }
   put(3, 1, skin, 4, 3);
+  if (beaver) {
+    put(2, 2, skin, 6, 2);
+    put(2, 0, '#68452f', 2, 2); put(6, 0, '#68452f', 2, 2);
+    detail(4, 1, '#c49569'); detail(10, 1, '#c49569');
+  }
   if (id.includes('rabbit')) {
     put(4, -3, coat, 1, 3); put(6, -4, coat, 1, 4);
     detail(6, -3, '#e9b2ad'); detail(9, -4, '#e9b2ad'); detail(6, -1, '#e9b2ad'); detail(9, -2, '#e9b2ad');
@@ -5266,7 +5280,14 @@ function drawLineagePixelPerson(ctx, x, y, id, step, hue, worshipping = false) {
   if (id.includes('glimmer')) { put(2, 4, '#a9f5e8'); put(8, 6, '#a9f5e8'); }
   if (id.includes('thorn')) { put(2, 3, '#83bb61'); put(8, 3, '#83bb61'); }
   if (id.includes('dune')) { put(3, 0, '#d9ad54', 4); }
-  detail(7, 3, '#f2ddbd'); detail(10, 3, '#f2ddbd');
+  if (beaver) {
+    // Draw the muzzle last so the tunic cannot cover the paired incisors.
+    put(3, 3, '#c49569', 4);
+    detail(7, 5, '#f2ddbd'); detail(10, 5, '#f2ddbd');
+    put(4, 4, '#442f26', 2);
+    detail(6, 6, '#fff1cb'); detail(8, 6, '#fff1cb');
+    detail(6, 7, '#fff1cb'); detail(8, 7, '#fff1cb');
+  } else { detail(7, 3, '#f2ddbd'); detail(10, 3, '#f2ddbd'); }
   if (id.includes('turtle')) { detail(7, 10, '#b4c97a'); detail(10, 13, '#b4c97a'); }
   if (bird) { detail(3, 8, coat); detail(4, 10, shade); detail(12, 8, coat); }
 }
