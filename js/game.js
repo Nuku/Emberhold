@@ -5215,7 +5215,16 @@ function drawLineagePixelPerson(ctx, x, y, id, step, hue, worshipping = false) {
   const coat = `hsl(${hue} 54% 57%)`;
   const shade = `hsl(${hue} 48% 34%)`;
   const beaver = id.includes('beaver');
-  const skin = beaver ? '#93613e' : `hsl(${(hue + 26) % 360} 48% 72%)`;
+  const naturalColors = {
+    beaverkin: '#93613e', otterfolk: '#956b4a', turtlefolk: '#91ad68', axolotlkin: '#e9a2b2',
+    carpfolk: '#dfac68', frogfolk: '#8ebd65', heronkin: '#ced8da', foxfolk: '#d18a4c',
+    wolfkin: '#9da7ae', bearfolk: '#8f654b', deerkin: '#bb905f', rabbitfolk: '#d7c3ad',
+    bisonkin: '#866044', squirrelfolk: '#b67b4a', owlkin: '#b9a17a', lynxfolk: '#c4aa82',
+    ibexkin: '#b29b80', eaglefolk: '#e1d9c1', molekin: '#87756b', raccoonfolk: '#a3a19a',
+    stonekin: '#a0a8ad', cinderforged: '#796961', thornkin: '#91ae69', clocklings: '#bc995d',
+    glimmerfolk: '#aadbd8',
+  };
+  const skin = naturalColors[id] || `hsl(${(hue + 26) % 360} 48% 72%)`;
   const dark = `hsl(${(hue + 12) % 360} 32% 20%)`;
   const ear = id.includes('owl') || id.includes('lynx') || id.includes('rabbit') || id.includes('fox') || id.includes('wolf') || id.includes('cat') || id.includes('squirrel');
   const bird = id.includes('sky') || id.includes('eagle') || id.includes('heron') || id.includes('owl');
@@ -5231,6 +5240,19 @@ function drawLineagePixelPerson(ctx, x, y, id, step, hue, worshipping = false) {
     put(-4, 8, '#795438', 3, 3);
     detail(-5, 12, '#ac8050'); detail(-3, 14, '#ac8050');
     detail(-5, 15, '#ac8050'); detail(-3, 12, '#ac8050');
+  } else if (id === 'squirrelfolk') {
+    put(-3, 3, '#71482f', 3, 6); put(-4, 1, skin, 3, 6);
+    put(-3, 0, skin, 3, 2); put(-2, 1, '#e0b988', 2, 4); put(-1, 7, skin, 3, 2);
+  } else if (id === 'foxfolk' || id === 'wolfkin') {
+    put(-2, 6, skin, 4, 3); put(-4, 5, skin, 3, 3);
+    put(-5, 4, id === 'foxfolk' ? '#f3dfbb' : '#697581', 2, 3);
+  } else if (id === 'raccoonfolk') {
+    put(-4, 6, skin, 6, 2); put(-5, 5, skin, 2, 2);
+    put(-4, 6, '#424443', 1, 2); put(-2, 6, '#424443', 1, 2); put(0, 6, '#424443', 1, 2);
+  } else if (id === 'otterfolk') {
+    put(-2, 8, skin, 4, 2); put(-4, 9, skin, 3); put(-5, 10, '#654733', 2);
+  } else if (id === 'lynxfolk') {
+    put(0, 7, skin, 2, 2); put(-1, 7, '#4c4540');
   } else if (tail) { put(-1, 7, shade); put(-2, 6, shade); put(-2, 5, coat); }
   if (id.includes('mephit')) {
     put(-1, 7, shade); put(-2, 6, shade); put(-3, 5, shade); put(-4, 4, shade);
@@ -5240,13 +5262,21 @@ function drawLineagePixelPerson(ctx, x, y, id, step, hue, worshipping = false) {
   if (aquatic) { put(1, 7, `hsl(${(hue + 175) % 360} 55% 62%)`); put(8, 8, `hsl(${(hue + 175) % 360} 55% 62%)`); }
   if (id.includes('axolotl')) { put(1, 1, '#f28aa0'); put(2, 0, '#f28aa0'); put(8, 1, '#f28aa0'); put(7, 0, '#f28aa0'); }
   if (id.includes('frog')) { put(3, 0, skin); put(6, 0, skin); put(3, 1, dark); put(6, 1, dark); }
-  if (id.includes('turtle')) { put(3, 5, shade, 4, 4); put(4, 4, coat, 2); }
+  if (id.includes('turtle')) { put(1, 4, '#445a37', 8, 6); put(0, 5, '#647947', 2, 4); put(8, 5, '#647947', 2, 4); }
   if (bulky) { put(2, 6, coat, 6, 5); put(1, 7, shade); put(8, 7, shade); }
-  if (id.includes('deer') || id.includes('ibex') || id.includes('bison')) { put(3, -1, shade); put(2, -2, shade); put(7, -1, shade); put(8, -2, shade); }
-  if (id.includes('stonekin')) { put(3, 3, shade, 4, 2); put(4, 4, coat, 2); }
-  if (id.includes('mole')) { put(6, 3, skin, 2); put(8, 3, skin); }
-  if (id.includes('raccoon')) { put(3, 2, dark, 4); put(-3, 4, shade); }
-  if (id.includes('wolf') || id.includes('fox') || id.includes('lynx')) { put(6, 3, skin, 2); put(8, 3, skin); }
+  if (id === 'deerkin') {
+    put(2, -3, '#73583f', 1, 5); put(7, -3, '#73583f', 1, 5);
+    put(1, -2, '#73583f', 3); put(6, -2, '#73583f', 3);
+  }
+  if (id === 'ibexkin') {
+    put(2, -3, '#d2bb88', 1, 4); put(7, -3, '#d2bb88', 1, 4);
+    put(2, -4, '#d2bb88', 2); put(6, -4, '#d2bb88', 2);
+  }
+  if (id === 'bisonkin') {
+    put(1, 0, '#e5d5a7', 2); put(7, 0, '#e5d5a7', 2);
+    put(1, -1, '#e5d5a7'); put(8, -1, '#e5d5a7');
+    put(2, 1, '#594130', 6, 3);
+  }
   put(3, 1, skin, 4, 3);
   if (beaver) {
     put(2, 2, skin, 6, 2);
@@ -5257,6 +5287,12 @@ function drawLineagePixelPerson(ctx, x, y, id, step, hue, worshipping = false) {
     put(4, -3, coat, 1, 3); put(6, -4, coat, 1, 4);
     detail(6, -3, '#e9b2ad'); detail(9, -4, '#e9b2ad'); detail(6, -1, '#e9b2ad'); detail(9, -2, '#e9b2ad');
   } else if (ear) { put(3, 0, coat); put(6, 0, coat); put(2, 0, shade); put(7, 0, shade); }
+  if (['otterfolk', 'bearfolk', 'raccoonfolk'].includes(id)) {
+    put(2, 0, skin, 2, 2); put(6, 0, skin, 2, 2);
+    detail(4, 1, '#614b42'); detail(10, 1, '#614b42');
+  }
+  if (id === 'lynxfolk') { put(2, -1, '#4c4540'); put(7, -1, '#4c4540'); }
+  if (id === 'deerkin' || id === 'ibexkin') { put(1, 1, skin, 2); put(7, 1, skin, 2); }
   if (id.includes('mephit')) { put(3, 1, '#d5c79d', 4, 2); put(4, 2, dark); put(6, 2, dark); }
   else { put(4, 2, dark); put(6, 2, dark); }
   put(3, 4, coat, 4, 4); put(2, 5, shade); put(7, 5, shade);
@@ -5276,10 +5312,6 @@ function drawLineagePixelPerson(ctx, x, y, id, step, hue, worshipping = false) {
     put(2, 9 - walking, skin); put(7, 8 + walking, skin);
     put(3, 10, dark, 2, 3 - walking); put(6, 10 + walking, dark, 2, 3 - walking);
   }
-  if (id.includes('clock')) { put(4, 5, '#edc65d'); put(5, 6, '#edc65d'); }
-  if (id.includes('glimmer')) { put(2, 4, '#a9f5e8'); put(8, 6, '#a9f5e8'); }
-  if (id.includes('thorn')) { put(2, 3, '#83bb61'); put(8, 3, '#83bb61'); }
-  if (id.includes('dune')) { put(3, 0, '#d9ad54', 4); }
   if (beaver) {
     // Draw the muzzle last so the tunic cannot cover the paired incisors.
     put(3, 3, '#c49569', 4);
@@ -5288,8 +5320,98 @@ function drawLineagePixelPerson(ctx, x, y, id, step, hue, worshipping = false) {
     detail(6, 6, '#fff1cb'); detail(8, 6, '#fff1cb');
     detail(6, 7, '#fff1cb'); detail(8, 7, '#fff1cb');
   } else { detail(7, 3, '#f2ddbd'); detail(10, 3, '#f2ddbd'); }
-  if (id.includes('turtle')) { detail(7, 10, '#b4c97a'); detail(10, 13, '#b4c97a'); }
   if (bird) { detail(3, 8, coat); detail(4, 10, shade); detail(12, 8, coat); }
+
+  // Species marks come after the shared figure so faces and chest details survive.
+  const muzzle = (color, nose = '#3e3530') => {
+    put(3, 3, color, 4); detail(7, 5, nose); detail(8, 5, nose);
+  };
+  switch (id) {
+    case 'otterfolk':
+      muzzle('#dcc39a'); detail(4, 5, '#eee1c1'); detail(11, 5, '#eee1c1');
+      put(4, 4, '#c7ad7f', 2, 2); break;
+    case 'foxfolk': case 'wolfkin':
+      put(2, 0, skin, 2, 2); put(6, 0, skin, 2, 2);
+      detail(4, 1, '#eed0ae'); detail(10, 1, '#eed0ae');
+      muzzle(id === 'foxfolk' ? '#f3dfbb' : '#d2d5cf'); put(7, 3, skin); detail(11, 5, '#3e3530'); break;
+    case 'bearfolk':
+      put(2, 2, skin, 6, 2); put(3, 2, dark); put(6, 2, dark);
+      muzzle('#c29d72'); put(4, 3, '#3e3530', 2); break;
+    case 'deerkin': case 'ibexkin':
+      muzzle('#dbc6a0');
+      if (id === 'ibexkin') { put(4, 4, skin, 2); detail(7, 7, '#614b42'); }
+      break;
+    case 'bisonkin':
+      put(3, 0, '#594130', 4); muzzle('#b18c65'); put(4, 4, '#594130', 2, 2); break;
+    case 'squirrelfolk':
+      muzzle('#e0b988'); detail(7, 6, '#fff1cb'); break;
+    case 'lynxfolk':
+      put(2, 3, skin); put(7, 3, skin); muzzle('#ede0be');
+      detail(4, 4, '#4c4540'); detail(11, 4, '#4c4540'); break;
+    case 'raccoonfolk':
+      put(3, 2, '#424443', 4); detail(6, 3, '#ece4cb'); detail(9, 3, '#ece4cb');
+      muzzle('#dfd7bf'); break;
+    case 'molekin':
+      put(2, 1, skin, 6, 3); detail(5, 3, '#292b29'); detail(10, 3, '#292b29');
+      put(7, 3, '#d39c96', 2); detail(13, 5, '#e8b9a8');
+      put(1, 8, '#d8bbaa', 2); put(7, 8, '#d8bbaa', 2); break;
+    case 'turtlefolk':
+      put(3, 4, '#c5be7f', 4, 4); put(4, 5, '#7b8854', 2);
+      put(3, 6, '#7b8854', 4); detail(7, 5, '#536b3e'); detail(10, 5, '#536b3e'); break;
+    case 'axolotlkin':
+      put(0, 1, '#b95c82', 2); put(1, 2, '#ee87a7', 2); put(0, 3, '#b95c82', 2);
+      put(8, 1, '#b95c82', 2); put(7, 2, '#ee87a7', 2); put(8, 3, '#b95c82', 2);
+      detail(7, 5, '#964e68'); detail(8, 5, '#964e68'); break;
+    case 'carpfolk':
+      put(4, -1, '#d7824e', 2, 2); put(8, 2, '#d7824e', 2, 3);
+      put(4, 3, '#b36543', 2); detail(7, 5, '#edcf9e');
+      detail(5, 5, '#f2d9af'); detail(10, 5, '#f2d9af');
+      detail(6, 8, '#edcf9e'); detail(9, 10, '#edcf9e'); detail(6, 12, '#edcf9e'); break;
+    case 'frogfolk':
+      put(2, 0, skin, 2, 2); put(6, 0, skin, 2, 2);
+      detail(4, 1, '#f0dfa0'); detail(10, 1, '#f0dfa0');
+      detail(4, 1.5, '#34462e'); detail(10, 1.5, '#34462e');
+      put(3, 2, skin, 4); put(3, 3, '#4f753d', 4); detail(7, 5, '#badb8a'); break;
+    case 'owlkin':
+      put(3, 1, '#ece0bf', 2, 2); put(5, 1, '#ece0bf', 2, 2);
+      detail(5, 2, '#443c32'); detail(8, 2, '#443c32'); put(4, 3, '#dca953', 2); break;
+    case 'eaglefolk':
+      put(3, 1, skin, 4, 2); detail(6, 3, '#443c32'); detail(9, 3, '#443c32');
+      put(6, 3, '#ddb154', 3); put(8, 4, '#bf8d37'); break;
+    case 'heronkin':
+      put(4, -2, '#566f79', 1, 3); put(5, -1, '#566f79');
+      put(6, 3, '#d7ad5c', 4); put(4, 4, '#ced8da', 2, 2); break;
+    case 'stonekin':
+      put(2, 0, skin, 5); put(2, 2, '#737f88'); put(6, 3, '#737f88');
+      detail(5, 2, '#dae0db'); detail(9, 3, '#dae0db');
+      put(3, 5, '#737f88'); detail(6, 9, '#dae0db'); break;
+    case 'marshfolk':
+      put(2, 0, '#9eae65', 6); put(3, -1, '#c0bd7a', 4); put(4, -2, '#c0bd7a', 2);
+      put(7, 4, '#718b50', 1, 2); detail(10, 7, '#c0bd7a'); break;
+    case 'skyborn':
+      put(3, 0, '#e0e9ed', 4); put(7, -2, '#e0e9ed', 1, 3);
+      put(8, -1, '#aac7d5'); put(3, 4, '#e0e9ed', 4); put(7, 5, '#aac7d5', 2); break;
+    case 'dunewalkers':
+      put(2, 0, '#d9ad54', 6); put(3, -1, '#e4c680', 4);
+      put(3, 3, '#d9ad54', 4); put(7, 1, '#d9ad54', 1, 4);
+      detail(5, 0, '#f2de9c'); break;
+    case 'cinderforged':
+      put(2, 0, '#524943', 6); put(3, -1, '#796961', 4);
+      detail(6, 3, '#ffc16b'); detail(9, 3, '#ffc16b');
+      put(3, 5, '#524943', 4, 3); detail(6, 8, '#ef8c4d'); detail(9, 10, '#ef8c4d'); break;
+    case 'thornkin':
+      put(2, -1, '#527c47', 2, 2); put(6, -2, '#527c47', 2, 3);
+      put(1, 3, '#7ca355', 2); put(7, 3, '#7ca355', 2);
+      put(4, 4, '#627d42', 1, 4); detail(6, 8, '#bedb80'); detail(8, 10, '#bedb80'); break;
+    case 'clocklings':
+      put(2, 0, '#80623d', 6); put(4, -2, '#80623d', 1, 2); detail(6, -3, '#f1d27a');
+      put(3, 2, '#574b3d', 4); detail(6, 3, '#aee2dc'); detail(9, 3, '#aee2dc');
+      put(4, 5, '#edc65d', 2, 2); detail(7, 8, '#574b3d'); detail(7, 9, '#574b3d'); break;
+    case 'glimmerfolk':
+      put(3, -2, '#a9f5e8', 1, 3); put(5, -3, '#dcfff4', 1, 4); put(7, -1, '#7bbdc9', 1, 2);
+      detail(6, 3, '#ecfff4'); detail(9, 3, '#ecfff4');
+      put(4, 5, '#a9f5e8', 2); put(5, 6, '#dcfff4'); break;
+  }
 }
 
 const SETTLEMENT_GROUND = {

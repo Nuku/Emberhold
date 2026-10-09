@@ -4,6 +4,8 @@ All notable changes to Emberhold are recorded here, with the newest changes firs
 
 ## 2026-10-08
 
+- Expanded species-specific villager details across lineages, including distinctive faces, markings, ears, horns, shells, and natural coloring.
+- Refreshed published stylesheet, data, game script, and changelog cache versions (`publish-20261008u0007`).
 - Added detailed beaver villagers with broad paddle tails, brown fur, and prominent incisors.
 - Refreshed published stylesheet, data, game script, and changelog cache versions (`publish-20261008u0006`).
 - Added the repeatable Trial of Mental Will. Malformed creatures haunt any landing during the trial, danger rises 10% faster per attempt tier, ordinary Guards cannot recruit, and assembling 20 Artificial Guards completes it. Completing the trial up to five times reduces Artificial Guard assembly costs by 10% per completion.
