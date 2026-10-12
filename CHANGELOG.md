@@ -2,6 +2,11 @@
 
 All notable changes to Emberhold are recorded here, with the newest changes first.
 
+## 2026-10-12
+
+- Building upgrades now appear as upgrades in the message log and are included in the Building Queue filter.
+- Refreshed published stylesheet, data, game script, and changelog cache versions (`publish-20261012u0001`).
+
 ## 2026-10-08
 
 - Expanded species-specific villager details across lineages, including distinctive faces, markings, ears, horns, shells, and natural coloring.

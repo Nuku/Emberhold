@@ -2843,7 +2843,7 @@ function logCategory(text) {
   if (/queue|queued/.test(value)) return 'queue';
   // Match construction terminology as words. In particular, ordinary event
   // text such as "Beaverkin builders" must remain in the Events category.
-  if (/completed \(\d+\)|\b(?:build|built|building|construction|beacon)\b/.test(value)) return 'building';
+  if (/(?:completed|upgraded) \(\d+\)|\b(?:build|built|building|construction|beacon)\b/.test(value)) return 'building';
   if (/achievement/.test(value)) return 'achievements';
   if (/chronicle resumes|village has grown|era|migration|expedition returned|saved|imported|exported/.test(value)) return 'progress';
   return 'events';
@@ -3989,7 +3989,7 @@ function doBuild(id) {
     state.buildingPower[id] = previousCount + 1;
   }
   if (state.trial && ['frugality', 'expansion'].includes(state.trial.id)) state.trial.buildings++;
-  addLog(`${def.name} completed (${bld(id)}).`);
+  addLog(`${def.name} ${previousCount > 0 ? 'upgraded' : 'completed'} (${bld(id)}).`);
 
   if (id === 'beacon') {
     state.won = true;
@@ -6778,7 +6778,7 @@ function renderSidePanel() {
 function loadLatestUpdatesTooltip() {
   const button = document.getElementById('btn-updates');
   if (!button || typeof fetch !== 'function' || typeof DOMParser !== 'function') return;
-      fetch('changelog.html?v=publish-20261008u0005')
+      fetch('changelog.html?v=publish-20261012u0001')
     .then(response => response.ok ? response.text() : Promise.reject(new Error('changelog unavailable')))
     .then(source => {
       const doc = new DOMParser().parseFromString(source, 'text/html');
