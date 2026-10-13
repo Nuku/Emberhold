@@ -1085,6 +1085,9 @@ function chooseWonderFate(choice) {
   if (choice === 'become') state.ancient = (state.ancient || 0) + rewardMultiplier;
   if (choice === 'become') state.ancientEver = true;
   addLog(def.aftermath[choice], 'log-important');
+  // This event predates setOut's departure-log cutoff, so carry it explicitly
+  // into the migration chronicle before the settlement is reset.
+  state.pendingWonderMigrationStory = def.aftermath[choice];
   addLog(`Hope gained. The Wonder has touched Emberhold, and the road opens without asking.`, 'log-good');
   record.found = false;
   record.sections = [false, false, false, false, false];
@@ -3692,6 +3695,9 @@ function setOut(trialId = null) {
   if (state.era >= 5) achievementTriggers.push('beacon');
   updateAchievements(achievementTriggers);
   if (transitionStory) {
+    if (state.pendingWonderMigrationStory) {
+      transitionStory.paragraphs.push(migrationStoryText(state.pendingWonderMigrationStory));
+    }
     const newlyEarned = ACHIEVEMENTS
       .filter(achievement => achievementRating(achievement.id) > (Number(previousAchievementRatings[achievement.id]) || 0))
       .map(achievement => `${achievement.name} (${CHALLENGE_RATING_NAMES[achievementRating(achievement.id)]})`);
@@ -3705,6 +3711,7 @@ function setOut(trialId = null) {
     for (let index = 0; index < migrationEvents.length; index += 2)
       transitionStory.paragraphs.push(migrationEvents.slice(index, index + 2).join(' '));
   }
+  state.pendingWonderMigrationStory = null;
   state.roundStartLogSequence = state.logSequence;
   if (transitionStory) startMigrationTransition(transitionStory);
 }
@@ -6778,7 +6785,7 @@ function renderSidePanel() {
 function loadLatestUpdatesTooltip() {
   const button = document.getElementById('btn-updates');
   if (!button || typeof fetch !== 'function' || typeof DOMParser !== 'function') return;
-      fetch('changelog.html?v=publish-20261012u0001')
+      fetch('changelog.html?v=publish-20261013u0001')
     .then(response => response.ok ? response.text() : Promise.reject(new Error('changelog unavailable')))
     .then(source => {
       const doc = new DOMParser().parseFromString(source, 'text/html');

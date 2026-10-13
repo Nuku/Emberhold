@@ -2,6 +2,11 @@
 
 All notable changes to Emberhold are recorded here, with the newest changes first.
 
+## 2026-10-13
+
+- Wonder fate stories are now included in the migration chronicle when choosing a Wonder ending opens the road to a new settlement.
+- Refreshed published stylesheet, data, game script, and changelog cache versions (`publish-20261013u0001`).
+
 ## 2026-10-12
 
 - Building upgrades now appear as upgrades in the message log and are included in the Building Queue filter.
