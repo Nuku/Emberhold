@@ -2,6 +2,11 @@
 
 All notable changes to Emberhold are recorded here, with the newest changes first.
 
+## 2026-10-14
+
+- Save validation now checks queued Wonder obstacles against the saved landing, so valid queues survive import across landings.
+- Refreshed published stylesheet, data, game script, and changelog cache versions (`publish-20261014u0001`).
+
 ## 2026-10-13
 
 - Wonder fate stories are now included in the migration chronicle when choosing a Wonder ending opens the road to a new settlement.

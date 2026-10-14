@@ -1435,7 +1435,7 @@ function applyReclamation(cost) {
   }
 }
 
-function queueDef(entry) {
+function queueDef(entry, sourceState = state) {
   if (!entry || !['build', 'research', 'expedition'].includes(entry.type)) return null;
   if (entry.type === 'build') {
     if (entry.id === 'beaconStage') return BUILDING_BY_ID.get('beacon');
@@ -1443,7 +1443,7 @@ function queueDef(entry) {
     if (entry.id === 'greatMigrationStage') return BUILDING_BY_ID.get('greatMigration');
     if (isWonderObstacleQueueId(entry.id)) {
       const parts = entry.id.split(':');
-      const obstacle = wonderObstacles()[Number(parts[3])];
+      const obstacle = wonderObstacles(sourceState?.landing)[Number(parts[3])];
       return parts.length === 4 && Number.isInteger(Number(parts[2])) && obstacle ? obstacle : null;
     }
     return BUILDING_BY_ID.get(entry.id);
@@ -4565,7 +4565,7 @@ function normalizeSave(s) {
       else throw new Error(`Invalid ${type} queue`);
     }
     for (const entry of s.queues[type]) {
-      if (!object(entry) || entry.type !== type || typeof entry.id !== 'string' || !queueDef(entry))
+      if (!object(entry) || entry.type !== type || typeof entry.id !== 'string' || !queueDef(entry, s))
         throw new Error(`Invalid ${type} queue`);
       // Queue prices are intentionally live. Discard the legacy snapshot so
       // imported saves cannot resurrect the old price-locking behavior.
