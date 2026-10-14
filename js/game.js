@@ -1088,6 +1088,13 @@ function chooseWonderFate(choice) {
   // This event predates setOut's departure-log cutoff, so carry it explicitly
   // into the migration chronicle before the settlement is reset.
   state.pendingWonderMigrationStory = def.aftermath[choice];
+  const fateReward = WONDER_ACHIEVEMENT_REWARDS[def.id]?.[choice] || '';
+  state.pendingWonderMigrationMechanics = [
+    `Gain ${fmtHeld(rewardMultiplier)} Hope.`,
+    choice === 'become' ? `Gain ${fmtHeld(rewardMultiplier)} Ancient point${rewardMultiplier === 1 ? '' : 's'}.` : '',
+    fateReward,
+    'The Wonder forces a migration; the current settlement is abandoned when you set out, while permanent rewards and Echoes carry forward.',
+  ].filter(Boolean).join(' ');
   addLog(`Hope gained. The Wonder has touched Emberhold, and the road opens without asking.`, 'log-good');
   record.found = false;
   record.sections = [false, false, false, false, false];
@@ -6530,6 +6537,12 @@ function renderMigration() {
     `Echoes gained grow with the population you leave: floor((villagers − 10)² ÷ 100), increased by 20% per self-challenge. ` +
     `The road, not the village, chooses the destination — each founding lands in different country, with its own gifts and shortages.</div>`;
 
+  if (state.pendingWonderMigrationStory) {
+    h += `<div class="card trial-active wonder-migration-aftermath"><div class="card-head"><span class="card-title">The Wonder’s aftermath</span></div>` +
+      `<div class="card-desc">${state.pendingWonderMigrationStory}</div>` +
+      `<div class="card-effect"><strong>What happens mechanically:</strong> ${state.pendingWonderMigrationMechanics || 'The Wonder fate grants its recorded reward and forces this migration.'}</div></div>`;
+  }
+
   if (state.migrating) {
     h += '<h2 class="section">Self-challenges</h2><div class="res-note">Choose any challenges for this founding. Every challenge raises achievements earned during the migration to the matching rating.</div>';
     h += MIGRATION_CHALLENGES.map(challenge => {
@@ -6785,7 +6798,7 @@ function renderSidePanel() {
 function loadLatestUpdatesTooltip() {
   const button = document.getElementById('btn-updates');
   if (!button || typeof fetch !== 'function' || typeof DOMParser !== 'function') return;
-      fetch('changelog.html?v=publish-20261013u0001')
+      fetch('changelog.html?v=publish-20261014u0002')
     .then(response => response.ok ? response.text() : Promise.reject(new Error('changelog unavailable')))
     .then(source => {
       const doc = new DOMParser().parseFromString(source, 'text/html');

@@ -4,6 +4,8 @@ All notable changes to Emberhold are recorded here, with the newest changes firs
 
 ## 2026-10-14
 
+- Wonder migration aftermath now explains the fate story, its mechanical rewards, and what carries forward when the current settlement is abandoned.
+- Refreshed published stylesheet, data, game script, and changelog cache versions (`publish-20261014u0002`).
 - Save validation now checks queued Wonder obstacles against the saved landing, so valid queues survive import across landings.
 - Refreshed published stylesheet, data, game script, and changelog cache versions (`publish-20261014u0001`).
 
