@@ -337,7 +337,8 @@ function customLineageDef() {
   for (const trait of traits) if (trait.resource) mods[trait.resource] = trait.mod;
   const specials = Object.fromEntries(traits.filter(trait => trait.special).map(trait => [trait.id, trait.special]));
   const growthTime = traits.find(trait => trait.growthTime)?.growthTime;
-  return { id: 'custom', name: custom.name, desc: custom.desc || 'A lineage cultivated in the Prism Womb.', effect: traits.map(trait => trait.effect).join(', '), mods, traits: [], traitEffects: {}, specials, growthTime, custom: true };
+  return { id: 'custom', name: custom.name, desc: custom.desc || 'A lineage cultivated in the Prism Womb.', effect: traits.map(trait => trait.effect).join(', '), mods,
+    traits: traits.map(trait => trait.id), traitEffects: Object.fromEntries(traits.filter(trait => trait.resource).map(trait => [trait.resource, trait.id])), specials, growthTime, custom: true };
 }
 function lineageDef(id) { return id === 'custom' ? customLineageDef() || LINEAGES[0] : LINEAGE_BY_ID.get(id) || LINEAGES[0]; }
 function lineageTraitDef(id) { return LINEAGE_TRAIT_BY_ID.get(id); }
@@ -372,7 +373,7 @@ function lineageSpecialValue(key, def = lineageDef(state.species)) {
   const acquired = acquiredLineageTraitIds();
   for (const [traitId, special] of Object.entries(def?.specials || {})) {
     const modifier = special.effects?.[key] ?? (special.key === key ? special.value : undefined);
-    if (modifier !== undefined) value *= lineageTraitModifier(modifier, def.custom ? 1 : lineageTraitLevel(traitId, def));
+    if (modifier !== undefined) value *= lineageTraitModifier(modifier, lineageTraitLevel(traitId, def));
   }
   if (def?.id === state.species && acquired.length) for (const lineage of LINEAGES) {
     if (lineage.id === def.id) continue;
