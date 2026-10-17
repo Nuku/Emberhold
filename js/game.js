@@ -1036,13 +1036,18 @@ function updateWonder(dt) {
   if (record.progress >= WONDER_SECTION_PROGRESS) completeWonderSection();
 }
 function canBuyWonderResearch(index) {
+  const def = wonderDef(); const research = def?.researches[index];
+  if (!canQueueWonderResearch(index)) return false;
+  const cost = { ...wonderResearchCost(research) }; delete cost.citizens;
+  return canAfford(cost);
+}
+function canQueueWonderResearch(index) {
   const def = wonderDef(); const record = wonderRecord(); const research = def?.researches[index];
   const section = wonderSectionIndex(record);
   if (!research || record.researches?.[index] || !record.found || section < 0 || index > section) return false;
   const scaledCost = wonderResearchCost(research);
   const citizens = scaledCost.citizens || 0;
-  const cost = { ...scaledCost }; delete cost.citizens;
-  return unassigned() >= citizens && canAfford(cost);
+  return unassigned() >= citizens;
 }
 function buyWonderResearch(index) {
   if (!canBuyWonderResearch(index)) return false;
@@ -1456,7 +1461,11 @@ function queueDef(entry, sourceState = state) {
     }
     return BUILDING_BY_ID.get(entry.id);
   }
-  if (entry.type === 'research') return TECH_BY_ID.get(entry.id);
+  if (entry.type === 'research') {
+    const wonderResearch = /^wonderResearch:([^:]+):(\d+)$/.exec(entry.id);
+    if (wonderResearch) return WONDER_BY_ID.get(wonderResearch[1])?.researches?.[Number(wonderResearch[2])] || null;
+    return TECH_BY_ID.get(entry.id);
+  }
   return EXPEDITION_BY_ID.get(entry.id);
 }
 
@@ -1469,8 +1478,19 @@ function queueCost(entry) {
     if (isWonderObstacleQueueId(entry.id)) return effectiveCoalCost(def.cost);
     return effectiveCoalCost(buildingCost(def));
   }
-  if (entry.type === 'research') return effectiveCoalCost(researchCost(def));
+  if (entry.type === 'research') {
+    const cost = isWonderResearchQueueId(entry.id) ? wonderResearchCost(def) : researchCost(def);
+    if (isWonderResearchQueueId(entry.id)) delete cost.citizens;
+    return effectiveCoalCost(cost);
+  }
   return effectiveCoalCost(expeditionCost(def));
+}
+
+function isWonderResearchQueueId(id) { return typeof id === 'string' && id.startsWith('wonderResearch:'); }
+function wonderResearchQueueId(landing, index) { return `wonderResearch:${landing}:${index}`; }
+function wonderResearchQueueParts(id) {
+  const match = /^wonderResearch:([^:]+):(\d+)$/.exec(id || '');
+  return match ? { landing: match[1], index: Number(match[2]) } : null;
 }
 
 // Every staged construction registers its queue entry here. Queue behavior is
@@ -1608,7 +1628,11 @@ function queueEntry(type, id) {
     if (!canBuild(id)) return false;
     if (Number.isFinite(def.max) && bld(id) + state.queues.build.filter(entry => entry.id === id).length >= def.max) return false;
   } else if (type === 'research') {
-    if (tech(id) || state.queues.research.some(entry => entry.id === id) ||
+    if (isWonderResearchQueueId(id)) {
+      const parts = wonderResearchQueueParts(id);
+      if (!parts || parts.landing !== state.landing || state.queues.research.some(entry => entry.id === id) ||
+          !canQueueWonderResearch(parts.index)) return false;
+    } else if (tech(id) || state.queues.research.some(entry => entry.id === id) ||
         (def.req && !def.req())) return false;
   } else {
     if ((expDone(id) && migrationChallengeCount() <= expeditionRating(id)) || (def.landing && def.landing !== state.landing) || state.pop < expeditionPopulationRequirement(def)) return false;
@@ -1784,6 +1808,14 @@ function attemptResearch(id) {
   if (canAfford(researchCost(def))) doResearch(id);
   else if (state.queues.research.length < queueCapacity('research')) queueEntry('research', id);
 }
+function attemptWonderResearch(index) {
+  if (!canBuyWonderResearch(index)) return;
+  const id = wonderResearchQueueId(state.landing, index);
+  if (state.queues.research.some(entry => entry.id === id)) return;
+  const cost = { ...wonderResearchCost(wonderDef().researches[index]) }; delete cost.citizens;
+  if (canAfford(cost)) buyWonderResearch(index);
+  else if (state.queues.research.length < queueCapacity('research')) queueEntry('research', id);
+}
 function researchNow(id) {
   return doResearch(id);
 }
@@ -1818,8 +1850,9 @@ function updateQueues() {
       }
       const staged = stagedBuildProject(entry);
       const multiPartSteps = upg('tillItIsComplete') && staged ? staged.count : 1;
+      const wonderResearch = type === 'research' && isWonderResearchQueueId(entry.id) ? wonderResearchQueueParts(entry.id) : null;
       const completed = staged ? staged.advance(multiPartSteps) : type === 'build' ? doBuild(entry.id) :
-        type === 'research' ? doResearch(entry.id) : doExpedition(entry.id);
+        type === 'research' ? wonderResearch ? wonderResearch.landing === state.landing && buyWonderResearch(wonderResearch.index) : doResearch(entry.id) : doExpedition(entry.id);
       if (completed && staged && staged.progress() < staged.count) {
         state.queues[type].splice(i, 1);
         state.queues[type].push(entry);
@@ -6432,9 +6465,9 @@ function renderWonder() {
     h += '<h2 class="section">Research outside</h2><div class="res-note">Researchers remain outside the Wonder. Some answers ask for people who will not come back.</div>';
     def.researches.forEach((research, index) => {
       if (index > section.index) return;
-      const done = !!record.researches?.[index]; const ok = canBuyWonderResearch(index);
+      const done = !!record.researches?.[index]; const queued = state.queues.research.some(entry => entry.id === wonderResearchQueueId(state.landing, index)); const eligible = canQueueWonderResearch(index); const ready = canBuyWonderResearch(index);
       h += `<div class="card ${done ? 'done' : ''}"><div class="card-head"><span class="card-title">${research.name}</span><span class="card-effect">${done ? 'Completed' : research.effect}</span></div>` +
-        `<div class="card-cost">cost: ${wonderCostHtml(wonderResearchCost(research))}</div><div class="card-actions"><button data-action="wonder-research" data-id="${index}" ${done || !ok ? 'disabled' : ''}>${done ? 'Completed' : 'Research'}</button></div></div>`;
+        `<div class="card-cost">cost: ${wonderCostHtml(wonderResearchCost(research))}</div><div class="card-actions"><button data-action="wonder-research" data-id="${index}" ${done || queued || !eligible || (!ready && state.queues.research.length >= queueCapacity('research')) ? 'disabled' : ''}>${done ? 'Completed' : queued ? 'Queued' : ready ? 'Research' : 'Queue'}</button></div></div>`;
     });
     h += '<h2 class="section">Interior expeditions</h2><div class="res-note">These preparations help only this attempt. They do not endure as ordinary expeditions do.</div>';
     def.expeditions.forEach((expedition, index) => {
@@ -7140,7 +7173,7 @@ function runAction(btn) {
     case 'rapture-inc': assignRapture(+1); render(); break;
     case 'rapture-dec': assignRapture(-1); render(); break;
     case 'wonder-find': findWonder(); render(); break;
-    case 'wonder-research': buyWonderResearch(+btn.dataset.id); render(); break;
+    case 'wonder-research': attemptWonderResearch(+btn.dataset.id); render(); break;
     case 'wonder-obstacle': attemptWonderObstacle(); render(); break;
     case 'wonder-expedition': buyWonderExpedition(+btn.dataset.id); render(); break;
     case 'wonder-fate': chooseWonderFate(btn.dataset.id); render(); break;
