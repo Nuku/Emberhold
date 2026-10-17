@@ -1487,6 +1487,15 @@ function queueCost(entry) {
   return effectiveCoalCost(expeditionCost(def));
 }
 
+// Queue requirements are displayed as the actual amount spent. Cost helpers
+// return the unscaled base amount because canAfford/doResearch apply this
+// multiplier when the queued project is completed.
+function displayedQueueCost(entry) {
+  const cost = queueCost(entry);
+  return cost && Object.fromEntries(Object.entries(cost).map(([resource, amount]) =>
+    [resource, amount * GAME_COST_MULTIPLIER]));
+}
+
 function isWonderResearchQueueId(id) { return typeof id === 'string' && id.startsWith('wonderResearch:'); }
 function wonderResearchQueueId(landing, index) { return `wonderResearch:${landing}:${index}`; }
 function wonderResearchQueueParts(id) {
@@ -1529,7 +1538,7 @@ function queueDemand() {
   const demand = {};
   for (const type of ['build', 'research', 'expedition']) {
     for (const entry of state.queues[type]) {
-      const cost = queueCost(entry);
+      const cost = displayedQueueCost(entry);
       if (!cost) continue;
       for (const [resource, amount] of Object.entries(cost)) {
         demand[resource] = (demand[resource] || 0) + amount;
@@ -1547,7 +1556,7 @@ function queueCapacity(type) {
 }
 
 function queueCannotComplete(entry) {
-  const cost = effectiveCoalCost(queueCost(entry) || {});
+  const cost = displayedQueueCost(entry) || {};
   return Object.entries(cost).some(([resource, amount]) =>
     amount > capacityOf(resource) + Math.max(1e-9, Math.abs(amount) * 1e-12));
 }
@@ -1556,7 +1565,7 @@ function queuedCostThrough(type, index) {
   const total = {};
   const entries = state.queues[type] || [];
   for (let i = 0; i <= index && i < entries.length; i++) {
-    const cost = queueCost(entries[i]);
+    const cost = displayedQueueCost(entries[i]);
     if (!cost || queueCannotComplete(entries[i])) continue;
     for (const [resource, amount] of Object.entries(cost)) {
       total[resource] = (total[resource] || 0) + amount;
@@ -1566,7 +1575,7 @@ function queuedCostThrough(type, index) {
 }
 
 function queueTime(entry, type = entry?.type, index = -1) {
-  const cost = queueCost(entry);
+  const cost = displayedQueueCost(entry);
   if (!cost) return Infinity;
   const requirement = type && index >= 0 ? queuedCostThrough(type, index) : cost;
   const rates = production(1);
@@ -6838,7 +6847,7 @@ function renderSidePanel() {
 function loadLatestUpdatesTooltip() {
   const button = document.getElementById('btn-updates');
   if (!button || typeof fetch !== 'function' || typeof DOMParser !== 'function') return;
-      fetch('changelog.html?v=publish-20261017u0005')
+      fetch('changelog.html?v=publish-20261017u0006')
     .then(response => response.ok ? response.text() : Promise.reject(new Error('changelog unavailable')))
     .then(source => {
       const doc = new DOMParser().parseFromString(source, 'text/html');

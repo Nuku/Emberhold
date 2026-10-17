@@ -4,6 +4,8 @@ All notable changes to Emberhold are recorded here, with the newest changes firs
 
 ## 2026-10-17
 
+- Refreshed published stylesheet, data, game script, and changelog cache versions (`publish-20261017u0006`).
+- Queue costs and completion-time estimates now include the actual scaled resource costs.
 - Refreshed published stylesheet, data, game script, and changelog cache versions (`publish-20261017u0005`).
 - Wonder research now queues until its materials and citizen cost are available; displayed citizen costs match the amount charged.
 - Refreshed published stylesheet, data, game script, and changelog cache versions (`publish-20261017u0004`).
