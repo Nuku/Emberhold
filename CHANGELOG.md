@@ -4,6 +4,8 @@ All notable changes to Emberhold are recorded here, with the newest changes firs
 
 ## 2026-10-17
 
+- Queue waiting details now show the actual scaled resource costs.
+- Refreshed published stylesheet, data, game script, and changelog cache versions (`publish-20261017u0007`).
 - Refreshed published stylesheet, data, game script, and changelog cache versions (`publish-20261017u0006`).
 - Queue costs and completion-time estimates now include the actual scaled resource costs.
 - Refreshed published stylesheet, data, game script, and changelog cache versions (`publish-20261017u0005`).

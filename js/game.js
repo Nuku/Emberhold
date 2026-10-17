@@ -1602,7 +1602,7 @@ function queueLabel(seconds) {
 }
 
 function queueWaitingHtml(type, index, entry) {
-  const cost = queueCost(entry);
+  const cost = displayedQueueCost(entry);
   if (!cost) return '';
   const required = Object.entries(cost)
     .filter(([, amount]) => amount > 0)
@@ -6847,7 +6847,7 @@ function renderSidePanel() {
 function loadLatestUpdatesTooltip() {
   const button = document.getElementById('btn-updates');
   if (!button || typeof fetch !== 'function' || typeof DOMParser !== 'function') return;
-      fetch('changelog.html?v=publish-20261017u0006')
+      fetch('changelog.html?v=publish-20261017u0007')
     .then(response => response.ok ? response.text() : Promise.reject(new Error('changelog unavailable')))
     .then(source => {
       const doc = new DOMParser().parseFromString(source, 'text/html');
