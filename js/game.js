@@ -826,6 +826,9 @@ function wonderResearchCost(research) {
   return Object.fromEntries(Object.entries(research.cost).map(([id, amount]) =>
     [id, Math.ceil(amount * WONDER_RESEARCH_COST_MULTIPLIER)]));
 }
+function wonderResearchCitizenCost(research) {
+  return (wonderResearchCost(research).citizens || 0) * GAME_COST_MULTIPLIER;
+}
 function currentWonderObstacle(record = wonderRecord()) {
   const sectionIndex = wonderSectionIndex(record);
   if (sectionIndex < 0) return null;
@@ -1039,20 +1042,18 @@ function canBuyWonderResearch(index) {
   const def = wonderDef(); const research = def?.researches[index];
   if (!canQueueWonderResearch(index)) return false;
   const cost = { ...wonderResearchCost(research) }; delete cost.citizens;
-  return canAfford(cost);
+  return canAfford(cost) && unassigned() >= wonderResearchCitizenCost(research);
 }
 function canQueueWonderResearch(index) {
   const def = wonderDef(); const record = wonderRecord(); const research = def?.researches[index];
   const section = wonderSectionIndex(record);
   if (!research || record.researches?.[index] || !record.found || section < 0 || index > section) return false;
-  const scaledCost = wonderResearchCost(research);
-  const citizens = scaledCost.citizens || 0;
-  return unassigned() >= citizens;
+  return true;
 }
 function buyWonderResearch(index) {
   if (!canBuyWonderResearch(index)) return false;
   const def = wonderDef(); const record = wonderRecord(); const research = def.researches[index];
-  const cost = wonderResearchCost(research); const citizens = cost.citizens || 0; delete cost.citizens;
+  const cost = wonderResearchCost(research); const citizens = wonderResearchCitizenCost(research); delete cost.citizens;
   payCost(cost);
   if (citizens) { state.pop = Math.max(1, state.pop - citizens); reconcileWorkers(); }
   record.researches[index] = true;
@@ -1638,7 +1639,11 @@ function queueEntry(type, id) {
     if ((expDone(id) && migrationChallengeCount() <= expeditionRating(id)) || (def.landing && def.landing !== state.landing) || state.pop < expeditionPopulationRequirement(def)) return false;
   }
   const cost = queueCost({ type, id });
-  if (canAfford(cost)) return false;
+  const wonderResearch = type === 'research' && isWonderResearchQueueId(id)
+    ? WONDER_BY_ID.get(wonderResearchQueueParts(id)?.landing)?.researches?.[wonderResearchQueueParts(id)?.index]
+    : null;
+  const wonderCitizensReady = !wonderResearch || unassigned() >= wonderResearchCitizenCost(wonderResearch);
+  if (canAfford(cost) && wonderCitizensReady) return false;
   state.queues[type].push({ type, id });
   return true;
 }
@@ -1812,8 +1817,7 @@ function attemptWonderResearch(index) {
   if (!canQueueWonderResearch(index)) return;
   const id = wonderResearchQueueId(state.landing, index);
   if (state.queues.research.some(entry => entry.id === id)) return;
-  const cost = { ...wonderResearchCost(wonderDef().researches[index]) }; delete cost.citizens;
-  if (canAfford(cost)) buyWonderResearch(index);
+  if (canBuyWonderResearch(index)) buyWonderResearch(index);
   else if (state.queues.research.length < queueCapacity('research')) queueEntry('research', id);
 }
 function researchNow(id) {
@@ -6834,7 +6838,7 @@ function renderSidePanel() {
 function loadLatestUpdatesTooltip() {
   const button = document.getElementById('btn-updates');
   if (!button || typeof fetch !== 'function' || typeof DOMParser !== 'function') return;
-      fetch('changelog.html?v=publish-20261017u0003')
+      fetch('changelog.html?v=publish-20261017u0004')
     .then(response => response.ok ? response.text() : Promise.reject(new Error('changelog unavailable')))
     .then(source => {
       const doc = new DOMParser().parseFromString(source, 'text/html');

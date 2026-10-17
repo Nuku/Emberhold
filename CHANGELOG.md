@@ -4,6 +4,8 @@ All notable changes to Emberhold are recorded here, with the newest changes firs
 
 ## 2026-10-17
 
+- Wonder research now queues until its materials and citizen cost are available; displayed citizen costs match the amount charged.
+- Refreshed published stylesheet, data, game script, and changelog cache versions (`publish-20261017u0004`).
 - Fixed Wonder research queue eligibility so research can be queued before its materials are available.
 - Refreshed published stylesheet, data, game script, and changelog cache versions (`publish-20261017u0003`).
 - Wonder research can now be queued when its materials are not yet available.
