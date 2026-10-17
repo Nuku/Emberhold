@@ -1809,7 +1809,7 @@ function attemptResearch(id) {
   else if (state.queues.research.length < queueCapacity('research')) queueEntry('research', id);
 }
 function attemptWonderResearch(index) {
-  if (!canBuyWonderResearch(index)) return;
+  if (!canQueueWonderResearch(index)) return;
   const id = wonderResearchQueueId(state.landing, index);
   if (state.queues.research.some(entry => entry.id === id)) return;
   const cost = { ...wonderResearchCost(wonderDef().researches[index]) }; delete cost.citizens;
@@ -6834,7 +6834,7 @@ function renderSidePanel() {
 function loadLatestUpdatesTooltip() {
   const button = document.getElementById('btn-updates');
   if (!button || typeof fetch !== 'function' || typeof DOMParser !== 'function') return;
-      fetch('changelog.html?v=publish-20261017u0001')
+      fetch('changelog.html?v=publish-20261017u0003')
     .then(response => response.ok ? response.text() : Promise.reject(new Error('changelog unavailable')))
     .then(source => {
       const doc = new DOMParser().parseFromString(source, 'text/html');
