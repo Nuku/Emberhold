@@ -2,6 +2,11 @@
 
 All notable changes to Emberhold are recorded here, with the newest changes first.
 
+## 2026-10-17
+
+- Tripled storage capacities and the resource and Survey costs for building, research, and Wonders.
+- Refreshed published stylesheet, data, game script, and changelog cache versions (`publish-20261017u0001`).
+
 ## 2026-10-14
 
 - Custom lineages now retain their selected trait identities, resource trait effects, and trait-scaled special bonuses.

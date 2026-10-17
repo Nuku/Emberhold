@@ -861,14 +861,14 @@ function canAffordWonderCost(cost) {
   const survey = cost.survey || 0;
   const physical = { ...cost };
   delete physical.survey;
-  return (state.surveyPoints || 0) >= survey && canAfford(physical);
+  return (state.surveyPoints || 0) >= survey * GAME_COST_MULTIPLIER && canAfford(physical);
 }
 function payWonderCost(cost) {
   const physical = { ...cost };
   const survey = physical.survey || 0;
   delete physical.survey;
   if (!canAffordWonderCost(cost)) return false;
-  state.surveyPoints -= survey;
+  state.surveyPoints -= survey * GAME_COST_MULTIPLIER;
   payCost(physical);
   return true;
 }
@@ -1231,13 +1231,13 @@ function conquestTrialAvailable() {
 // ---------- storage ----------
 function currencyCapacity(jobs = state?.jobs, source = state) {
   const storageBonus = state?.trial?.id === 'overflow' ? 1 : 1 + 0.01 * upg('cleverStorage');
-  return Math.ceil((CURRENCY_BASE_CAP * (1 + 0.10 * (jobs?.banker || 0)) * storageBonus * conqueredStorageMod(source)) - 1e-12);
+  return Math.ceil((CURRENCY_BASE_CAP * (1 + 0.10 * (jobs?.banker || 0)) * storageBonus * conqueredStorageMod(source) * STORAGE_CAPACITY_MULTIPLIER) - 1e-12);
 }
 
 function capacityOf(id) {
   if (id === 'currency') return currencyCapacity();
-  if (id === 'knowledge') return Math.max(0, production(0).knowledge * 3000 * lineageSpecialValue('knowledgeStorage'));
-  if (id === 'goods') return bld('factory') * 100;
+  if (id === 'knowledge') return Math.max(0, production(0).knowledge * 3000 * lineageSpecialValue('knowledgeStorage') * STORAGE_CAPACITY_MULTIPLIER);
+  if (id === 'goods') return bld('factory') * 100 * STORAGE_CAPACITY_MULTIPLIER;
   const s = STORAGE[id];
   if (!s) return Infinity;
   const overflowActive = trialActive('overflow');
@@ -1251,7 +1251,7 @@ function capacityOf(id) {
     permanentStorage * runStorage * governanceStorage *
     (overflowActive ? 1 : 1 + 0.01 * upg('cleverStorage')) *
     conqueredStorageMod() *
-    (overflowActive ? trialDifficulty('overflow') : 1)) - 1e-12);
+    (overflowActive ? trialDifficulty('overflow') : 1) * STORAGE_CAPACITY_MULTIPLIER) - 1e-12);
 }
 function isFull(id) { return state.res[id] >= capacityOf(id) - 0.001; }
 
@@ -1419,7 +1419,7 @@ function fuelDescription(id, total, coalRate) {
 }
 function canAfford(cost) {
   const effective = effectiveCoalCost(cost);
-  for (const r in effective) if (state.res[r] < effective[r]) return false;
+  for (const r in effective) if (state.res[r] < effective[r] * GAME_COST_MULTIPLIER) return false;
   return true;
 }
 function wonderObstacleQueueId(obstacle) {
@@ -1433,7 +1433,7 @@ function canBuild(id) {
 }
 function payCost(cost) {
   const effective = effectiveCoalCost(cost);
-  for (const r in effective) state.res[r] -= effective[r];
+  for (const r in effective) state.res[r] -= effective[r] * GAME_COST_MULTIPLIER;
 }
 function applyReclamation(cost) {
   if (!wonderChoice('ashfen', 'silence')) return;
@@ -4841,12 +4841,13 @@ function costHtml(cost) {
   const effective = effectiveCoalCost(cost);
   for (const r in effective) {
     const have = state.res[r] || 0;
-    parts.push(`<span class="${have >= effective[r] ? 'ok' : 'lack'}">${fmtCost(effective[r])} ${resourceName(r)}</span>`);
+    const amount = effective[r] * GAME_COST_MULTIPLIER;
+    parts.push(`<span class="${have >= amount ? 'ok' : 'lack'}">${fmtCost(amount)} ${resourceName(r)}</span>`);
   }
   return parts.join(', ');
 }
 function costText(cost) {
-  return Object.entries(effectiveCoalCost(cost)).map(([r, amount]) => `${fmtCost(amount)} ${resourceName(r)}`).join(', ');
+  return Object.entries(effectiveCoalCost(cost)).map(([r, amount]) => `${fmtCost(amount * GAME_COST_MULTIPLIER)} ${resourceName(r)}`).join(', ');
 }
 
 function lineageAccessCount() { return LINEAGES.filter(lineage => lineageUnlocked(lineage.id)).length; }
@@ -6340,6 +6341,7 @@ function wonderCostHtml(cost) {
   return Object.entries(effectiveCoalCost(cost)).map(([id, amount]) => {
     const have = id === 'survey' ? state.surveyPoints || 0 : id === 'citizens' ? unassigned() : state.res[id] || 0;
     const label = id === 'survey' ? 'Survey' : id === 'citizens' ? 'unassigned citizens' : resourceName(id);
+    amount *= GAME_COST_MULTIPLIER;
     return `<span class="${have >= amount ? 'ok' : 'lack'}">${fmtCost(amount)} ${label}</span>`;
   }).join(', ');
 }
@@ -6799,7 +6801,7 @@ function renderSidePanel() {
 function loadLatestUpdatesTooltip() {
   const button = document.getElementById('btn-updates');
   if (!button || typeof fetch !== 'function' || typeof DOMParser !== 'function') return;
-      fetch('changelog.html?v=publish-20261014u0002')
+      fetch('changelog.html?v=publish-20261017u0001')
     .then(response => response.ok ? response.text() : Promise.reject(new Error('changelog unavailable')))
     .then(source => {
       const doc = new DOMParser().parseFromString(source, 'text/html');

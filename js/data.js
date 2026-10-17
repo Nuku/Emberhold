@@ -81,6 +81,9 @@ const ERAS = [
 ];
 const ERA_GATE = { stoneWorking: 2, metallurgy: 3, machineryTech: 4, astronomy: 5 };
 
+const STORAGE_CAPACITY_MULTIPLIER = 3;
+const GAME_COST_MULTIPLIER = 3;
+
 // --- storage: material stores use building-based ceilings; Currency has its
 // own base cap so it can gain separate modifiers later.
 // capacity = (base + per * buildingLevel) * (1 + 0.2 per Overflow completion)
