@@ -4,6 +4,8 @@ All notable changes to Emberhold are recorded here, with the newest changes firs
 
 ## 2026-10-17
 
+- Public automation cost helpers now report the same scaled costs shown in the UI and charged to the player; queue costs are exposed too.
+- Refreshed published stylesheet, data, game script, and changelog cache versions (`publish-20261017u0008`).
 - Queue waiting details now show the actual scaled resource costs.
 - Refreshed published stylesheet, data, game script, and changelog cache versions (`publish-20261017u0007`).
 - Refreshed published stylesheet, data, game script, and changelog cache versions (`publish-20261017u0006`).

@@ -1496,6 +1496,13 @@ function displayedQueueCost(entry) {
     [resource, amount * GAME_COST_MULTIPLIER]));
 }
 
+// Public cost helpers report the same amounts shown in the UI and charged to
+// the player. Internal cost functions stay unscaled for affordability/payment.
+function publicCost(cost) {
+  return cost && Object.fromEntries(Object.entries(cost).map(([resource, amount]) =>
+    [resource, amount * GAME_COST_MULTIPLIER]));
+}
+
 function isWonderResearchQueueId(id) { return typeof id === 'string' && id.startsWith('wonderResearch:'); }
 function wonderResearchQueueId(landing, index) { return `wonderResearch:${landing}:${index}`; }
 function wonderResearchQueueParts(id) {
@@ -6847,7 +6854,7 @@ function renderSidePanel() {
 function loadLatestUpdatesTooltip() {
   const button = document.getElementById('btn-updates');
   if (!button || typeof fetch !== 'function' || typeof DOMParser !== 'function') return;
-      fetch('changelog.html?v=publish-20261017u0007')
+      fetch('changelog.html?v=publish-20261017u0008')
     .then(response => response.ok ? response.text() : Promise.reject(new Error('changelog unavailable')))
     .then(source => {
       const doc = new DOMParser().parseFromString(source, 'text/html');
@@ -7085,11 +7092,12 @@ window.emberhold = {
     spyCount,
     woodForCoalCount,
     woodFuelTotal,
-    buildingCost,
+    buildingCost: def => publicCost(buildingCost(def)),
+    queueCost: displayedQueueCost,
     canBuild,
     canAfford,
     capacityOf,
-    expeditionCost,
+    expeditionCost: def => publicCost(expeditionCost(def)),
     factoryRecipe,
     factoryRecipes,
     buildingPowerCount,
@@ -7105,7 +7113,7 @@ window.emberhold = {
     moraleRate,
     moraleBreakdown,
     marginalMorale,
-    researchCost,
+    researchCost: def => publicCost(researchCost(def)),
     tech,
     trialActive,
     unassigned,
