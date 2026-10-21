@@ -19,6 +19,13 @@ fails (for example, because browser storage is full), the Chronicle reports it;
 use Export to keep a backup. Loading older saves repairs worker assignments to
 match the current population, job unlocks, and guard capacity.
 
+### Optional usage analytics
+
+The hosted GitHub Pages site counts page visits with Umami Cloud. Check the
+Visitors report for the last 24 hours, 7 days, or 30 days. Only visits to the
+hosted site are counted. This records page visits, not time spent playing, and
+does not send save data or game state. Local downloads are not counted.
+
 ## Development checks
 
 Run `npm test` with Node.js. The dependency-free engine regression

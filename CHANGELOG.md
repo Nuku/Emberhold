@@ -2,6 +2,12 @@
 
 All notable changes to Emberhold are recorded here, with the newest changes first.
 
+## 2026-10-21
+
+- Added Umami page-visit analytics for the hosted GitHub Pages site; save data and game state are not sent. Local downloads are not counted.
+- Documented hosted-site visit reports in the README.
+- Refreshed published stylesheet, data, game script, analytics script, and changelog cache versions (`publish-20261021u0001`).
+
 ## 2026-10-17
 
 - Public automation cost helpers now report the same scaled costs shown in the UI and charged to the player; queue costs are exposed too.
