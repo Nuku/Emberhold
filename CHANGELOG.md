@@ -4,6 +4,8 @@ All notable changes to Emberhold are recorded here, with the newest changes firs
 
 ## 2026-10-22
 
+- Removed the welcome introduction and banner background from the hosted landing page.
+- Refreshed published stylesheet, data, game script, analytics script, and changelog cache versions (`publish-20261022u0003`).
 - Added a welcome introduction and Emberhold banner to the hosted landing page, with social sharing metadata.
 - Fixed Renewal Basin reclamation to refund the intended percentage of scaled construction costs.
 - Updated regression fixtures for current storage, prices, and research prerequisites.
