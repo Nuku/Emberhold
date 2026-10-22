@@ -4,7 +4,20 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Emberhold — a text incremental</title>
-      <link rel="stylesheet" href="style.css?v=publish-20261021u0001">
+<meta name="description" content="Guide a village from its first campfire through five eras of discovery. Assign workers, survive the seasons, explore strange frontiers, and build a world that grows while you're away.">
+<meta name="theme-color" content="#111216">
+<meta property="og:type" content="website">
+<meta property="og:title" content="Emberhold — a living settlement in the ash">
+<meta property="og:description" content="Feed a fledgling village, guide it through five eras, and discover the people and places beyond the ash. A slow-burn strategy game that grows while you're away.">
+<meta property="og:url" content="https://nuku.github.io/Emberhold/">
+<meta property="og:image" content="https://nuku.github.io/Emberhold/assets/emberhold-banner.png">
+<meta property="og:image:alt" content="A small settlement glowing with firelight in a distant ash-covered valley">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Emberhold — a living settlement in the ash">
+<meta name="twitter:description" content="Assign villagers, survive the seasons, explore strange frontiers, and shape a world that grows while you're away.">
+<meta name="twitter:image" content="https://nuku.github.io/Emberhold/assets/emberhold-banner.png">
+<link rel="canonical" href="https://nuku.github.io/Emberhold/">
+<link rel="stylesheet" href="style.css?v=publish-20261022u0001">
 </head>
 <body>
 <div id="app">
@@ -14,6 +27,11 @@
       <h1>EMBERHOLD</h1>
       <div id="location-line">—</div>
       <div id="subtitle">a settlement rises from the ash</div>
+      <div class="welcome-copy">
+        <p>Feed the first fire. Guide a village through five eras of discovery.</p>
+        <span>Assign workers, weather the seasons, explore strange frontiers, and shape new lineages. Your settlement grows even while you're away.</span>
+        <a class="welcome-cta" href="#panel-village">Begin your chronicle <span aria-hidden="true">↓</span></a>
+      </div>
     </div>
     <div id="status-block">
       <div id="era-line">—</div>
@@ -26,7 +44,7 @@
     <div id="controls">
       <div id="updates-control">
         <div id="bonus-timer" class="hidden" role="timer" aria-label="Double-speed time remaining" title="Makeup time: counts down while playing at double speed. Time away adds to the bank, up to 24 hours."></div>
-<button id="btn-updates" class="has-tooltip" data-tooltip="Latest updates (2026-10-21):&#10;Added Umami page-visit analytics for the hosted site. Save data and game state are not sent.&#10;&#10;Refreshed cached game assets and the changelog.&#10;&#10;All earlier updates are listed in the Changelog page." aria-label="Open the Emberhold changelog">Updates</button>
+<button id="btn-updates" class="has-tooltip" data-tooltip="Latest updates (2026-10-22):&#10;Introduced Emberhold with a new welcome banner and social sharing preview.&#10;&#10;Fixed Renewal Basin construction refunds and refreshed cached game assets.&#10;&#10;All earlier updates are listed in the Changelog page." aria-label="Open the Emberhold changelog">Updates</button>
       </div>
       <button id="btn-pause" aria-pressed="true">Resume</button>
       <button id="btn-save">Save</button>
@@ -94,8 +112,8 @@
 </section>
 <div id="migration-complete-toast" hidden role="status">Migration Complete</div>
 
-<script src="js/data.js?v=publish-20261021u0001"></script>
-<script src="js/game.js?v=publish-20261021u0001"></script>
-<script src="js/analytics.js?v=publish-20261021u0001"></script>
+<script src="js/data.js?v=publish-20261022u0001"></script>
+<script src="js/game.js?v=publish-20261022u0001"></script>
+<script src="js/analytics.js?v=publish-20261022u0001"></script>
 </body>
 </html>

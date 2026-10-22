@@ -307,17 +307,17 @@ test('paused real-time clock does not advance or bank time', () => {
   assert.equal(run('lastGameAt'), 6000);
 });
 
-test('currency uses a 2000 base cap and does not accumulate past it', () => {
+test('currency uses a 6000 base cap and does not accumulate past it', () => {
   const { run } = game();
-  assert.equal(run('capacityOf("currency")'), 2000);
+  assert.equal(run('capacityOf("currency")'), 6000);
   run('state.jobs.banker = 2');
-  assert.equal(run('capacityOf("currency")'), 2400);
+  assert.equal(run('capacityOf("currency")'), 7200);
   run('state.jobs.banker = 0');
   run(`state.techs.currency = true; state.seen.currency = true; state.randomEventNext = 1000;
-    state.res.currency = 1999; tickStep(100);`);
-  assert.equal(run('state.res.currency'), 2000);
+    state.res.currency = 5999; tickStep(100);`);
+  assert.equal(run('state.res.currency'), 6000);
   run('tickStep(100)');
-  assert.equal(run('state.res.currency'), 2000);
+  assert.equal(run('state.res.currency'), 6000);
 });
 
 test('each currently held conquered nation adds 10% storage to every resource', () => {
@@ -325,26 +325,26 @@ test('each currently held conquered nation adds 10% storage to every resource', 
   run(`state.tradePartners = ['human', 'stonekin'];
     state.diplomacy.human = { conquered: true };
     state.diplomacy.stonekin = { conquered: true };`);
-  assert.equal(run('capacityOf("food")'), 240);
-  assert.equal(run('capacityOf("currency")'), 2400);
+  assert.equal(run('capacityOf("food")'), 720);
+  assert.equal(run('capacityOf("currency")'), 7200);
   run('state.diplomacy.stonekin.conquered = false');
-  assert.equal(run('capacityOf("food")'), 220);
-  assert.equal(run('capacityOf("currency")'), 2200);
+  assert.equal(run('capacityOf("food")'), 660);
+  assert.equal(run('capacityOf("currency")'), 6600);
 });
 
 test('save normalization preserves conquered-nation storage bonuses before state assignment', () => {
   const { run } = game();
   run(`state = null; const save = defaultState();
     save.tradePartners = ['human']; save.diplomacy.human = { disposition: 0, conquered: true };
-    save.res.currency = 5000; const loaded = normalizeSave(save);`);
-  assert.equal(run('loaded.res.currency'), 2200);
+    save.res.currency = 15000; const loaded = normalizeSave(save);`);
+  assert.equal(run('loaded.res.currency'), 6600);
 });
 
 test('currency cap normalization works before the loaded state is assigned', () => {
   const { run } = game();
   run(`state = null; const save = defaultState(); save.jobs.banker = 2;
-    save.res.currency = 5000; const loaded = normalizeSave(save);
-    if (loaded.res.currency !== 2400) throw new Error('currency save normalization failed');`);
+    save.res.currency = 15000; const loaded = normalizeSave(save);
+    if (loaded.res.currency !== 7200) throw new Error('currency save normalization failed');`);
 });
 
 test('tutorial next-step card can be dismissed permanently', () => {
@@ -694,8 +694,8 @@ test('every queue item lists the resources it needs', () => {
     state.queues.research = [{ type: 'research', id: 'writing' }];
     state.queues.expedition = [{ type: 'expedition', id: 'oldForest' }];`);
   for (const type of ['build', 'research', 'expedition']) {
-    assert.match(run(`renderQueue('${type}')`), /queue-(needs|ready|waiting)/);
-    assert.match(run(`renderQueue('${type}')`), /needs |ready|waiting/);
+    assert.match(run(`renderQueue('${type}')`), /queue-(cost|ready|waiting|impossible)/);
+    assert.match(run(`renderQueue('${type}')`), /requires |ready|waiting/);
   }
 });
 
@@ -718,7 +718,7 @@ test('Till It Is Complete requires Known Task and advances every affordable queu
   assert.equal(run('state.echoes'), 100);
   run(`state.echoes = 110; migrationBuy('knownTask'); migrationBuy('tillItIsComplete');
     state.queues.build = [{ type: 'build', id: 'airControlStage' }];
-    state.airControlProgress = 7; state.res.aluminum = 100000; state.res.steel = 100000;
+    state.bld.aluminumWorks = 1; state.bld.deepStore = 10; state.bld.storehouse = 10; state.airControlProgress = 7; state.res.aluminum = 100000; state.res.steel = 100000;
     state.res.stone = 100000; updateQueues();`);
   assert.equal(run("upg('tillItIsComplete')"), 1);
   assert.equal(run('state.airControlProgress'), 50);
@@ -731,12 +731,12 @@ test('physical research requires its material inputs in addition to Knowledge', 
     { knowledge: 200, iron: 180, coal: 120, tools: 30 });
   assert.equal(run("researchCost(TECHS.find(t => t.id === 'ironMites')).knowledge"), 13500);
   assert.equal(run("researchCost(TECHS.find(t => t.id === 'stoneWorking')).knowledge"), 15);
-  run(`state.techs.seamMining = true; state.res.knowledge = 200;
-    state.res.iron = 180; state.res.coal = 119; state.res.tools = 30;
+  run(`state.techs.seamMining = true; state.bld.deepStore = 10; state.jobs.thinker = 1; state.res.knowledge = 600;
+    state.res.iron = 540; state.res.coal = 359; state.res.tools = 90;
     attemptResearch('metallurgy');`);
   assert.equal(run('state.techs.metallurgy'), undefined);
   assert.equal(run('state.queues.research[0].id'), 'metallurgy');
-  run('state.res.coal = 120; updateQueues()');
+  run('state.res.coal = 360; updateQueues()');
   assert.equal(run('state.techs.metallurgy'), true);
   assert.equal(run('state.res.knowledge'), 0);
   assert.equal(run('state.res.iron'), 0);
@@ -785,7 +785,7 @@ test('research cannot be queued more than once and stale duplicates are removed'
 test('queued actions use the current cost when price modifiers change', () => {
   const { run } = game();
   run(`state.trial = { id: 'frugality', buildings: 0 }; state.res.wood = 0;
-    attemptBuild('hut'); state.trial = null; state.res.wood = 30;
+    attemptBuild('hut'); state.trial = null; state.res.wood = 90;
     updateQueues();`);
   assert.equal(run("bld('hut')"), 1);
   assert.equal(run('state.queues.build.length'), 0);
@@ -795,8 +795,8 @@ test('legacy queued costs are ignored', () => {
   const { run } = game();
   run(`state.techs.aluminum = true; state.bld.aluminumWorks = 3;
     state.bld.aluminumWorks = 4;
-    state.res.steel = 5000; state.res.machinery = 1000;
-    state.res.goods = 1000; state.res.copper = 3000;
+    state.bld.deepStore = 100; state.bld.vault = 20; state.bld.factory = 100; state.res.steel = 15000; state.res.machinery = 3000;
+    state.res.goods = 3000; state.res.copper = 9000;
     state.settings.strictQueueOrder = true;
     state.queues.build = [{ type: 'build', id: 'aluminumWorks', cost: { steel: 1, machinery: 1, goods: 1, copper: 1 } }];
     updateQueues();`);
@@ -834,7 +834,7 @@ test('queue items show each missing resource with its own estimate', () => {
   assert.equal((html.match(/queue-waiting-item/g) || []).length, 5);
   assert.match(html, /queue-waiting-item[\s\S]*queue-time/);
   assert.match(html, /lumberCamp|Lumber/);
-  assert.match(html, /99 Wood/);
+  assert.match(html, /297 Wood/);
   assert.equal((html.match(/queue-needs/g) || []).length, 0);
 });
 
@@ -845,10 +845,10 @@ test('queued Wonder obstacles use their live direct cost for readiness', () => {
   const html = run("renderQueue('build')");
   assert.match(html, /Silence Device/);
   assert.doesNotMatch(html, /queue-ready/);
-  assert.match(html, /500 Machinery/);
-  assert.match(html, /5000 Knowledge/);
-  assert.match(html, /70 Aether/);
-  run(`state.res.machinery = 500; state.res.knowledge = 5000; state.res.aether = 70`);
+  assert.match(html, /1500 Machinery/);
+  assert.match(html, /15\.0k Knowledge/);
+  assert.match(html, /210 Aether/);
+  run(`state.res.machinery = 1500; state.res.knowledge = 15000; state.res.aether = 210; state.bld.vault = 10; state.jobs.thinker = 20`);
   assert.match(run("renderQueue('build')"), /queue-ready/);
 });
 
@@ -867,8 +867,8 @@ test('later queue items include earlier queued costs in their estimates', () => 
       { type: 'build', id: 'hut' }
     ];`);
   const html = run("renderQueue('build')");
-  assert.match(html, /27 Wood/);
-  assert.match(html, /14 Wood/);
+  assert.match(html, /122 Wood/);
+  assert.match(html, /41 Wood/);
 });
 
 test('queue items can be reordered before or after another item', () => {
@@ -906,14 +906,14 @@ test('queue reordering is available through the automation API', () => {
 test('queue order defaults to parallel and can be switched to strict first-to-last processing', () => {
   const { run } = game();
   run(`state.techs.craftsmanship = true;
-    state.res.wood = 100; state.res.tools = 10;
+    state.res.wood = 300; state.res.tools = 30;
     state.queues.build = [{ type: 'build', id: 'hut' }, { type: 'build', id: 'lumberYard' }];
     updateQueues()`);
   assert.equal(run('state.bld.hut'), 1);
   assert.equal(run('state.bld.lumberYard'), 1);
   assert.equal(run('state.queues.build.length'), 0);
 
-  run(`state.bld = {}; state.res.wood = 100; state.res.tools = 10;
+  run(`state.bld = {}; state.res.wood = 300; state.res.tools = 30;
     state.settings.strictQueueOrder = true;
     state.queues.build = [{ type: 'build', id: 'hut' }, { type: 'build', id: 'lumberYard' }];
     updateQueues()`);
@@ -942,7 +942,7 @@ test('queue order setting persists through migration and trial restart', () => {
 test('affordable actions start immediately even when their queue is full', () => {
   const { run } = game();
   run(`state.techs.craftsmanship = true;
-    state.res.wood = 100; state.res.tools = 10;
+    state.res.wood = 300; state.res.tools = 30;
     state.queues.build = [{ type: 'build', id: 'hut' }];
     attemptBuild('lumberYard');`);
   assert.equal(run('state.bld.lumberYard'), 1);
@@ -1067,8 +1067,8 @@ test('Clever Storage is an uncapped, increasingly expensive Echo upgrade', () =>
     migrationBuy('cleverStorage'); migrationBuy('cleverStorage'); migrationBuy('cleverStorage');`);
   assert.equal(run("upg('cleverStorage')"), 3, 'the first three levels cost 1, 2, and 2 Echoes');
   assert.equal(run('state.echoes'), 0);
-  assert.equal(run('capacityOf("food")'), 206);
-  assert.equal(run('capacityOf("currency")'), 2060);
+  assert.equal(run('capacityOf("food")'), 618);
+  assert.equal(run('capacityOf("currency")'), 6180);
   run('state.echoes = 3');
   assert.match(run('renderShop()'), /Clever Storage/);
   run('migrationBuy("cleverStorage")');
@@ -1098,8 +1098,9 @@ test('migration clears old siege readiness for every neighbor', () => {
   run(`state.diplomacy.human = { disposition: 0, siegeReady: true };
     state.diplomacy.clocklings = { disposition: 0, siegeReady: true };
     state.migrating = true; setOut()`);
-  assert.equal(run('state.diplomacy.human'), undefined);
-  assert.equal(run('state.diplomacy.clocklings'), undefined);
+  // Migration may select either lineage again as a fresh neighbor.
+  assert.equal(run('!!state.diplomacy.human?.siegeReady'), false);
+  assert.equal(run('!!state.diplomacy.clocklings?.siegeReady'), false);
 });
 
 test('Known Task fills supplies produced during migration preparation', () => {
@@ -1148,7 +1149,7 @@ test('incoming raids are less destructive and staffed raids are reliable', () =>
   run(`state.res.food = 500; state.res.tools = 20; state.jobs.guard = 4;
     state.guardInjuries = 0; state.diplomacy.human.disposition = 0;
     Math.random = () => 0.5; doRaid('human')`);
-  assert.equal(run('state.res.food'), 470);
+  assert.equal(run('state.res.food'), 410);
   assert.ok(run('state.diplomacy.human.disposition') < 0);
 });
 
@@ -1157,10 +1158,10 @@ test('attack stages scale difficulty and unlock uncommon loot rolls', () => {
   assert.equal(run('RAID_STAGES.length'), 8);
   assert.deepEqual(JSON.parse(run('JSON.stringify(RAID_STAGES.slice(-3).map(s => s.uncommon))')), [1, 1, 2]);
   run(`state.techs = { guards: true, currency: true, craftsmanship: true, metallurgy: true };
-    state.jobs.guard = 100; state.res.food = 1000; state.res.tools = 10;
+    state.jobs.guard = 100; state.res.food = 1000; state.res.tools = 30;
     ensureDiplomacyEntry('human'); state.diplomacy.human.disposition = 0;
     Math.random = () => 0; doRaid('human', 'siege')`);
-  assert.ok(run('state.res.tools') > 10);
+  assert.ok(run('state.res.tools') > 30);
   assert.equal(run("raidUncommonLoot().includes('steel')"), true);
   assert.ok(run("raidStage('siege').difficulty > raidStage('raid').difficulty"));
   assert.ok(run("raidStage('siege').rolls > raidStage('raid').rolls"));
@@ -1180,13 +1181,13 @@ test('encountered towns receive separate military and economic strengths', () =>
 test('spies reveal town strengths and espionage can weaken the military', () => {
   const { run } = game();
   run(`state.techs = { spies: true }; state.tradePartner = 'human';
-    state.res.currency = 300; state.res.tools = 20; ensureDiplomacyEntry('human');
+    state.res.currency = 900; state.res.tools = 60; ensureDiplomacyEntry('human');
     state.diplomacy.human.militaryStrength = 100; state.diplomacy.human.economicStrength = 120;
     Math.random = () => 0.5; state.pop = 7; hireSpy('human')`);
   assert.equal(run('state.pop'), 7);
   assert.deepEqual(JSON.parse(run('JSON.stringify(spyTrainingCost("human"))')), { currency: 120, tools: 6 });
-  assert.equal(run('state.res.currency'), 180);
-  assert.equal(run('state.res.tools'), 14);
+  assert.equal(run('state.res.currency'), 540);
+  assert.equal(run('state.res.tools'), 42);
   run('updateSpies(180)');
   assert.equal(run('state.pop'), 7);
   assert.equal(run('spyCount("human")'), 1);
@@ -1194,7 +1195,7 @@ test('spies reveal town strengths and espionage can weaken the military', () => 
   assert.equal(run('state.diplomacy.human.economicKnown'), undefined);
 
   assert.deepEqual(JSON.parse(run('JSON.stringify(spyTrainingCost("human"))')), { currency: 180, tools: 9 });
-  run(`state.res.currency = 200; state.res.tools = 10; hireSpy('human'); updateSpies(180);
+  run(`state.res.currency = 600; state.res.tools = 30; hireSpy('human'); updateSpies(180);
     state.techs.espionage = true; beginEspionage('human'); updateSpies(1200)`);
   assert.equal(run('spyCount("human")'), 2);
   assert.equal(run('state.diplomacy.human.economicKnown'), true);
@@ -1230,12 +1231,12 @@ test('a killed spy can betray the operation and damage relations', () => {
 
 test('successful sieges unlock conquest and conquered realms become allies', () => {
   const { run } = game();
-  run(`state.techs.guards = true; state.jobs.guard = 20; state.res.food = 250; state.res.tools = 20; ensureDiplomacyEntry('human');
+  run(`state.techs.guards = true; state.jobs.guard = 20; state.res.food = 750; state.res.tools = 60; ensureDiplomacyEntry('human');
     state.diplomacy.human.siegeReady = true; state.diplomacy.human.disposition = -40;
     conquerTown('human')`);
   assert.equal(run('state.jobs.guard'), 5);
-  assert.equal(run('state.res.food'), 50);
-  assert.equal(run('state.res.tools'), 10);
+  assert.equal(run('state.res.food'), 150);
+  assert.equal(run('state.res.tools'), 30);
   assert.equal(run('state.diplomacy.human.conquered'), true);
   assert.equal(run('state.diplomacy.human.siegeReady'), false);
   assert.equal(run('state.morale'), 70);
@@ -1257,7 +1258,7 @@ test('successful sieges unlock conquest and conquered realms become allies', () 
 
 test('Commonality appears after conquest and replaces the occupation penalty', () => {
   const { run } = game();
-  run(`state.era = 4; state.techs = { civics: true, council: true }; state.res.knowledge = 36000;
+  run(`state.era = 4; state.techs = { civics: true, council: true }; state.res.knowledge = 108000;
     ensureDiplomacyEntry('human')`);
   assert.equal(run("renderResearch().includes('Commonality')"), false);
   run("state.diplomacy.human.conquered = true; state.tradePartner = 'human'");
@@ -1287,7 +1288,7 @@ test('Commonality returns five Guards from occupation duty per conquered lineage
   assert.equal(run('state.jobs.guard'), 7);
   run('state.policy = "commons"; choosePolicy("commonality")');
   assert.equal(run('state.jobs.guard'), 7);
-  run(`state.jobs.guard = 20; state.res.food = 500; state.res.tools = 20;
+  run(`state.jobs.guard = 20; state.res.food = 1500; state.res.tools = 60;
     state.policy = 'commonality'; state.tradePartners = ['human', 'clocklings'];
     state.diplomacy.clocklings = { conquered: false, siegeReady: true };
     conquerTown('clocklings')`);
@@ -1320,13 +1321,13 @@ test('one diplomat makes progress even through repeated worst diplomatic slights
 
 test('diplomat hiring costs currency and scales by existing diplomats', () => {
   const { run } = game();
-  run(`state.techs.diplomacy = true; state.tradePartner = 'human'; state.res.currency = 200;
+  run(`state.techs.diplomacy = true; state.tradePartner = 'human'; state.res.currency = 600;
     ensureDiplomacyEntry('human'); state.diplomacy.human.economicStrength = 100;
     doAssignDiplomat('human', 1)`);
-  assert.equal(run('state.res.currency'), 150);
+  assert.equal(run('state.res.currency'), 450);
   assert.deepEqual(JSON.parse(run('JSON.stringify(diplomatCost("human"))')), { currency: 75 });
   run('doAssignDiplomat("human", 1)');
-  assert.equal(run('state.res.currency'), 75);
+  assert.equal(run('state.res.currency'), 225);
   assert.equal(run('diplomatCount("human")'), 2);
 });
 
@@ -1335,9 +1336,9 @@ test('fulfilling requests gives meaningful recovery and caps relations at 100', 
   run(`ensureDiplomacyEntry('human'); state.techs.currency = true;
     state.diplomacy.human.disposition = -10;
     state.diplomacy.human.request = { res: 'wood', amount: 100, age: 1 };
-    state.res.wood = 200; supplyDiplomacyRequest('human')`);
+    state.res.wood = 600; supplyDiplomacyRequest('human')`);
   assert.equal(run('state.diplomacy.human.disposition'), 5);
-  assert.equal(run('state.res.wood'), 100);
+  assert.equal(run('state.res.wood'), 300);
   run(`state.diplomacy.human.disposition = 95;
     state.diplomacy.human.request = { res: 'wood', amount: 100, age: 1 };
     supplyDiplomacyRequest('human')`);
@@ -1376,9 +1377,9 @@ test('site expeditions require local settlement, charge once, and retain rewards
     assert.equal(run(`expDone('${e.id}')`), false, 'requires supplies');
     run(`state.res.${resource} = 10000; state.upgrades.oldMaps = 1; doExpedition('${e.id}')`);
     assert.equal(run(`expDone('${e.id}')`), true);
-    assert.equal(run(`state.res.${resource}`), 10000 - e.cost[resource] * 0.75);
+    assert.equal(run(`state.res.${resource}`), 10000 - e.cost[resource] * 0.75 * 3);
     run(`doExpedition('${e.id}')`);
-    assert.equal(run(`state.res.${resource}`), 10000 - e.cost[resource] * 0.75, 'cannot pay twice');
+    assert.equal(run(`state.res.${resource}`), 10000 - e.cost[resource] * 0.75 * 3, 'cannot pay twice');
   }
   assert.equal(run('siteExpeditionsComplete()'), true);
   assert.equal(run("globalProductionFactors().find(([label]) => label === 'All six sites explored')[1]"),
@@ -1398,7 +1399,7 @@ test('Fertility Rites and Hospitals unlock, compound timers, and persist through
   const { run } = game();
   assert.equal(run('popGrowthNeed()'), 24.12);
   assert.equal(run('guardHealingNeed()'), 90);
-  run("state.res.knowledge = 1000; doResearch('hospital'); doBuild('hospital')");
+  run("state.res.knowledge = 3000; doResearch('hospital'); doBuild('hospital')");
   assert.equal(run("tech('hospital')"), false);
   assert.equal(run("bld('hospital')"), 0);
   run("doResearch('aphrodisiac')");
@@ -1415,7 +1416,7 @@ test('Fertility Rites and Hospitals unlock, compound timers, and persist through
   run('saveGame(true); state = loadGame()');
   assert.equal(run("bld('hospital')"), 5);
   assert.equal(run("tech('aphrodisiac')"), true);
-  run('state.guardInjuries = 2; updateDiplomacy(guardHealingNeed())');
+  run('state.techs.guards = true; state.bld.barracks = 1; state.jobs.guard = 2; state.guardInjuries = 2; updateDiplomacy(guardHealingNeed())');
   assert.equal(run('state.guardInjuries'), 1);
   run('updateDiplomacy(guardHealingNeed() * 2)');
   assert.equal(run('state.guardInjuries'), 0);
@@ -1600,9 +1601,9 @@ test('animal lineage bonuses and tradeoffs affect production and crafting', () =
   run(`state.jobs.forager = 2; state.species = 'human'; const foodBefore = production().food + state.pop * FOOD_PER_POP;
     state.species = 'carpfolk'`);
   assert.ok(Math.abs(run('production().food + state.pop * FOOD_PER_POP') - run('foodBefore') * 1.30) < 1e-10);
-  run(`state.bld.workbench = 1; state.res.wood = 100; state.res.tools = 0; doCraft('tools')`);
+  run(`state.bld.workbench = 1; state.res.wood = 300; state.res.tools = 0; doCraft('tools')`);
   assert.equal(run('state.res.tools'), 0.88);
-  run(`state.species = 'raccoonfolk'; state.res.tools = 0; doCraft('tools')`);
+  run(`state.species = 'raccoonfolk'; state.res.wood = 300; state.res.tools = 0; doCraft('tools')`);
   assert.equal(run('state.res.tools'), 1.22);
 });
 
@@ -1687,7 +1688,7 @@ test('time-reward lineage happenings scale their listed resource floor', () => {
     Math.random = (() => { const rolls = [0, 0, 0.99, 0, 0]; return () => rolls.shift() ?? 0; })();
     updateRandomEvents(60)`);
   const baseGain = run('state.res.copper');
-  assert.equal(baseGain, 2);
+  assert.equal(baseGain, 6);
 
   run(`state.res.copper = 0; state.bld.deepStore = 1; state.randomEventT = 60;
     Math.random = (() => { const rolls = [0, 0, 0.99, 0, 0]; return () => rolls.shift() ?? 0; })();
@@ -1816,8 +1817,8 @@ test('tinkerers are limited to one plus one per five woodcutters', () => {
 
 test('advanced science unlocks uncapped instrument halls and hall-limited experimentalists', () => {
   const { run } = game();
-  run(`state.era = 4; state.techs.machineryTech = true; state.techs.writing = true; state.res.knowledge = 33000;
-    state.res.copper = 180; state.res.steel = 100; state.res.machinery = 40;
+  run(`state.era = 4; state.techs.machineryTech = true; state.techs.writing = true; state.res.knowledge = 99000;
+    state.res.copper = 540; state.res.steel = 300; state.res.machinery = 120;
     doResearch('advancedScience')`);
   assert.equal(run('tech("advancedScience")'), true);
   assert.equal(run('BUILDINGS.find(b => b.id === "instrumentHall").max'), Infinity);
@@ -1966,7 +1967,7 @@ test('Overflow uses raised ceilings for progress and completion', () => {
 test('front page shows the active trial goal and progress', () => {
   const { run } = game();
   run(`state.trial = { id: 'overflow', daysActive: 0, buildings: 0 };
-    state.trialDone.overflow = 1; state.seen = { food: true }; state.res.food = 240;`);
+    state.trialDone.overflow = 1; state.seen = { food: true }; state.res.food = 720;`);
   const village = run('renderVillage()');
   assert.match(village, /Trial of the Overflow/);
   assert.match(village, /Goal:<\/strong> Have every store you have discovered filled to its ceiling at the same moment/);
@@ -2017,9 +2018,9 @@ test('Overflow suppresses non-trial storage bonuses while sworn', () => {
   const { run } = game();
   run(`state.trialDone.overflow = 1; state.upgrades.deepCellars = 3; state.techs.civics = true; state.governor = 'quartermaster';
     state.trial = { id: 'overflow', daysActive: 0, buildings: 0 }`);
-  assert.equal(run('capacityOf("food")'), 300);
+  assert.equal(run('capacityOf("food")'), 900);
   run('state.trial = null');
-  assert.equal(run('capacityOf("food")'), 481);
+  assert.equal(run('capacityOf("food")'), 1441);
 });
 
 test('starvation trims total assignments to surviving population', () => {
@@ -2073,12 +2074,14 @@ test('old saves receive new resources and researched armor', () => {
   assert.equal(run('totalDiplomats()'), 0);
 });
 
-test('Chainmail unlocks after Metallurgy and raises armor to level two', () => {
+test('Chainmail requires Metallurgy and a Barracks and raises armor to level two', () => {
   const { run } = game();
   const chainmail = run("TECHS.find(t => t.id === 'chainmail')");
   assert.deepEqual(JSON.parse(run("JSON.stringify({ cost: TECHS.find(t => t.id === 'chainmail').cost, materials: TECHS.find(t => t.id === 'chainmail').materials })")),
     { cost: 450, materials: { steel: 60, tools: 30 } });
   run('state.techs.guards = true; state.techs.metallurgy = true');
+  assert.equal(run("TECHS.find(t => t.id === 'chainmail').req()"), false);
+  run('state.bld.barracks = 1');
   assert.equal(run("TECHS.find(t => t.id === 'chainmail').req()"), true);
   run('state.techs.chainmail = true; state.armor = 0; state = normalizeSave(state)');
   assert.equal(run('state.armor'), 2);
@@ -2125,7 +2128,7 @@ test('Mental Will blocks recruitment, scales danger, completes at 20, and caps a
     assert.ok(Math.abs(run('artificialGuardCost().steel') - 800 * (1 - completed * 0.1)) < 1e-10);
   }
   run(`state.jobs.guard = 19; state.artificialGuards = 19;
-    state.res.steel = 480; state.res.aluminum = 240; state.res.livingAlloy = 6; updateTrial(0)`);
+    state.res.steel = 1440; state.res.aluminum = 720; state.res.livingAlloy = 18; updateTrial(0)`);
   assert.equal(run('state.trial.id'), 'mentalWill');
   assert.equal(run('assembleArtificialGuard()'), true);
   assert.ok(Math.abs(run('state.res.steel')) < 1e-10);
@@ -2223,7 +2226,7 @@ test('Disciplined Bunking appears with Oil in alien lands and fits three Guards 
   assert.equal(run("TECH_BY_ID.get('disciplinedBunking').req()"), false);
   assert.equal(run('guardCap()'), 4);
   run(`state.landing = 'pallidExpanse'; state.res.steel = 10000; state.res.machinery = 10000;
-    state.res.oil = 10000; state.res.knowledge = 39000; doResearch('disciplinedBunking')`);
+    state.res.oil = 10000; state.res.knowledge = 117000; doResearch('disciplinedBunking')`);
   assert.equal(run("tech('disciplinedBunking')"), true);
   assert.equal(run('guardCap()'), 6);
 });
@@ -2231,7 +2234,7 @@ test('Disciplined Bunking appears with Oil in alien lands and fits three Guards 
 test('Training Yards compound replacement Guard recruitment time without a cap', () => {
   const { run } = game();
   run(`state.techs.guards = true; state.bld.barracks = 1;
-    state.res.knowledge = 1000; state.res.wood = 10000; state.res.stone = 10000; state.res.tools = 10000;
+    state.res.knowledge = 1000; state.res.wood = 30000; state.res.stone = 30000; state.res.tools = 10000;
     doResearch('trainingYard')`);
   assert.equal(run("tech('trainingYard')"), true);
   assert.equal(run("bld('trainingYard')"), 0);
@@ -2401,7 +2404,7 @@ test('new tribes can be encountered, allied, inherited, and saved', () => {
 });
 
 test('construction perks reduce real direct and queued spending and scale with inheritance', () => {
-  for (const [species, cost] of [['human', 27], ['clocklings', 25.5]]) {
+  for (const [species, cost] of [['human', 81], ['clocklings', 76.5]]) {
     const { run } = game();
     run(`state.species = '${species}'; state.res.wood = ${cost}; doBuild('hut')`);
     assert.equal(run('state.bld.hut'), 1);
@@ -2437,8 +2440,8 @@ test('Glimmerfolk signature increases an actual native resource happening', () =
     state.randomEventT = 60; state.randomEventNext = 60;
     let rolls = [0, 0, 0.9, 0]; Math.random = () => rolls.length ? rolls.shift() : 0;
     updateRandomEvents(0);`);
-  assert.equal(run('state.res.aether'), 2.4);
-  assert.match(run('state.log[0].t'), /Aether \+2.4/);
+  assert.ok(Math.abs(run('state.res.aether') - 7.2) < 1e-10);
+  assert.match(run('state.log[0].t'), /Aether \+7.2/);
 });
 
 test('Mephit defense, respite and reprisals function natively and after inheritance', () => {
@@ -2502,7 +2505,7 @@ test('lineage construction specialties reduce actual material spending', () => {
     run(`state.species = '${species}'; state.res.wood = 1000; state.res.stone = 1000;
       state.techs.masonry = true; const spentBefore = state.res['${resource}']; doBuild('${building}');`);
     assert.equal(run(`state.bld['${building}']`), 1);
-    assert.ok(Math.abs(run(`spentBefore - state.res['${resource}']`) - base * 0.8) < 1e-10);
+    assert.ok(Math.abs(run(`spentBefore - state.res['${resource}']`) - base * 0.8 * 3) < 1e-10);
   }
 });
 
@@ -2514,12 +2517,12 @@ test('lineage reserves change food, material and knowledge capacity without chan
   assert.equal(run('capacityOf("food")'), run('foodCap * 1.5'));
   assert.equal(run('capacityOf("stone")'), run('stoneCap'));
   run(`state.species = 'marshfolk'; state.bld.hut = 2;`);
-  assert.equal(run('capacityOf("food")'), run('foodCap + 40'));
+  assert.equal(run('capacityOf("food")'), run('foodCap + 120'));
   run(`state.species = 'squirrelfolk';`);
   assert.equal(run('capacityOf("wood")'), run('Math.ceil(woodCap * 1.4 - 1e-12)'));
   assert.equal(run('capacityOf("tools")'), run('Math.ceil(toolsCap * 1.4 - 1e-12)'));
   run(`state.species = 'turtlefolk'; state.jobs.thinker = 1;`);
-  assert.ok(Math.abs(run('capacityOf("knowledge") / production(0).knowledge') - 4500) < 1e-10);
+  assert.ok(Math.abs(run('capacityOf("knowledge") / production(0).knowledge') - 13500) < 1e-10);
 });
 
 test('communal lodges and hearths change population constraints including inherited half-strength effects', () => {
@@ -2548,7 +2551,7 @@ test('patient preparation reduces real event losses and resonant omens changes e
   run(`state.species = 'heronkin'; state.res.food = 100; state.seen.food = true;
     LINEAGE_EVENTS.heronkin = [{ text: 'A spoiled basket.', food: [-10, -10] }];
     state.randomEventNext = 60; Math.random = () => 0; updateRandomEvents(60);`);
-  assert.equal(run('state.res.food'), 95);
+  assert.equal(run('state.res.food'), 85);
   run(`state.species = 'glimmerfolk'; state.randomEventT = 0; state.randomEventNext = 100;
     state.log = []; updateRandomEvents(79);`);
   assert.equal(run('state.log.length'), 0);
@@ -2579,7 +2582,7 @@ test('Wolfkin pack power requires five deployed healthy Guards and Eaglefolk wat
 test('Dunewalkers pay reduced expedition supplies and Lynxfolk can queue and complete expeditions earlier', () => {
   const { run } = game();
   run(`state.species = 'dunewalkers'; state.landing = 'greenfold'; state.pop = 12;
-    state.res.wood = 320; state.res.tools = 8; doExpedition('oldForest');`);
+    state.res.wood = 960; state.res.tools = 24; doExpedition('oldForest');`);
   assert.equal(run('state.expeditions.oldForest'), true);
   assert.equal(run('state.res.wood'), 0);
   assert.equal(run('state.res.tools'), 0);
@@ -2587,7 +2590,7 @@ test('Dunewalkers pay reduced expedition supplies and Lynxfolk can queue and com
   assert.equal(run("queueEntry('expedition', 'oldForest')"), false);
   run(`state.pop = 10; state.bld.storehouse = 1;`);
   assert.equal(run("queueEntry('expedition', 'oldForest')"), true);
-  run(`state.res.wood = 400; state.res.tools = 10; updateQueues();`);
+  run(`state.res.wood = 1200; state.res.tools = 30; updateQueues();`);
   assert.equal(run('state.expeditions.oldForest'), true);
 });
 
@@ -2622,7 +2625,7 @@ test('Otterfolk freight speeds cargo and its payment while Raccoonfolk craft wit
     state.res.currency = 1000; state.res.wood = 0; const detail = {}; production(1, detail);`);
   assert.equal(run('detail.wood.find(e => e.label.includes("buying")).base'), 1.5);
   assert.ok(Math.abs(run('detail.currency.find(e => e.label.includes("purchase")).base') + 1.5 * run('tradeValue("wood")')) < 1e-10);
-  run(`state.species = 'raccoonfolk'; state.bld.workbench = 1; state.res.wood = 32; state.res.tools = 0; doCraft('tools');`);
+  run(`state.species = 'raccoonfolk'; state.bld.workbench = 1; state.res.wood = 96; state.res.tools = 0; doCraft('tools');`);
   assert.equal(run('state.res.wood'), 0);
   assert.equal(run('state.res.tools'), 1.22);
 });
@@ -2682,7 +2685,7 @@ test('tribal requests use discovered cultural preferences and renew after supply
   run(`Math.random = () => 0; state.tradePartner = 'clocklings'; state.seen = { food: true };
     ensureDiplomacyEntry('clocklings')`);
   assert.equal(run('state.diplomacy.clocklings.request.res'), 'food');
-  run(`state.techs.currency = true; state.res.food = 200; state.seen.copper = true;
+  run(`state.techs.currency = true; state.res.food = 600; state.seen.copper = true;
     supplyDiplomacyRequest('clocklings')`);
   assert.equal(run('state.diplomacy.clocklings.request.res'), 'copper');
   assert.ok(run('state.diplomacy.clocklings.request.amount <= capacityOf("copper")'));
@@ -2730,10 +2733,10 @@ test('lineage crafting yields honor bonuses, costs, and storage limits', () => {
   ]) {
     const { run } = game();
     run(`state.species = '${species}'; state.bld = { workbench: 1, workshop: 1 };
-      state.res.wood = 100; state.res.iron = 100; state.res.coal = 100; state.res.steel = 25;
+      state.res.wood = 300; state.res.iron = 300; state.res.coal = 300; state.res.steel = 75;
       state.res['${recipe}'] = 0; doCraft('${recipe}')`);
     assert.equal(run(`state.res['${recipe}']`), expected);
-    assert.equal(run(recipe === 'tools' ? 'state.res.wood' : 'state.res.coal'), recipe === 'tools' ? 60 : 80);
+    assert.equal(run(recipe === 'tools' ? 'state.res.wood' : 'state.res.coal'), recipe === 'tools' ? 180 : 240);
     run(`state.res['${recipe}'] = capacityOf('${recipe}') - 0.1; doCraft('${recipe}')`);
     assert.equal(run(`state.res['${recipe}']`), run(`capacityOf('${recipe}')`));
   }
@@ -3301,7 +3304,7 @@ test('a Wonder can be found and completed again after all fates are known', () =
   const { run } = game();
   run(`state.landing = 'emberplain'; state.techs.optics = true;
     state.beaconsLit = { emberplain: true }; state.beaconRevisited = { emberplain: true };
-    state.surveyPoints = 100000; state.res.steel = 1000; state.res.machinery = 1000; state.res.food = 5000;
+    state.surveyPoints = 100000; state.res.steel = 3000; state.res.machinery = 1000; state.res.food = 15000;
     wonderRecord('emberplain').outcomes = { restore: true, silence: true, become: true };
     findWonder();`);
   assert.equal(run('state.wonders.emberplain.found'), true);
@@ -3406,7 +3409,7 @@ test('silencing the Worldroot unlocks expensive Animal Husbandry', () => {
   assert.equal(run("BUILDING_BY_ID.get('ranch').req()"), true);
   run(`state.bld.ranch = 1; state.jobs.rancher = 2; const detail = {}; production(1, detail);`);
   assert.equal(run("jobCapacity('rancher')"), 2);
-  assert.equal(run('capacityOf(\'fur\')'), 1000);
+  assert.equal(run('capacityOf(\'fur\')'), 3000);
   assert.ok(run("detail.fur.some(entry => entry.label.startsWith('Ranchers:'))"));
   assert.ok(run("moralePressures().some(entry => entry.id === 'ranch' && entry.rate === 0.008)"));
 });
@@ -3430,12 +3433,18 @@ test('silencing the River Crown turns Foragers into morale-boosting Farmers with
 });
 
 test('silencing the Renewal Basin returns factory-made construction materials', () => {
-  const { run } = game();
-  run(`state.landing = 'ashfen'; state.wonders.ashfen = { outcomes: { silence: true }, outcomeDifficulty: { silence: 4 } };
-    state.techs.metallurgy = true; state.res.stone = 1000; state.res.iron = 100; state.res.tools = 50; state.res.currency = 100;
-    doBuild('forge');`);
-  assert.equal(run('state.bld.forge'), 1);
-  assert.equal(run('state.res.tools'), 29.75);
+  for (const queued of [false, true]) {
+    const { run } = game();
+    run(`state.landing = 'ashfen'; state.wonders.ashfen = { outcomes: { silence: true }, outcomeDifficulty: { silence: 4 } };
+      state.bld.storehouse = 1; state.techs.metallurgy = true;
+      state.res.stone = 3000; state.res.iron = 300; state.res.tools = 150; state.res.currency = 300;`);
+    if (queued) run("state.queues.build = [{ type: 'build', id: 'forge' }]; updateQueues()");
+    else run("doBuild('forge')");
+    assert.equal(run('state.bld.forge'), 1);
+    // Human construction costs 67.5 Tools; the Basin returns 10% of that spend.
+    assert.equal(run('state.res.tools'), 89.25);
+    assert.equal(run('state.queues.build.length'), 0);
+  }
 });
 
 test('silencing the World Anvil lets Tinkerers run factory recipes slowly', () => {

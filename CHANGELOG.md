@@ -2,8 +2,12 @@
 
 All notable changes to Emberhold are recorded here, with the newest changes first.
 
-## 2026-10-21
+## 2026-10-22
 
+- Added a welcome introduction and Emberhold banner to the hosted landing page, with social sharing metadata.
+- Fixed Renewal Basin reclamation to refund the intended percentage of scaled construction costs.
+- Updated regression fixtures for current storage, prices, and research prerequisites.
+- Refreshed published stylesheet, data, game script, analytics script, and changelog cache versions (`publish-20261022u0001`).
 - Added Umami page-visit analytics for the hosted GitHub Pages site; save data and game state are not sent. Local downloads are not counted.
 - Documented hosted-site visit reports in the README.
 - Refreshed published stylesheet, data, game script, analytics script, and changelog cache versions (`publish-20261021u0001`).

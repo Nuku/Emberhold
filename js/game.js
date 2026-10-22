@@ -1445,7 +1445,7 @@ function applyReclamation(cost) {
   if (!wonderChoice('ashfen', 'silence')) return;
   for (const resource of ['tools', 'steel', 'machinery', 'goods']) {
     if (!cost[resource]) continue;
-    state.res[resource] = Math.min(capacityOf(resource), state.res[resource] + cost[resource] * 0.10 * wonderEffectScale('ashfen', 'silence'));
+    state.res[resource] = Math.min(capacityOf(resource), state.res[resource] + cost[resource] * GAME_COST_MULTIPLIER * 0.10 * wonderEffectScale('ashfen', 'silence'));
   }
 }
 
@@ -6854,7 +6854,7 @@ function renderSidePanel() {
 function loadLatestUpdatesTooltip() {
   const button = document.getElementById('btn-updates');
   if (!button || typeof fetch !== 'function' || typeof DOMParser !== 'function') return;
-      fetch('changelog.html?v=publish-20261021u0001')
+      fetch('changelog.html?v=publish-20261022u0001')
     .then(response => response.ok ? response.text() : Promise.reject(new Error('changelog unavailable')))
     .then(source => {
       const doc = new DOMParser().parseFromString(source, 'text/html');
@@ -7553,7 +7553,7 @@ function boot() {
   document.getElementById('btn-save').addEventListener('click', () => { saveGame(); render(); });
   document.getElementById('btn-pause').addEventListener('click', togglePause);
   document.getElementById('btn-updates').addEventListener('click', () => {
-    window.open('changelog.html', '_blank', 'noopener,noreferrer');
+    window.open('changelog.html?v=publish-20261022u0001', '_blank', 'noopener,noreferrer');
   });
   document.getElementById('btn-export').addEventListener('click', exportSave);
   document.getElementById('btn-import').addEventListener('click', importSave);
